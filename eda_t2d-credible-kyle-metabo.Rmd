@@ -36,8 +36,8 @@ locus <- as.character(sapply(df$V8,function(string){
 prob <- as.character(sapply(df$V8,function(string){
   gsub("PROB=","",strsplit(string,split=";")[[1]][2])
 }))
-df <- select(df,one_of("V1","V2","V3"))
-names(df) <- c("chr","pos","id")
+df <- select(df,one_of("V1","V2","V3","V4","V5"))
+names(df) <- c("chr","pos","rsid","A1","A2")
 df <- cbind(df,locus,prob)
 df<- as.data.frame(df)
 df$prob <- as.numeric(df$prob)
@@ -98,9 +98,9 @@ loc.df <- arrange(loc.df,desc(prop01))
 summary(loc.df)
 loc.df
 
-write.table(df,cred.dir%&%"1000.DIAGRAM.chr.txt",row.names=FALSE,
+write.table(df,cred.dir%&%"metabochip.chr_added.txt",row.names=FALSE,
             sep="\t",quote=FALSE)
-write.table(loc.df,cred.dir%&%"1000.DIAGRAM.chr.locusSummary.txt",row.names=FALSE,
+write.table(loc.df,cred.dir%&%"metabochip.chr_added.locusSummary.txt",row.names=FALSE,
             sep="\t",quote=FALSE)
 
 ```
