@@ -14,10 +14,94 @@ knitr::opts_chunk$set(echo = TRUE)
 "%&%" <- function(a,b) paste0(a,b)
 library("data.table")
 library("dplyr")
+library("ggplot2")
 
 serv.dir <- "/Users/jtorres/FUSE/"
+cred.dir <- serv.dir %&% "reference/credible_sets/from_kyle/"
+cred.file <- cred.dir %&% "1000.DIAGRAM.chr.vcf"
+
+df <- fread(cred.file)
+
+```
 
 
+Evaluate and reformat data frame 
+
+```{r}
+
+str(df)
+locus <- as.character(sapply(df$V8,function(string){
+  gsub("LOCUS=","",strsplit(string,split=";")[[1]][1])
+}))
+prob <- as.character(sapply(df$V8,function(string){
+  gsub("PROB=","",strsplit(string,split=";")[[1]][2])
+}))
+df <- select(df,one_of("V1","V2","V3"))
+names(df) <- c("chr","pos","id")
+df <- cbind(df,locus,prob)
+df<- as.data.frame(df)
+df$prob <- as.numeric(df$prob)
+```
+
+There are **`r length(unique(df$locus))`** loci in this file 
+
+Build locus summary data frame 
+
+```{r}
+
+loci <- unique(df$locus)
+loc <- loci[1]
+numsnps <- as.integer(sapply(loci, function(loc){
+  length(filter(df,locus==loc)$prob)
+}))
+prop01 <- as.numeric(sapply(loci, function(loc){
+  sum(filter(df,locus==loc)$prob > 0.01)/length(filter(df,locus==loc)$prob)
+}))
+prop05 <- as.numeric(sapply(loci, function(loc){
+  sum(filter(df,locus==loc)$prob > 0.05)/length(filter(df,locus==loc)$prob)
+}))
+prop10 <- as.numeric(sapply(loci, function(loc){
+  sum(filter(df,locus==loc)$prob > 0.10)/length(filter(df,locus==loc)$prob)
+}))
+prop20 <- as.numeric(sapply(loci, function(loc){
+  sum(filter(df,locus==loc)$prob > 0.20)/length(filter(df,locus==loc)$prob)
+}))
+
+loc.df <- data.frame(loci,numsnps,prop01,prop05,prop10,prop20, 
+                     stringsAsFactors = FALSE)
+
+
+```
+
+
+Histograms summarizing loci distributions 
+
+```{r plots}
+
+plt1 <- ggplot(data=loc.df) + 
+  geom_histogram(aes(x=numsnps),color="black",
+  fill="dodgerblue3") + ggtitle("Number of Variants per Locus");plt1
+plt2 <- ggplot(data=loc.df) + 
+  geom_histogram(aes(x=prop01),color="black",
+  fill="dodgerblue4") + ggtitle("Proportion of SNPs with PPA > 0.01");plt2
+plt3 <- ggplot(data=loc.df) + 
+  geom_histogram(aes(x=prop05),color="black",
+  fill="dodgerblue4") + ggtitle("Proportion of SNPs with PPA > 0.05");plt3
+plt4 <- ggplot(data=loc.df) + 
+  geom_histogram(aes(x=prop10),color="black",
+  fill="dodgerblue4") + ggtitle("Proportion of SNPs with PPA > 0.10");plt4
+plt5 <- ggplot(data=loc.df) + 
+  geom_histogram(aes(x=prop20),color="black",
+  fill="dodgerblue4") + ggtitle("Proportion of SNPs with PPA > 0.20");plt5
+
+loc.df <- arrange(loc.df,desc(prop01))
+summary(loc.df)
+loc.df
+
+write.table(df,cred.dir%&%"1000.DIAGRAM.chr.txt",row.names=FALSE,
+            sep="\t",quote=FALSE)
+write.table(loc.df,cred.dir%&%"1000.DIAGRAM.chr.locusSummary.txt",row.names=FALSE,
+            sep="\t",quote=FALSE)
 
 ```
 
