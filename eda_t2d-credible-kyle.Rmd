@@ -1,0 +1,11 @@
+---
+title: "eda_t2d-credible-kyle.Rmd"
+author: "Jason Torres"
+date: "February 2, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
