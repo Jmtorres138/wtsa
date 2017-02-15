@@ -1,0 +1,597 @@
+---
+title: "1.1_ProbeDesign_DIAGRAM_T2D.Rmd"
+author: "Jason Torres"
+date: "February 9, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Setup libraries and directories 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b) 
+library("data.table")
+library("dplyr")
+library("ggplot2")
+library("GenomicRanges")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+input.dir <- serv.dir %&% "projects/t2d-integration/fGWAS_files/diagram_1Kgenomes/"
+dpn.file <- serv.dir %&% "reference/DpnII/hg19_DpnII-sites.bed.gz" #  0-based bed file 
+
+```
+
+Define functions for reading in input (bed) files into grange objects and checking for overlaps 
+
+```{r}
+
+gread <- function(bed.df){
+  # names must be c(chr, start, end, id, score, strand), where available 
+   if(length(bed.df)==3){
+      gr <- with(bed.df, GRanges(chr, IRanges(start, end)))
+   } else if (length(bed.df)==4){
+      gr <- with(bed.df, GRanges(chr, IRanges(start, end), id=id))
+   } else if (length(bed.df)==5){
+      gr <- with(bed.df, GRanges(chr, IRanges(start, end), id=id, score=score))
+   } else if (length(bed.df)>=6){
+      bed.df$strand <- gsub(pattern="[^+-]+",replacement='*', bed.df$strand)
+      gr <- with(bed.df, GRanges(chr, IRanges(start, end), id=id, score=score, strand=strand))
+   }
+   return(gr)
+}
+
+get_overlaps <- function(a,b){
+  # a and b are genomic ranges
+  vec <- a %over% b
+  ##print(sum(vec) %&% " / " %&% length(vec))
+  return(vec)
+}
+
+```
+
+
+Will take as input credible sets from the DIAGRAM (imputed to 1K Genomes) fine-mapping study. Will compare probe designs from these input files: 
+  * original file from Anubha
+  * fGWAS fine-mapping file (generated from my T2D-Integration pipeline) 
+
+```{r}
+
+cred.df <- fread("cat " %&% input.dir %&% "fgwas_input27.txt.gz" %&% " | zmore") %>% select(one_of("SNPID","CHR","POS","SEGNUMBER","PPA"))
+
+fgwas.outfile <- input.dir%&%"fgwas_out/" %&% "islet_atac+transcript+islet_state8+islet_state1-p0.10.bfs.gz"
+fgwas.df <- fread("cat " %&% fgwas.outfile %&% " | zmore") %>% select(one_of("id","PPA","chunk"))
+names(fgwas.df) <- c("SNPID","PPA.fgwas","SEGNUMBER")
+fgwas.df$SEGNUMBER <- fgwas.df$SEGNUMBER + 1 # fgwas file is 0-based 
+
+cred.df <- inner_join(cred.df,fgwas.df,by="SNPID")
+cred.df <- cred.df[(cred.df$SEGNUMBER.x == cred.df$SEGNUMBER.y),]
+cred.df <- mutate(cred.df, change=PPA.fgwas-PPA) %>% arrange(desc(change))
+cred.df <- select(cred.df, -SEGNUMBER.y)
+names(cred.df)[which(names(cred.df)=="SEGNUMBER.x")] = "SEGNUMBER"
+
+```
+
+Append Locus information 
+
+```{r}
+gwas.dir <- serv.dir%&%"reference/gwas/diagram_1Kgenomes/"
+gwas.dir <- gwas.dir %&% "DIAGRAM_T2D_GWAS_1000G_99_Credsets_Unpublished_2017/"
+locindex.file <- gwas.dir %&% "list.of.96.loci.used.for.finemapping.txt"
+li.df <- fread(locindex.file,header=FALSE);names(li.df) <- c("SNPID","LOCUS")
+lookup.dir <- serv.dir%&%"projects/t2d-integration/fGWAS_files/diagram_1Kgenomes/"
+lookup.df <- readRDS(lookup.dir %&% "diagram_1KGenomes_fGWAS-core.v2.df.RDS")
+
+pb <- txtProgressBar(min = 0, max = dim(cred.df)[1], initial = 0, style = 3)
+LOCUS <- as.character(sapply(1:length(cred.df$SNPID), function(i){
+  setTxtProgressBar(pb, i)
+  s <- cred.df$SNPID[i]
+  lead <- filter(lookup.df,SNPID==s)$LEADSNP
+  s <- gsub("chr","",lead)
+  if (length(s) > 1){
+    vec <- unique(as.character(sapply(1:length(s), function(e){
+      loc <- filter(li.df,SNPID==s[e])$LOCUS
+      loc <- gsub(" #","",loc)
+      return(loc)
+    })))
+    loc <- paste(vec,collapse=" & ")
+  } else{
+    loc <- filter(li.df,SNPID==s)$LOCUS
+  }
+  if (length(loc) == 0) loc <- NA 
+  loc <- gsub(" #","",loc)
+  if (length(loc) >1) loc <- loc[1]
+  #if (grepl("c(",loc,fixed=TRUE)==TRUE){
+    #print(loc)
+    #loc <- gsub('c(\"','',loc,fixed=TRUE)
+    #loc <- gsub('\",','',loc,fixed=TRUE)
+    #loc <- gsub('\")','',loc,fixed=TRUE)   
+    #loc <- strsplit(loc," ")[[1]][1]
+    #print(loc)
+  #}
+  return(loc)
+}))
+
+cred.df <- cbind(cred.df,LOCUS)
+cred.df$LOCUS <- as.character(cred.df$LOCUS)
+```
+
+
+Read 0-based "bed" file of DpnII (hg19) cut sites (from Jelena Telenius )
+
+```{r}
+
+dpn.df <- fread("cat " %&% dpn.file %&% " | zmore")
+# adjust to 1-based scheme 
+dpn.df$V2 <- dpn.df$V2 + 1 
+dpn.df$V3 <- dpn.df$V3 + 1 
+
+
+```
+
+
+Read in Annotation data 
+
+
+Islet eQTLs 
+
+```{r}
+
+eqtl.file <- serv.dir%&%"reference/islet/eqtls/from_anthony/fdr05_cis_eQTL_genelevel.txt.gz"
+key.file <- serv.dir%&%"reference/islet/eqtls/from_anthony/snp_keyfile.txt.gz"
+e.df <- fread("cat " %&% eqtl.file %&% " | zmore")
+key.df <- fread("cat " %&% key.file %&% " | zmore")
+key.df$POS <- gsub("29683808_G/A","29683808",key.df$POS)
+key.df$POS <- as.integer(key.df$POS)
+names(e.df) <- c("RSID","ENSID","Beta","T","P","Q")
+e.df <- inner_join(e.df,key.df,by="RSID")
+e.df <- e.df[!duplicated(e.df),]
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("EnsDb.Hsapiens.v75")
+library("EnsDb.Hsapiens.v75")
+ensref.df <- data.frame(genes(EnsDb.Hsapiens.v75)$gene_id,
+                        genes(EnsDb.Hsapiens.v75)$gene_name,
+                        stringsAsFactors = FALSE)
+names(ensref.df) <- c("ENSID","GENE")
+
+ensid2gene <- function(){
+  pb <- txtProgressBar(min = 0, max = dim(e.df)[1], initial = 0, style = 3)
+  GENE <- as.character(sapply(1:length(e.df$ENSID), function(i){
+    setTxtProgressBar(pb, i) 
+    e <- e.df$ENSID[i]
+    name <- strsplit(x=e,split=".",fixed=TRUE)[[1]][1]
+    gene <- filter(ensref.df,ENSID==name)$GENE
+    #print(paste(name,":",gene))
+    return(gene)
+  }))
+  close(pb)
+  return(GENE)
+}
+
+GENE <- ensid2gene()
+e.df <- cbind(e.df,GENE); e.df$GENE <- as.character(e.df$GENE)
+
+SNPID <- as.character(sapply(1:length(e.df$CHR),function(i){
+  s <- paste(e.df$CHR[i],e.df$POS[i],sep=":")
+  return(s)
+}))
+e.df <- cbind(e.df,SNPID)  
+e.df$SNPID <- as.character(e.df$SNPID)
+
+```
+
+
+EndoC-BH1 ATAC-seq annotations
+
+```{r}
+
+atac.path1 <- serv.dir %&% "projects/wtsa/EndoC-BH1_ATAC/call_peaks/mac2_all_reads/"
+atac.path1 <- atac.path1 %&% "endoB_bio1_tech1_atac_peaks.narrowPeak"
+atac.path2 <- serv.dir %&%"reference/EndoCBH1/EndoC_chromatin_Parker/atacSeq/"
+atac.path2 <- atac.path2 %&% "endoC_50.broadPeak.fdr0.05.noBlacklist.bed.gz"
+
+a.df1 <- fread(atac.path1)
+a.df2 <- fread("cat " %&% atac.path2 %&% " | zcat")
+
+```
+
+
+Function for evaluating credible sets in regions (SEGNUMBER)
+
+
+```{r}
+
+library(ggbio)
+library(Homo.sapiens)
+library(EnsDb.Hsapiens.v75)
+ensdb <- EnsDb.Hsapiens.v75
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
+
+
+viz_loc <- function(segnum,fac=0.10){
+  df <- filter(cred.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS)
+  (span <- mx - mn)
+  print(span)
+  chrom <- df$CHR[1] 
+  mymin <- (mn-fac*span)
+  mymax <- (mx+fac*span)
+  # CREATE DPNII / Credible Set Plot 
+  dpnsub <- filter(dpn.df,V1==chrom,V2>mymin,V3<mymax)#[1:3,]
+  plt <- ggplot(df,aes(x=POS)) + 
+                geom_point(aes(y=PPA),shape=21,color="gray",fill="gray") + 
+                geom_point(aes(y=PPA.fgwas,fill=(change>0)),shape=23,color="black") +   
+                scale_fill_manual(values=c("dodgerblue2","firebrick2")) + 
+    ggtitle("Locus: " %&% segnum) +
+    xlab("Position on Chromosome " %&% chrom) + 
+    theme_bw() + scale_y_continuous(breaks=seq(0,1,0.05)) + 
+    theme(legend.position="none",
+          panel.grid.minor=element_blank(),
+          panel.grid.major=element_blank()) + 
+    geom_vline(data=dpnsub,aes(xintercept=V2),size=0.1) + 
+    geom_vline(data=dpnsub,aes(xintercept=V3),size=0.1) + ylim(c(0,1))
+  plt
+}
+
+
+viz_loc_full <- function(segnum,fac=0.10,genes=FALSE){
+  df <- filter(cred.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS)
+  (span <- mx - mn)
+  print(span)
+  chrom <- df$CHR[1] 
+  mymin <- (mn-fac*span)
+  mymax <- (mx+fac*span)
+  loc <- df$LOCUS[1]
+  # CREATE DPNII / Credible Set Plot 
+  dpnsub <- filter(dpn.df,V1==chrom,V2>mymin,V3<mymax)#[1:3,]
+  plt1 <- ggplot(df,aes(x=POS)) + 
+                geom_point(aes(y=PPA),shape=21,color="gray",fill="gray") + 
+                geom_point(aes(y=PPA.fgwas,fill=(change>0)),shape=23,color="black") +   
+                scale_fill_manual(values=c("dodgerblue2","firebrick2")) + 
+    #ggtitle("Locus: " %&% segnum) +
+    annotate(geom="text",x=0.2*(mymin+mymax),y=0.1,label=loc) + 
+    xlab("Position on Chromosome " %&% chrom) + 
+    theme_bw() + scale_y_continuous(breaks=seq(0,1,0.05)) + 
+    theme(legend.position="none",
+          #panel.grid.major=element_blank(),
+          panel.grid.minor=element_blank())
+  # DpnII 
+  plt.dpnII <-  ggplot(data=dpnsub) +
+    geom_vline(aes(xintercept=V2), size=0.1) + 
+    geom_vline(aes(xintercept=V3),size=0.1) + ylim(c(0,1)) + 
+    theme_bw() + theme(axis.text.y=element_blank(),
+                       axis.ticks = element_blank(),
+                       panel.grid = element_blank())
+  # Make Reference Gene Track 
+  (mn-fac*span)
+  #gr <- GRanges(chrom,IRanges(start=mymin,end=mymax))
+  gr <- GRanges(chrom,IRanges(start=mn-1e6,end=mx+1e6))
+  if (genes==TRUE){
+    ap <- autoplot(Homo.sapiens, which = gr, label.color = "black",#
+                 color = "brown",
+                 fill = "brown") + #,stat="reduce"
+      xlim(c(mn,mx)) + 
+      theme_alignment(grid = FALSE,border = FALSE) 
+      
+  }
+  # Make Significant eQTL plot 
+  e.sub <- filter(e.df, CHR==chrom, POS >=mymin) %>% filter(POS<=mymax)
+  plt2 <- ggplot(data=e.sub, aes(x=POS,y=-log(P,base=10))) +
+                   geom_point(color="black",shape=25,fill="green1",size=2) +
+    ylab(expression(paste("-log"[10],"(p-value)"))) + theme_bw() + 
+    theme(panel.grid = element_blank())
+  
+
+  a1sub <- filter(a.df1,V1==chrom,V2>=mymin,V3<=mymax) %>% 
+    dplyr::select(one_of("V1","V2","V3"))
+  names(a1sub) <- c("chr","start","end")
+  a1.g <- gread(a1sub[,1:3])
+  a2sub <- filter(a.df2,V1==chrom,V2>=mymin,V3<=mymax) %>% 
+    dplyr::select(one_of("V1","V2","V3"))
+  names(a2sub) <- c("chr","start","end")
+  a2.g <- gread(a2sub[,1:3])
+  plt3 <- ggplot(a2.g) + geom_segment(color="firebrick1",size=30,alpha=0.9) +
+    geom_segment(a1.g,color="yellow",size=25,alpha=0.9) + ylab("") +
+    theme_bw() + theme(panel.grid = element_blank())
+  if (genes==TRUE){
+    if(dim(e.sub)[1]>0){
+      tracks(`ATAC \nEndoC`=plt3,
+             `Islet eQTL\n(FDR < 0.05)`=plt2,
+             `DpnII`=plt.dpnII,
+            `T2D Credible Set \n(DIAGRAM)`=plt1,
+            `Genes`=ap,
+            heights=c(0.80,1.5,0.80,3,1)) + scale_x_sequnit("Mb") 
+    } else{
+      tracks(`ATAC \nEndoC`=plt3,
+             #`Islet eQTL\n(FDR < 0.05)`=plt2,
+             `DpnII`=plt.dpnII,
+            `T2D Credible Set \n(DIAGRAM)`=plt1,
+            `Genes`=ap,
+            heights=c(1,1,3,1)) + scale_x_sequnit("Mb")    
+    }
+
+  } else{
+    if(dim(e.sub)[1]>0){
+      tracks(`ATAC \nEndoC`=plt3,
+             `Islet eQTL\n(FDR < 0.05)`=plt2,
+             `DpnII`=plt.dpnII,
+             `T2D Credible Set \n(DIAGRAM)`=plt1,
+              heights=c(1,1,0.5,2)) + scale_x_sequnit("Mb") 
+    } else{
+      tracks(`ATAC \nEndoC`=plt3,
+             `DpnII`=plt.dpnII,
+             `T2D Credible Set \n(DIAGRAM)`=plt1,
+              heights=c(1,0.5,3)) + scale_x_sequnit("Mb")       
+    }
+  }
+}
+
+viz_loc(20)
+viz_loc_full(20,genes=TRUE)
+
+```
+
+
+Prioritize function
+Will Iterate through loci (segnum)
+* Consider number of SNPs in credible set 
+* Identify SNP that gives highest PPA 
+
+
+Profile SNPs within a locus 
+
+
+```{r}
+
+a1.df <- dplyr::select(a.df1,one_of("V1","V2","V3"))
+names(a1.df)<-c("chr","start","end")
+a1.gr <- gread(a1.df)
+
+a2.df <- dplyr::select(a.df2,one_of("V1","V2","V3"))
+names(a2.df)<-c("chr","start","end")
+a2.gr <- gread(a2.df)
+
+profile_locus_snp_atac <- function(segnum){
+  df <- filter(cred.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS)
+  span <- mx - mn
+  chrom <- df$CHR[1]  
+  number <- dim(df)[1]
+  locus <- df$LOCUS[1]
+  endoc.atac <- as.logical(sapply(1:dim(df)[1], function(i){
+    pos <- df$POS[i]
+    gr <- GRanges(chrom,IRanges(start=pos,end=pos),id=df$SNPID[i])
+    atac <- get_overlaps(gr,a1.gr) | get_overlaps(gr,a2.gr)
+    return(atac)
+  }))
+  out.df <- data.frame(SNPID=df$SNPID,CHR=df$CHR,POS=df$POS,PPA=df$PPA,
+                       PPA.fgwas=df$PPA.fgwas,endoc.atac,
+                       stringsAsFactors=FALSE)
+  return(out.df)
+}
+
+```
+
+
+Prioritize loci where fGWAS with islet annotations improves resolution and top snp(s) overlap ATAC region in EndoC-BH1 cells 
+
+
+
+```{r}
+
+cumm <- function(vec,thresh=0.50){
+  vec <- sort(vec,decreasing = TRUE)
+  index <- 0 
+  val <- 0
+  while(val <= 0.50){
+    index <- index + 1 
+    val <- val + vec[index]
+    #print(val)
+  }
+  return(index)
+}
+
+profile_locus_atac <- function(segnum){
+  df <- filter(cred.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS)
+  span <- mx - mn
+  #print(span)
+  chrom <- df$CHR[1]  
+  number <- dim(df)[1]
+  locus <- df$LOCUS[1]
+  prop.enriched.before <- sum(df$PPA > 1/number) / number
+  prop.enriched.after <- sum(df$PPA.fgwas > 1/number) / number
+  prop.changed <- prop.enriched.before-prop.enriched.after
+  number50 <- cumm(df$PPA)
+  number50.fgwas <- cumm(df$PPA.fgwas)
+  temp.df <- arrange(profile_locus_snp_atac(segnum),desc(PPA.fgwas))
+  atac.topsnps <- any(temp.df$endoc.atac[1:number50.fgwas]==TRUE)
+  out.df <- data.frame(segnum,locus,chrom,start=mn,end=mx,
+                       span,number,number50,number50.fgwas,
+                       prop.enriched.before,
+                       prop.enriched.after,
+                  prop.changed, atac.topsnps,stringsAsFactors=FALSE)
+  return(out.df)
+}
+
+loc_summary_atac <- function(){
+  out.df <- c()
+  pb <- txtProgressBar(min = 0, max = 96, initial = 0, style = 3)
+  for (i in 1:96){
+    setTxtProgressBar(pb, i) 
+    temp <- profile_locus_atac(i)
+    out.df<-rbind(out.df,temp)
+  }
+  out.df <- arrange(out.df,desc(prop.changed))
+  return(out.df)
+}
+
+ls.df <- loc_summary_atac()
+top <- filter(ls.df,prop.changed>0,atac.topsnps==TRUE) %>% arrange(number50.fgwas)
+write.table(ls.df,file="diagram-96loci-summary.txt",sep="\t",quote=F,
+            row.names=F)
+write.table(top,file="diagram-loci-summary-TOP.txt",sep="\t",quote=F,
+            row.names=F)
+
+viz_loc_full(80)
+
+
+```
+
+
+
+Function for looking up RE fragment that encompasses a SNP
+
+
+```{r}
+
+snpid <- "chr12:4313438"
+frag <- function(snpid){
+  splt <- strsplit(snpid,split=":")[[1]]
+  chrom <- splt[1]
+  pos <- as.integer(splt[2])
+  sub <- filter(dpn.df,V1==chrom,V2<pos,V3>pos)
+  names(sub) <- c("chr","start","end")
+  return(sub)
+}
+
+frag(snpid)
+
+```
+
+
+## LD functions 
+
+Write region file with chr, start, and end positions. 
+Output will be sent to this directory: 
+`/well/got2d/jason/reference/gwas/diagram_1Kgenomes/credible_sets/ld_1Kgenomes`
+For use in any analysis that needs LD info for SNPs in the region 
+
+Need ls.df or similar dataframe with information of the start and end positions of the regions spanned by each credible set 
+
+```{r}
+
+ld.dir <- serv.dir %&% "reference/gwas/diagram_1Kgenomes/credible_sets/ld_1Kgenomes/"
+outfile <- ld.dir %&% "index-regions.txt"
+write.table(x=dplyr::select(ls.df,one_of("chrom","start","end")),
+            file=outfile,
+            sep="\t",row.names=F,col.names=F,quote=F)
+
+
+profile_locus_snp_eqtl <- function(segnum){
+  df <- filter(cred.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS)
+  span <- mx - mn
+  chrom <- df$CHR[1]  
+  number <- dim(df)[1]
+  locus <- df$LOCUS[1]
+  ldfile <- ld.dir %&% chrom %&% "_" %&% mn %&% "-" %&% mx %&% ".geno.ld"
+  ld.df <- fread(ldfile)
+  etemp <- filter(e.df,CHR==chrom,POS>=mn,POS<=mx)
+  ld.df <- filter(ld.df,POS1 %in% df$POS | POS2 %in% df$POS)
+  e.ld <- filter(ld.df,POS1 %in% etemp$POS | POS2 %in% etemp$POS)
+  num.eqtls <- c() # in LD > 0.80
+  eqtls <- c() 
+  num.egenes <- c() 
+  egenes <- c() 
+  for (p in df$POS){
+    if (p %in% ld.df$POS1 | p %in% ld.df$POS2){
+      if (p %in% e.ld$POS1 | p %in% e.ld$POS2){
+        temp <- filter(e.ld, POS1==p | POS2==p)
+        ne <- dim(temp)[1]
+        e <- setdiff(unique(temp$POS1,temp$POS2),pos)
+        g <- unique(filter(etemp,POS %in% e)$GENE)
+        ng <- length(g)
+        g <- paste(g,collapse=",")
+        e <- paste(e,collapse=",")
+        num.eqtls <- append(num.eqtls, ne) # in LD > 0.80
+        eqtls <- append(eqtls, e) 
+        num.egenes <- append(num.egenes, ng) 
+        egenes <- append(egenes, g) 
+      } else{
+        num.eqtls <- append(num.eqtls, 0) # in LD > 0.80
+        eqtls <- append(eqtls, "none") 
+        num.egenes <- append(num.egenes, 0) 
+        egenes <- append(egenes, "none")
+      }
+    } else{
+        num.eqtls <- append(num.eqtls, NA) # in LD > 0.80
+        eqtls <- append(eqtls, NA) 
+        num.egenes <- append(num.egenes, NA) 
+        egenes <- append(egenes, NA)
+    }
+  }
+  out.df <- data.frame(SNPID=df$SNPID,CHR=df$CHR,
+                       POS=df$POS,PPA=df$PPA,
+                       PPA.fgwas=df$PPA.fgwas,num.eqtls,
+                       eqtls, num.egenes, egenes,
+                       stringsAsFactors=FALSE)
+  return(out.df)
+}
+
+profile_locus_eqtl <- function(segnum){
+  df <- filter(cred.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS)
+  span <- mx - mn
+  #print(span)
+  chrom <- df$CHR[1]  
+  number <- dim(df)[1]
+  locus <- df$LOCUS[1]
+  prop.enriched.before <- sum(df$PPA > 1/number) / number
+  prop.enriched.after <- sum(df$PPA.fgwas > 1/number) / number
+  prop.changed <- prop.enriched.before-prop.enriched.after
+  number50 <- cumm(df$PPA)
+  number50.fgwas <- cumm(df$PPA.fgwas)
+  temp.df <- arrange(profile_locus_snp_eqtl(segnum),desc(PPA.fgwas))
+  #eqtl.topsnps <- any(temp.df$endoc.atac[1:number50.fgwas]==TRUE)
+  temp.df <- temp.df[1:number50.fgwas,]
+  eqtl.topsnps <- sum(temp.df$num.eqtls)
+  topegenes <- sum(temp.df$num.egenes)
+  out.df <- data.frame(segnum,locus,chrom,start=mn,end=mx,
+                       span,number,number50,number50.fgwas,
+                       eqtl.topsnps, topegenes,
+                       stringsAsFactors=FALSE)
+  return(out.df)
+}
+
+loc_summary_eqtl <- function(){
+  out.df <- c()
+  pb <- txtProgressBar(min = 0, max = 96, initial = 0, style = 3)
+  for (i in 1:96){
+    setTxtProgressBar(pb, i) 
+    temp <- profile_locus_eqtl(i)
+    out.df<-rbind(out.df,temp)
+  }
+  out.df <- arrange(out.df,desc(number50-number50.fgwas))
+  return(out.df)
+}
+
+lse.df <- loc_summary_eqtl()
+
+locsum.df <- inner_join(ls.df,
+                        dplyr::select(lse.df, one_of("segnum","eqtl.topsnps","topegenes")),
+                                      by="segnum")
+top2 <- arrange(locsum.df,desc(atac.topsnps),desc(topegenes)) %>% filter(prop.changed>0,atac.topsnps==TRUE)
+
+
+#t <- viz_loc_full(10,genes=TRUE)
+save.dir <-"/Users/jtorres/Google Drive/Science/Projects/wtsa/enhancer_driven/probe_design/figures/"
+for (i in 1:dim(top2)[1]){
+  seg <- top2$segnum[i] 
+  print(seg)
+  locname <- top2$locus[i]
+  locname <- gsub("/","-",locname)
+  fname <- save.dir %&% "seg" %&% seg %&% "_" %&% locname %&% ".pdf"
+  plt <- viz_loc_full(seg,genes=TRUE)
+  ggsave(filename=fname,plot=plt,height=7,width=6)
+}
+
+
+
+
+```
+
