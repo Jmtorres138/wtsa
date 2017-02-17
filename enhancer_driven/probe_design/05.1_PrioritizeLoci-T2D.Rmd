@@ -101,16 +101,17 @@ loc_summary_fgwas <- function(seg.vec,df){
 ls.df <- loc_summary_fgwas(seg.vec=1:96, df=credt2d.df)
 
 
-#top <- filter(ls.df,prop.changed>0,atac.topsnps==TRUE) %>% arrange(number50.fgwas)
-#write.table(ls.df,file="diagram-96loci-summary.txt",sep="\t",quote=F,
-#            row.names=F)
-#write.table(top,file="diagram-loci-summary-TOP.txt",sep="\t",quote=F,
-#            row.names=F)
-
-#viz_loc_full(80)
-
 
 ```
 
 
+Visualization 
+
+
+```{r}
+
+source(serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/04.1_VizTracks-T2D.Rmd")
+
+
+```
 
