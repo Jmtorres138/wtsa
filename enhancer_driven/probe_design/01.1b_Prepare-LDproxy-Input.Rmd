@@ -1,0 +1,75 @@
+---
+title: "01.1_Prepare-CredbileSet-T2D-file.Rmd"
+author: "Jason Torres"
+date: "February 15, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Setup libraries and directories 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b) 
+library("dplyr")
+library("data.table")
+library("ggplot2")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+input.dir <- serv.dir %&% "projects/t2d-integration/fGWAS_files/diagram_1Kgenomes/"
+rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
+ref.dir <- serv.dir %&% "reference/gwas/diagram_1Kgenomes/credible_sets/"
+save.dir <- ref.dir %&% "ld_1Kgenomes/ld_proxies/positions/"
+
+```
+
+
+```{r}
+
+credt2d.df <- readRDS(file=rds.dir%&%"credt2d.df.RDS")
+```
+
+
+Save Credible SNP position files 
+
+```{r}
+
+print_index_files <- function(){
+  seg.vec <- unique(credt2d.df$SEGNUMBER)
+  pb <- txtProgressBar(min = 0, max = length(seg.vec), initial = 0, style = 3)
+  for (i in 1:length(seg.vec)){
+    setTxtProgressBar(pb, i)
+    seg <- seg.vec[i]
+    temp.df <- filter(credt2d.df,SEGNUMBER==seg)
+    chrom <- temp.df$CHR[1]
+    loc <- temp.df$LOCUS[1]
+    loc <- gsub("/","-",loc)
+    loc <- gsub(" (","-",loc,fixed=TRUE)
+    loc <- gsub(")","",loc)
+    mn <- min(temp.df$POS)
+    mx <- max(temp.df$POS)
+    fname <- save.dir %&% chrom%&%"_"%&%mn%&%"-"%&%mx%&%"_"%&%loc%&%".positions"
+    pos.vec <- sort(temp.df$POS)
+    df <- data.frame(chr=rep(chrom,length(pos.vec)),pos=pos.vec) 
+    write.table(df,file=fname,sep="\t",row.names=F,col.names=TRUE,quote = F)
+  }
+}
+
+print_index_files()
+
+
+```
+
+Now need to run VCF tools in save.dir on rescomp server with these position files as input:
+
+```{bash}
+
+module load python/2.7.11
+python JTget_ld_proxies.py
+
+```
+
+
+

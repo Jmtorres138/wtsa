@@ -1,0 +1,116 @@
+---
+title: "05.1_PrioritizeLoci-T2D.Rmd"
+author: "Jason Torres"
+date: "February 17, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+
+"%&%" <- function(a,b) paste0(a,b) 
+library("data.table")
+library("dplyr")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
+```
+
+
+Read RDS files
+
+
+```{r}
+
+credt2d.df <- readRDS(rds.dir%&%"credt2d.df.RDS")
+
+```
+
+
+
+Build Dimas (Dimas et al. 2014, Diabetes) data frame 
+
+
+```{r}
+Locus <- c("GCK","MTNR1B","GCKR","IRS1","KLF14","PPARG","ARAP1 (CENTD2)","HNF1B (TCF2)","HCCA2","HNF1A",
+           "CHCHD9","NOTCH2","CDC123/CAMK1D","TP53INP1","WFS1","ZBED3","IGF2BP2","PRC1",
+           "HMGA2","JAZF1","KCNQ1-rs231362","ADAMTS9","KCNQ1-rs163184","BCL11A","KCNJ11",
+           "TSPAN8/LGR5","ZFAND6","DGKB","ADCY5","THADA","CDKAL1","CDKN2A/B","PROX1",
+           "HHEX/IDE","SLC30A8","TCF7L2") # Manually replaced "DGKB-TMEM195" with "DGKB"
+Dimas2014 <- c(rep("HG",2),rep("IR",4),"PI",rep("UC",20),rep("BC",9))
+dimas.df <- data.frame(Locus,Dimas2014,stringsAsFactors = FALSE)
+saveRDS(dimas.df,file=rds.dir%&%"dimas.df.RDS")
+
+```
+
+
+Prioritize loci where fGWAS with islet annotations improves resolution 
+
+
+```{r}
+
+cumm <- function(vec,thresh=0.50){
+  vec <- sort(vec,decreasing = TRUE)
+  index <- 0 
+  val <- 0
+  while(val <= 0.50){
+    index <- index + 1 
+    val <- val + vec[index]
+  }
+  return(index)
+}
+
+profile_locus_fgwas <- function(segnum,df){
+  df <- filter(df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS)
+  span <- mx - mn
+  chrom <- df$CHR[1]  
+  number <- dim(df)[1]
+  locus <- df$LOCUS[1]
+  prop.enriched.before <- sum(df$PPA > 1/number) / number
+  prop.enriched.after <- sum(df$PPA.fgwas > 1/number) / number
+  prop.changed <- prop.enriched.before-prop.enriched.after
+  number50 <- cumm(df$PPA)
+  number50.fgwas <- cumm(df$PPA.fgwas)
+  #temp.df <- arrange(profile_locus_snp_atac(segnum),desc(PPA.fgwas))
+  out.df <- data.frame(segnum,locus,chrom,start=mn,end=mx,
+                       span,number,number50,number50.fgwas,
+                       prop.enriched.before,
+                       prop.enriched.after,
+                  prop.changed, stringsAsFactors=FALSE)
+  return(out.df)
+}
+
+loc_summary_fgwas <- function(seg.vec,df){
+  out.df <- c()
+  pb <- txtProgressBar(min = 0, max = 96, initial = 0, style = 3)
+  for (i in seg.vec){
+    setTxtProgressBar(pb, i) 
+    temp <- profile_locus_fgwas(i,df)
+    out.df<-rbind(out.df,temp)
+  }
+  out.df <- arrange(out.df,desc(prop.changed))
+  return(out.df)
+}
+
+ls.df <- loc_summary_fgwas(seg.vec=1:96, df=credt2d.df)
+
+
+#top <- filter(ls.df,prop.changed>0,atac.topsnps==TRUE) %>% arrange(number50.fgwas)
+#write.table(ls.df,file="diagram-96loci-summary.txt",sep="\t",quote=F,
+#            row.names=F)
+#write.table(top,file="diagram-loci-summary-TOP.txt",sep="\t",quote=F,
+#            row.names=F)
+
+#viz_loc_full(80)
+
+
+```
+
+
+
