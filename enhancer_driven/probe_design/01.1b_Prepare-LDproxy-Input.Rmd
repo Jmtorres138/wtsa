@@ -36,7 +36,7 @@ Save Credible SNP position files
 
 ```{r}
 
-print_index_files <- function(){
+print_index_files <- function(save.dir){
   seg.vec <- unique(credt2d.df$SEGNUMBER)
   pb <- txtProgressBar(min = 0, max = length(seg.vec), initial = 0, style = 3)
   for (i in 1:length(seg.vec)){
@@ -44,6 +44,7 @@ print_index_files <- function(){
     seg <- seg.vec[i]
     temp.df <- filter(credt2d.df,SEGNUMBER==seg)
     chrom <- temp.df$CHR[1]
+    chromo <- as.integer(gsub("chr","",chrom))
     loc <- temp.df$LOCUS[1]
     loc <- gsub("/","-",loc)
     loc <- gsub(" (","-",loc,fixed=TRUE)
@@ -52,12 +53,13 @@ print_index_files <- function(){
     mx <- max(temp.df$POS)
     fname <- save.dir %&% chrom%&%"_"%&%mn%&%"-"%&%mx%&%"_"%&%loc%&%".positions"
     pos.vec <- sort(temp.df$POS)
-    df <- data.frame(chr=rep(chrom,length(pos.vec)),pos=pos.vec) 
+    df <- data.frame(chr=rep(chromo,length(pos.vec)),pos=pos.vec) 
+    names(df) <- c("#chr","pos")
     write.table(df,file=fname,sep="\t",row.names=F,col.names=TRUE,quote = F)
   }
 }
 
-print_index_files()
+print_index_files(save.dir)
 
 
 ```
@@ -70,6 +72,40 @@ module load python/2.7.11
 python JTget_ld_proxies.py
 
 ```
+
+
+Save a span file with interval position info for each credible region
+
+
+```{r}
+
+create_span_df <- function(){
+  seg.vec <- unique(credt2d.df$SEGNUMBER)
+  pb <- txtProgressBar(min=0,max=length(seg.vec),initial=0,style=3)
+  out.df <- c()
+  for (i in 1:length(seg.vec)){
+    setTxtProgressBar(pb,i)
+    seg <- seg.vec[i]
+    sub <- filter(credt2d.df,SEGNUMBER==seg) %>% arrange(POS)
+    chr <- sub$CHR[1]; loc <- sub$LOCUS[1]
+    start <- min(sub$POS); end <- max(sub$POS)
+    stack.df <- data.frame(chr,start,end,loc)
+    out.df <- rbind(out.df,stack.df)
+  }
+  out.df$chr <- as.character(out.df$chr)
+  out.df$loc <- as.character(out.df$loc)
+  names(out.df) <- c("chr","start","end","locus")
+  return(out.df)
+}
+
+span.df <- create_span_df()
+
+save.dir2 <- serv.dir %&% "reference/islet/eqtls/from_anthony/"
+write.table(span.df,file=save.dir2%&%"diagram-credible-regions.txt",sep="\t",quote=F,row.names=F,col.names=T)
+
+
+```
+
 
 
 

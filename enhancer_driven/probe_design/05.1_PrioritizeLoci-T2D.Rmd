@@ -72,17 +72,17 @@ profile_locus_fgwas <- function(segnum,df){
   chrom <- df$CHR[1]  
   number <- dim(df)[1]
   locus <- df$LOCUS[1]
-  prop.enriched.before <- sum(df$PPA > 1/number) / number
-  prop.enriched.after <- sum(df$PPA.fgwas > 1/number) / number
-  prop.changed <- prop.enriched.before-prop.enriched.after
-  number50 <- cumm(df$PPA)
-  number50.fgwas <- cumm(df$PPA.fgwas)
-  #temp.df <- arrange(profile_locus_snp_atac(segnum),desc(PPA.fgwas))
+  number50 <- cumm(df$PPA,thresh=0.50)
+  number50.fgwas <- cumm(df$PPA.fgwas,thresh=0.50)
+  perc.dec50 <- (number50-number50.fgwas) / number50
+  number90 <- cumm(df$PPA,thresh=0.90)
+  number90.fgwas <- cumm(df$PPA.fgwas,thresh=0.90)
+  perc.dec90 <- (number90-number90.fgwas) / number90
   out.df <- data.frame(segnum,locus,chrom,start=mn,end=mx,
-                       span,number,number50,number50.fgwas,
-                       prop.enriched.before,
-                       prop.enriched.after,
-                  prop.changed, stringsAsFactors=FALSE)
+                       span,number,
+                       number50,number50.fgwas, perc.dec50,
+                       number90,number90.fgwas,perc.dec90,
+                  stringsAsFactors=FALSE)
   return(out.df)
 }
 
@@ -94,15 +94,87 @@ loc_summary_fgwas <- function(seg.vec,df){
     temp <- profile_locus_fgwas(i,df)
     out.df<-rbind(out.df,temp)
   }
-  out.df <- arrange(out.df,desc(prop.changed))
+  out.df <- arrange(out.df,desc(perc.dec50))
   return(out.df)
 }
 
 ls.df <- loc_summary_fgwas(seg.vec=1:96, df=credt2d.df)
-
+#ls.df <- filter(ls.df,number50.fgwas<number50) %>% arrange(desc(prop.changed))
 
 
 ```
+
+Fisher Exact tests for Dimas 
+
+```{r}  
+
+dimas_type <- function(locus){
+  sub<-filter(dimas.df,Locus==locus)
+  if (dim(sub)[1]>0){
+    type <- sub$Dimas2014
+  } else{
+    type <- NA
+  }
+  if (!is.na(type) & type=="NA"){
+    type=NA
+  }
+  return(type)
+}
+
+dimas_samp_test <- function(ranked.vec,q=0.25,dimastype){
+  set.seed(1)
+  type.vec <- as.character(sapply(ranked.vec,function(loc){
+    return(dimas_type(loc))
+  }))
+  type.vec[type.vec==dimastype]=1
+  type.vec[type.vec!=1]=0
+  type.vec[is.na(type.vec)]=0
+  type.vec <- as.integer(type.vec)
+  number <- floor(length(ranked.vec) * q)
+  obs <- sum(type.vec[1:number]==1)
+  samp.vec <- as.integer(sapply(1:10000,function(i){
+    samp <- sample(type.vec, size=number, replace=TRUE)
+    s <- sum(samp)
+    return(s)
+  }))
+  p <- (sum(samp.vec > obs) + 1) / length(samp.vec + 1)
+  print("Test for enrichment of Dimas Type: " %&% dimastype)
+  print("P-value: " %&% p)
+}
+
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.05,dimastype="HG") #P-value = 0.0808
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.10,dimastype="HG") #P-value = 0.0169
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.20,dimastype="HG") #P-value = 0.0071
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.50,dimastype="HG") #P-value = 0.0755
+
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.05,dimastype="BC") #P-value = 0.073
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.10,dimastype="BC") #P-value = 0.28
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.20,dimastype="BC") #P-value = 0.65
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.50,dimastype="BC") #P-value = 0.3094
+
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.05,dimastype="IR") #P-value = 0.1211
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.10,dimastype="IR") #P-value = 0.2488
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.20,dimastype="IR") #P-value = 0.4557
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.50,dimastype="IR") #P-value = 0.4496
+
+
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.05,dimastype="UC") #P-value = 0.5099
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.10,dimastype="UC") #P-value = 0.4517
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.20,dimastype="UC") #P-value = 0.1945
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.50,dimastype="UC") #P-value = 0.4049
+
+
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.05,dimastype="PI") #P-value = 0.0426
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.10,dimastype="PI") #P-value = 0.0899
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.20,dimastype="PI") #P-value = 0.1805
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.50,dimastype="PI") #P-value = 0.0907
+
+
+```
+
+
+
+
 
 
 Visualization 
@@ -110,8 +182,9 @@ Visualization
 
 ```{r}
 
-source(serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/04.1_VizTracks-T2D.Rmd")
+source(serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/04.1b_VizTracks-T2D.R")
 
+viz_loc(93)
 
 ```
 

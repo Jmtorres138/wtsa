@@ -1,0 +1,56 @@
+---
+title: "02.1b_Prepare-LD-Proxy-Posfiles.Rmd"
+author: "Jason Torres"
+date: "February 19, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b) 
+library("data.table")
+library("dplyr")
+
+
+serv.dir <- "/Users/jtorres/FUSE/"
+eqtl.dir <- serv.dir%&%"reference/islet/eqtls/from_anthony/"
+key.file <- eqtl.dir %&% "snp_keyfile.txt.gz"
+save.dir <- eqtl.dir %&% "ld_proxies/positions/"
+
+```
+
+
+Write position files for VCFtools; to be used as input for LD calculations 
+
+```{r}
+
+df <- fread("cat " %&% key.file %&% " | zmore")
+for (c in 1:22){
+  print(c)
+  chrom <- "chr"%&%c
+  sub <- filter(df,CHR==chrom)
+  chr <- rep(c,dim(sub)[1])
+  pos <- as.integer(sub$POS)
+  out.df <- data.frame(chr,pos)
+  out.df <- arrange(out.df,pos)
+  out.df <- na.omit(out.df)
+  names(out.df) <- c("#chr","pos")
+  write.table(x=out.df,file = save.dir%&%chrom%&%"_fdr05.positions",sep="\t",
+              quote = F,row.names=F,col.names=T)
+}
+
+
+
+
+```
+
+
+
+
+
+
