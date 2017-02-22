@@ -93,17 +93,22 @@ dpnII_plot <- function(segnum,fac=0.10){
   chrom <- df$CHR[1];mymin <- (mn-fac*span);mymax <- (mx+fac*span)
   dpnsub <- filter(dpn.df,V1==chrom,V2>mymin,V3<mymax)
   if (dim(dpnsub)[1]==0){
-    dpnsub <- data.frame(V1="chr0",V2=NA,V3=NA)
+    dpnsub <- data.frame(V1=chrom,V2=mymin,V3=mymax)
+    plt <-  ggplot(data=dpnsub)
+    plt <- plt + geom_vline(aes(xintercept=V2), size=0,color="white") + 
+      geom_vline(aes(xintercept=V3),size=0,color="white")
+  } else{
+    plt <-  ggplot(data=dpnsub)
+    plt <- plt + geom_vline(aes(xintercept=V2), size=0.1) + 
+      geom_vline(aes(xintercept=V3),size=0.1) 
   }
-  plt <-  ggplot(data=dpnsub) +
-    geom_vline(aes(xintercept=V2), size=0.1) + 
-    geom_vline(aes(xintercept=V3),size=0.1) + ylim(c(0,1)) + 
+  plt <- plt + ylim(c(0,1)) + 
     theme_bw() + theme(axis.text.y=element_blank(),
                        axis.ticks = element_blank(),
                        panel.grid = element_blank())  
+  
   return(plt)
 }
-
 
 
 credld.dir <- serv.dir %&% "reference/gwas/diagram_1Kgenomes/" %&% 

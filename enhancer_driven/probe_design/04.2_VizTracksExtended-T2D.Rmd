@@ -139,14 +139,20 @@ dpnII_plot <- function(segnum,fac=0.10){
   chrom <- df$CHR[1];mymin <- (mn-fac*span);mymax <- (mx+fac*span)
   dpnsub <- filter(dpn.df,V1==chrom,V2>mymin,V3<mymax)
   if (dim(dpnsub)[1]==0){
-    dpnsub <- data.frame(V1="chr0",V2=NA,V3=NA)
+    dpnsub <- data.frame(V1=chrom,V2=mymin,V3=mymax)
+    plt <-  ggplot(data=dpnsub)
+    plt <- plt + geom_vline(aes(xintercept=V2), size=0,color="white") + 
+      geom_vline(aes(xintercept=V3),size=0,color="white")
+  } else{
+    plt <-  ggplot(data=dpnsub)
+    plt <- plt + geom_vline(aes(xintercept=V2), size=0.1) + 
+      geom_vline(aes(xintercept=V3),size=0.1) 
   }
-  plt <-  ggplot(data=dpnsub) +
-    geom_vline(aes(xintercept=V2), size=0.1) + 
-    geom_vline(aes(xintercept=V3),size=0.1) + ylim(c(0,1)) + 
+  plt <- plt + ylim(c(0,1)) + 
     theme_bw() + theme(axis.text.y=element_blank(),
                        axis.ticks = element_blank(),
                        panel.grid = element_blank())  
+  
   return(plt)
 }
 
@@ -391,12 +397,13 @@ track_plot <- function(segnum,fac=0.10){
   
   tracks(`ATAC \nEndoC`=atac_plt,
           `Islet eQTL`=eqtl_plt,
-          `DpnII`=dpn_plt,
+          #`DpnII`=dpn_plt,
           `T2D Credible Set \n(LD)`=credld_plt,
           `Oligos`=probe_plt,
           `T2D Credible Set \n(Islet fGWAS)`=fgwas_plt,
           `Genes`=gene_plt,
-          heights=c(1,2,1,3,1,4,1),title=loc %&% "\nInterval: " %&% 
+          #heights=c(1,2,1,3,1,4,1),title=loc %&% "\nInterval: " %&% 
+          heights=c(1,2,3,1,4,1),title=loc %&% "\nInterval: " %&% 
 
            round(span/1000,digits=2) %&%" kb",
          label.text.cex=0.7,main.height=2) +
@@ -410,7 +417,7 @@ track_plot <- function(segnum,fac=0.10){
 
 ```{r}
 # Examples 
-track_plot(1)
+track_plot(6)
 track_plot(67)
 
 ```

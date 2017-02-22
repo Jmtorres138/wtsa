@@ -173,6 +173,14 @@ dimas_samp_test(ranked.vec=ls.df$locus,q=0.50,dimastype="PI") #P-value = 0.0907
 ```
 
 
+Rank by number of SNPs in Credible Set 
+
+
+```{r}
+
+nrank.df <- arrange(ls.df,number)
+
+```
 
 
 
@@ -182,9 +190,12 @@ Visualization
 
 ```{r}
 
-source(serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/04.1b_VizTracks-T2D.R")
+source(serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/04.2_TrackPlot.R")
 
-viz_loc(93)
+track_plot(1)
+track_plot(93)
+track_plot(6)
+
 
 ```
 
