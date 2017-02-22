@@ -55,16 +55,6 @@ dpn.df$V3 <- dpn.df$V3 + 1
 ```
 
 
-Passed probes from Martijn 
-
-```{r}
-
-prob.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/" %&% "probe_design/from_Martijn/DpnII_120bp/"
-probe.df <- fread(prob.dir %&% "lessThan100_all_success.txt")
-
-```
-
-
 
 Define functions for reading in input (bed) files into grange objects and checking for overlaps 
 
@@ -107,22 +97,33 @@ atac_plot <- function(segnum,fac=0.10){
   df <- filter(credt2d.df,SEGNUMBER==segnum)
   mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn
   chrom <- df$CHR[1];mymin <- (mn-fac*span);mymax <- (mx+fac*span)
-  #loc <- df$LOCUS[1]
   a1sub <- filter(atac.df,chr==chrom,start>=mymin,end<=mymax,id=="Oxford") %>% 
     dplyr::select(one_of("chr","start","end"))
   a1.g <- gread(a1sub[,1:3])
   a2sub <- filter(atac.df,chr==chrom,start>=mymin,end<=mymax,id=="Parker") %>% 
     dplyr::select(one_of("chr","start","end"))
   a2.g <- gread(a2sub[,1:3])
-  if (length(a1.g)==0){
-    a1.g <- GRanges(seqnames=chrom,IRanges(start=0,end=0),id="null")
+  #if (length(a1.g)==0){
+  #  a1.g <- GRanges(seqnames=chrom,IRanges(start=0,end=0),id="null")
+  #}
+  #if (length(a2.g)==0){
+  #  a2.g <- GRanges(seqnames=chrom,IRanges(start=0,end=0),id="null")
+  #}
+  if (length(a1.g)>0 & length(a2.g)>0){
+    plt <- ggplot(a2.g) + geom_segment(color="firebrick3",size=30,alpha=0.9) +
+      geom_segment(a1.g,color="yellow2",size=25,alpha=0.9) + ylab("") +
+      theme_bw() + theme(panel.grid = element_blank())
+  } else if (length(a1.g)>0){
+    plt <- ggplot(a1.g) + geom_segment(color="yellow2",size=25,alpha=0.9) +
+      theme_bw() + theme(panel.grid = element_blank())
+  } else if (length(a2.g)>0){
+    plt <- ggplot(a2.g) + geom_segment(color="firebrick3",size=30,alpha=0.9) +
+      theme_bw() + theme(panel.grid = element_blank())
+  } else {
+    dframe <- data.frame(start=mymin,end=mymax)
+    plt <- ggplot(data=dframe) + geom_rect(data=dframe,aes(xmin=start,xmax=end),
+                                              ymin=0,ymax=0) + theme_bw()
   }
-  if (length(a2.g)==0){
-    a2.g <- GRanges(seqnames=chrom,IRanges(start=0,end=0),id="null")
-  }
-  plt <- ggplot(a2.g) + geom_segment(color="firebrick3",size=30,alpha=0.9) +
-    geom_segment(a1.g,color="yellow2",size=25,alpha=0.9) + ylab("") +
-    theme_bw() + theme(panel.grid = element_blank())
   return(plt)
 }
 
@@ -156,10 +157,50 @@ dpnII_plot <- function(segnum,fac=0.10){
 
 ```{r}
 
+credld.dir <- serv.dir %&% "reference/gwas/diagram_1Kgenomes/" %&% 
+  "credible_sets/ld_1Kgenomes/ld_proxies/credible_snps_only/"
+
 credld_plot <- function(segnum,fac=10){
-  df <- filter(credt2d.df,SEGNUMBER==segnum)
-  mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn
+  df <- filter(credt2d.df,SEGNUMBER==segnum) %>% arrange(desc(PPA))
+  mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn; loc <- df$LOCUS[1]
   chrom <- df$CHR[1];mymin <- (mn-fac*span);mymax <- (mx+fac*span)  
+  loc <- gsub("/","-",loc)
+  f <- chrom%&%"_"%&%mn%&%"-"%&%mx%&%"_"%&%loc%&%".hap.ld"
+  temp.df <- fread(credld.dir %&% f)
+  temp.df <- temp.df[,1:7]
+  names(temp.df) <- c("CHR","POS1",	"POS2","N_CHR","R2","D","Dprime")
+  maxpos <- df$POS[1] # by PPA 
+  LeadR2 <- as.numeric(sapply(1:length(df$POS),function(i){
+    pos <- df$POS[i]
+    if (pos==maxpos){r2<-1}
+    else {r2<-filter(temp.df,(POS1==maxpos & POS2==pos) | 
+                       (POS1==pos & POS2==maxpos))$R2}
+    return(r2)
+  }))
+  Color <- as.character(sapply(1:length(LeadR2),function(i){
+    r2 <- LeadR2[i]
+    col <- ifelse(r2>=0.80,"red", 
+              ifelse(r2<0.8 & r2>=0.6, "yellow",
+                  ifelse(r2<0.6 & r2>=0.4, "green",
+                         ifelse(r2<0.4 & r2>=0.2, "dodgerblue1",
+                                ifelse(r2<0.2 & r2>=0.0, "purple4",
+                                       "purple4")))))
+  }))
+  df <- cbind(df,LeadR2,Color)
+  plt <- ggplot(data=df,aes(x=POS,y=PPA)) + 
+    geom_point(shape=21,color="black",size=2,fill=df$Color) + 
+    scale_fill_continuous(low="yellow",
+                          high="firebrick1",limits=c(0,1),
+                          breaks=seq(0,1,0.2)) + 
+    scale_y_continuous(limits=c(0,1),breaks=seq(0,1,0.1)) + 
+    theme_bw() + 
+    theme(legend.position="none",
+          panel.grid.minor=element_blank(),
+                axis.title.y=element_text(size=5),
+                axis.text.y=element_text(size=4)) +
+    scale_y_continuous(breaks=seq(0,1,0.1),limits=c(0,1)) + 
+    coord_cartesian(ylim=c(0,1),expand=TRUE)
+  return(plt)
 }
 
 
@@ -231,23 +272,102 @@ islet_eqtl_plot <- function(segnum,fac=0.10){
     sub.df <- data.frame(snp=NA,chr=NA,pos=0,gene=NA,beta=NA,tstat=NA,
                          pval=1,qval=NA)
   }
-  if (dim(e.sub)[1]==0){
-    e.sub <- data.frame(RSID=NA,ENSID=NA,Beta=NA,`T`=NA,P=1,Q=NA,CHR=NA,
-                        POS=0,GENE=NA,SNPID=NA)
-  }
-  plt <- ggplot(data=e.sub, aes(x=POS,y=-log(P,base=10))) +
-                geom_point(data=sub.df,aes(x=pos,y=-log(pval,base=10)),
-                           shape=21,color="grey", size=2,
+  #if (dim(e.sub)[1]==0){
+  #  e.sub <- data.frame(RSID=NA,ENSID=NA,Beta=NA,`T`=NA,P=1,Q=NA,CHR=NA,
+  #                      POS=0,GENE=NA,SNPID=NA)
+  #}
+  plt <- ggplot(data=sub.df, aes(x=pos,y=-log(pval,base=10))) +  
+                geom_point(shape=21,color="grey", size=2,
                            fill="grey",alpha=0.80) + 
-                geom_point(color="black",shape=21,stroke=1.1,
-                           fill="green1",size=2) + 
           ylab(expression(paste("-log"[10],"(p-value)"))) + theme_bw() + 
           theme(panel.grid = element_blank(),
                 axis.title.y=element_text(size=5),
-                axis.text.y=element_text(size=4)) +  xlim(c(mn,mx))
+                axis.text.y=element_text(size=4)) +  xlim(c(mn,mx)) 
+  if (dim(e.sub)[1]>0){
+    plt <- plt + geom_point(data=e.sub, aes(x=POS,y=-log(P,base=10)),
+                            color="black", shape=21,stroke=1.1,
+                            fill="green1",size=2) 
+  }
   return(plt)
 }
-islet_eqtl_plot(1)
+
+```
+
+**Successful Probes**
+
+Passed probes from Martijn 
+
+```{r}
+
+prob.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/" %&% "probe_design/from_Martijn/DpnII_120bp/"
+probe.df <- fread(prob.dir %&% "lessThan100_all_success.txt")
+chrom <- as.character(sapply(1:dim(probe.df)[1],function(i){
+  frag <- probe.df$`Fragment Coordinates`[i]
+  c <- strsplit(x=frag,split=":")[[1]][1]
+  return(c)
+}))
+frag.start <- as.integer(sapply(1:dim(probe.df)[1],function(i){
+  frag <- probe.df$`Fragment Coordinates`[i]
+  span <- strsplit(x=frag,split=":")[[1]][2]
+  fs <- as.integer(strsplit(x=span,split="-")[[1]][1])
+  return(fs)
+}))
+frag.end <- as.integer(sapply(1:dim(probe.df)[1],function(i){
+  frag <- probe.df$`Fragment Coordinates`[i]
+  span <- strsplit(x=frag,split=":")[[1]][2]
+  fe <- as.integer(strsplit(x=span,split="-")[[1]][2])
+  return(fe)
+}))
+left.start <- as.integer(sapply(1:dim(probe.df)[1],function(i){
+  span <- probe.df$`Left Oligo`[i]
+  ls <- as.integer(strsplit(x=span,split="-")[[1]][1])
+  return(ls)
+}))
+left.end <- as.integer(sapply(1:dim(probe.df)[1],function(i){
+  span <- probe.df$`Left Oligo`[i]
+  le <- as.integer(strsplit(x=span,split="-")[[1]][2])
+  return(le)
+}))
+right.start <- as.integer(sapply(1:dim(probe.df)[1],function(i){
+  span <- probe.df$`Right Oligo`[i]
+  rs <- as.integer(strsplit(x=span,split="-")[[1]][1])
+  return(rs)
+}))
+right.end <- as.integer(sapply(1:dim(probe.df)[1],function(i){
+    span <- probe.df$`Right Oligo`[i]
+  re <- as.integer(strsplit(x=span,split="-")[[1]][2])
+  return(re)
+}))
+probe.df <- cbind(probe.df,chrom,frag.start,frag.end,
+                  left.start,left.end,right.start,right.end)
+
+
+```
+
+
+```{r}
+
+
+prob_plot <- function(segnum,fac=0.1){
+  df <- filter(credt2d.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS)
+  mychrom <- df$CHR[1]; loc <- df$LOCUS[1]; span <- mx - mn
+  mymin <- (mn-fac*span); mymax <- (mx+fac*span)
+  sub <- filter(probe.df,chrom==mychrom)
+  if (dim(sub)[1]==0){
+    sub <- data.frame(a=NA,b=NA,c=NA,d=NA,e=NA,f=NA,g=NA,h=NA,i=NA,j=NA,k=NA,l=NA)
+    names(sub) <- names(probe.df)
+  }
+  plt <- ggplot(data=sub) + 
+    geom_rect(sub, fill="black", aes(xmin=frag.start,xmax=frag.end),
+                                         ymin=0.4, ymax=0.6) + 
+    geom_rect(sub, fill="dodgerblue2", aes(xmin=left.start,xmax=left.end),
+                                         ymin=0.6, ymax=0.7) +
+    geom_rect(sub, fill="dodgerblue2", aes(xmin=right.start,xmax=right.end),
+                                         ymin=0.3, ymax=0.4) +
+    coord_cartesian(xlim=c(mymin,mymax)) + theme_bw()
+  return(plt)
+}
 
 ```
 
@@ -259,23 +379,29 @@ islet_eqtl_plot(1)
 track_plot <- function(segnum,fac=0.10){
   df <- filter(credt2d.df,SEGNUMBER==segnum)
   mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn
-  
+  mymin <- (mn-fac*span); mymax <- (mx+fac*span)
+  loc <- df$LOCUS[1]
   atac_plt <- atac_plot(segnum,fac)
   dpn_plt <- dpnII_plot(segnum,fac)
   fgwas_plt <- fgwas_plot(segnum,fac)
+  credld_plt <- credld_plot(segnum,fac)
   eqtl_plt <- islet_eqtl_plot(segnum,fac)
   gene_plt <- gene_plot(segnum,fac)
+  probe_plt <- prob_plot(segnum,fac)
   
   tracks(`ATAC \nEndoC`=atac_plt,
           `Islet eQTL`=eqtl_plt,
           `DpnII`=dpn_plt,
+          `T2D Credible Set \n(LD)`=credld_plt,
+          `Oligos`=probe_plt,
           `T2D Credible Set \n(Islet fGWAS)`=fgwas_plt,
           `Genes`=gene_plt,
-          heights=c(1,1,1,3,1),title=loc %&% "\nInterval: " %&% 
+          heights=c(1,2,1,3,1,4,1),title=loc %&% "\nInterval: " %&% 
+
            round(span/1000,digits=2) %&%" kb",
          label.text.cex=0.7,main.height=2) +
     scale_x_sequnit("Mb") + 
-    theme(axis.text.x=element_text(size=5))
+    theme(axis.text.x=element_text(size=5)) 
 }
 
 ```
@@ -283,10 +409,9 @@ track_plot <- function(segnum,fac=0.10){
 
 
 ```{r}
-
-
-
-#viz_loc(20)
+# Examples 
+track_plot(1)
+track_plot(67)
 
 ```
 
