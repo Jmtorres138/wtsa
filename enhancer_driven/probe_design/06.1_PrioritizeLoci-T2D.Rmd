@@ -180,6 +180,25 @@ Rank by number of SNPs in Credible Set
 
 nrank.df <- arrange(ls.df,number)
 
+
+```
+
+
+Determine Loci with 10 or fewer SNPs in credible set 
+
+```{r}
+
+few10 <- filter(nrank.df,number<=10) %>% dplyr::select(one_of("segnum",
+                                                            "locus"))
+
+few15 <- filter(nrank.df,number<=15) %>% dplyr::select(one_of("segnum",
+                                                            "locus"))
+
+few20 <- filter(nrank.df,number<=20) %>% dplyr::select(one_of("segnum",
+                                                            "locus"))
+few100 <- filter(nrank.df,number<=100) %>% dplyr::select(one_of("segnum",
+                                                            "locus"))
+
 ```
 
 
@@ -195,7 +214,9 @@ source(serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/04.2_TrackPlot.R
 track_plot(1)
 track_plot(93)
 track_plot(6)
-
+track_plot(7)
+track_plot(11,fac=0.50)
+track_plot(22)
 
 ```
 

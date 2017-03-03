@@ -16,7 +16,6 @@ Setup libraries and directories
 library("dplyr")
 library("data.table")
 library("ggplot2")
-#library("GenomicRanges")
 
 serv.dir <- "/Users/jtorres/FUSE/"
 input.dir <- serv.dir %&% "projects/t2d-integration/fGWAS_files/diagram_1Kgenomes/"

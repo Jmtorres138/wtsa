@@ -137,7 +137,7 @@ dpnII_plot <- function(segnum,fac=0.10){
   df <- filter(credt2d.df,SEGNUMBER==segnum)
   mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn
   chrom <- df$CHR[1];mymin <- (mn-fac*span);mymax <- (mx+fac*span)
-  dpnsub <- filter(dpn.df,V1==chrom,V2>mymin,V3<mymax)
+  dpnsub <- filter(dpn.df,V1==chrom,V2>=mymin,V3<=mymax)
   if (dim(dpnsub)[1]==0){
     dpnsub <- data.frame(V1=chrom,V2=mymin,V3=mymax)
     plt <-  ggplot(data=dpnsub)
