@@ -1,0 +1,86 @@
+---
+title: "06.1_PrioritizeSNPs.Rmd"
+author: "Jason Torres"
+date: "February 22, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b) 
+library("data.table")
+library("dplyr")
+serv.dir <- "/Users/jtorres/FUSE/"
+rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
+source(serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/" %&%
+         "04.2_TrackPlot.R")
+
+```
+
+Read RDS files
+
+```{r}
+
+credt2d.df <- readRDS(rds.dir%&%"credt2d.df.RDS")
+
+```
+
+
+```{r}
+
+rank_variants <- function(segnum){
+  sub <- filter(credt2d.df,SEGNUMBER==segnum)
+  chrom <- sub$CHR[1]
+  ATAC  <- as.logical(sapply(1:dim(sub)[1], function(i){
+    pos <- sub$POS[i];temp <- filter(atac.df,chr==chrom,start<=pos,end>=pos)
+    return(ifelse(dim(temp)[1]>0,TRUE,FALSE))
+  }))
+  sub <- cbind(sub,ATAC)
+  sub <- arrange(sub,desc(PPA.fgwas)) #desc(ATAC),
+  RANK <- 1:dim(sub)[1]; sub <- cbind(sub,RANK)
+  return(sub) 
+}
+
+
+segloc.df <- dplyr::select(credt2d.df,one_of("SEGNUMBER","LOCUS"))
+segloc.df <- segloc.df[!duplicated(segloc.df),]
+seg.vec <- segloc.df$SEGNUMBER
+loc.vec <- segloc.df$LOCUS  
+
+
+pb <- txtProgressBar(min = 0, max = length(seg.vec), initial = 0, style = 3)
+check1 <- as.integer(sapply(1:length(seg.vec),function(i){
+  setTxtProgressBar(pb, i) 
+  segnum <- seg.vec[i]
+  ranked.df <- rank_variants(segnum)
+  return(ifelse(sum(ranked.df$ATAC)>0,TRUE,FALSE))
+}))
+names(check1) <- seg.vec
+
+# 70 loci have at least one variant overlapping an EndoC-BH1 ATAC peak 
+
+pb <- txtProgressBar(min = 0, max = length(seg.vec), initial = 0, style = 3)
+check2 <- as.integer(sapply(1:length(seg.vec),function(i){
+  setTxtProgressBar(pb, i) 
+  segnum <- seg.vec[i]
+  ranked.df <- rank_variants(segnum)
+  return(ifelse(ranked.df$ATAC[1]==TRUE,TRUE,FALSE))
+}))
+names(check2) <- seg.vec
+
+# 26 loci have at least one variant overlapping an EndoC-BH1 ATAC peak 
+
+check2.sub <- check2[check2>0]
+# highest priority 
+hp.seg <- as.integer(names(check2.sub))
+hp.loc <- filter(segloc.df,SEGNUMBER %in% hp.seg)$LOCUS
+hp.df <- data.frame(hp.seg,hp.loc)
+
+```
+
+
