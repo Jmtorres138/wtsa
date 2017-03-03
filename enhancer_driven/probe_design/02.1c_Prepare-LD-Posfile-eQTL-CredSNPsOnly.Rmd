@@ -1,0 +1,60 @@
+---
+title: "02.1c_Prepare-LD-Posfile-eQTL-CredSNPsOnly.Rmd"
+author: "Jason Torres"
+date: "March 1, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Setup libraries and directories 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+
+library("dplyr")
+library("data.table")
+library("ggplot2")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
+
+eqtl.dir <- serv.dir%&%"reference/islet/eqtls/from_anthony/"
+
+save.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/ld/"
+dir.create(save.dir)
+
+
+```
+
+
+
+```{r}
+
+sigeqtls.df <- fread("cat "%&%eqtl.dir%&%"snp_keyfile.txt.gz"%&%" | zmore")
+sigeqtls.df$POS <- gsub("_G/A","",sigeqtls.df$POS)
+sigeqtls.df$POS <- as.integer(sigeqtls.df$POS)
+sigeqtls.df$CHR <- gsub("chr","",sigeqtls.df$CHR)
+sigeqtls.df$CHR <- as.integer(sigeqtls.df$CHR)
+credt2d.df <- readRDS(rds.dir %&% "credt2d.df.RDS")
+credt2d.df$CHR <- gsub("chr","",credt2d.df$CHR)
+credt2d.df$CHR <- as.integer(credt2d.df$CHR)
+a.df <- select(credt2d.df,one_of("CHR","POS"))
+names(a.df) <- c("chr","pos")
+b.df <- select(sigeqtls.df,one_of("CHR","POS"))
+b.df <- na.omit(b.df)
+names(b.df) <- c("chr","pos")
+
+write.df <- rbind(a.df,b.df)
+write.df <- write.df[!duplicated(write.df),]
+write.df <- arrange(write.df,chr,pos)
+names(write.df) <-c("#chr","pos")
+write.table(write.df,save.dir%&%"islet_eqtl_credt2d.positions",
+            sep="\t",quote=FALSE,row.names=FALSE)
+
+```
+
+
+
