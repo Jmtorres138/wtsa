@@ -25,36 +25,44 @@ eqtl.dir <- serv.dir%&%"reference/islet/eqtls/from_anthony/"
 
 save.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/ld/"
 dir.create(save.dir)
-
+save.dir <- save.dir %&% "positions/"
+dir.create(save.dir)
 
 ```
 
 
+Create Position files for credible set with positons for credible SNPs and significant eQTLs 
 
 ```{r}
 
-sigeqtls.df <- fread("cat "%&%eqtl.dir%&%"snp_keyfile.txt.gz"%&%" | zmore")
-sigeqtls.df$POS <- gsub("_G/A","",sigeqtls.df$POS)
-sigeqtls.df$POS <- as.integer(sigeqtls.df$POS)
-sigeqtls.df$CHR <- gsub("chr","",sigeqtls.df$CHR)
-sigeqtls.df$CHR <- as.integer(sigeqtls.df$CHR)
-credt2d.df <- readRDS(rds.dir %&% "credt2d.df.RDS")
-credt2d.df$CHR <- gsub("chr","",credt2d.df$CHR)
-credt2d.df$CHR <- as.integer(credt2d.df$CHR)
-a.df <- select(credt2d.df,one_of("CHR","POS"))
-names(a.df) <- c("chr","pos")
-b.df <- select(sigeqtls.df,one_of("CHR","POS"))
-b.df <- na.omit(b.df)
-names(b.df) <- c("chr","pos")
+credt2d.df <- readRDS(rds.dir%&%"credt2d.df.RDS")
+eqtl.df <- readRDS(rds.dir%&%"eqtl.df.RDS")
 
-write.df <- rbind(a.df,b.df)
-write.df <- write.df[!duplicated(write.df),]
-write.df <- arrange(write.df,chr,pos)
-names(write.df) <-c("#chr","pos")
-write.table(write.df,save.dir%&%"islet_eqtl_credt2d.positions",
-            sep="\t",quote=FALSE,row.names=FALSE)
+window<-1e6
+
+pb <- txtProgressBar(min = 0, max = length(unique(credt2d.df$SEGNUMBER)), 
+                     initial = 0, style = 3)
+for (i in 1:length(unique(credt2d.df$SEGNUMBER))){
+  seg <- unique(credt2d.df$SEGNUMBER)[i]
+  setTxtProgressBar(pb,i)
+  sub.df <- filter(credt2d.df,SEGNUMBER==seg)
+  mn <- min(sub.df$POS); mx <- max(sub.df$POS); 
+  chrom<-sub.df$CHR[1]; locus <- sub.df$LOCUS[1]
+  locus <- gsub("/","-",locus)
+  locus <- gsub(" ","-",locus)
+  mymin <- mn-window; mymax<-mx+window
+  fname <- chrom%&%"_"%&%mymin%&%"-"%&%mymax%&%"_"%&%locus%&%".positions"
+  eqtl.sub <- filter(eqtl.df,CHR==chrom,POS>=mymin,POS<=mymax)
+  pos <- unique(c(sub.df$POS,eqtl.sub$POS))
+  chr <- rep(gsub("chr","",chrom),length(pos))
+  df <- data.frame(chr,pos); names(df) <- c("#chr","pos")
+  write.table(x=df,file=save.dir%&%fname,quote=F,sep="\t",row.names=F,col.names=T)
+}
 
 ```
+
+
+
 
 
 
