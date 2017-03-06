@@ -30,8 +30,12 @@ Islet eQTLs
 
 ```{r}
 
-eqtl.file <- serv.dir%&%"reference/islet/eqtls/from_anthony/fdr05_cis_eQTL_genelevel.txt.gz"
-key.file <- serv.dir%&%"reference/islet/eqtls/from_anthony/snp_keyfile.txt.gz"
+eqtl.file <- serv.dir%&%"reference/islet/eqtls/from_anthony/top_variant_per_gene-BH.txt.gz"
+key.file <- serv.dir%&%"reference/islet/eqtls/from_anthony/top_variant_per_gene-BH-keyfile.txt.gz"
+
+#eqtl.file <- serv.dir%&%"reference/islet/eqtls/from_anthony/fdr05_cis_eQTL_genelevel.txt.gz"
+#key.file <- serv.dir%&%"reference/islet/eqtls/from_anthony/snp_keyfile.txt.gz"
+
 e.df <- fread("cat " %&% eqtl.file %&% " | zmore")
 key.df <- fread("cat " %&% key.file %&% " | zmore")
 key.df$POS <- gsub("29683808_G/A","29683808",key.df$POS)
