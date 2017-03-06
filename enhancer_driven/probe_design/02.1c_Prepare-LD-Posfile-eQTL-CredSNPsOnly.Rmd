@@ -50,6 +50,7 @@ for (i in 1:length(unique(credt2d.df$SEGNUMBER))){
   chrom<-sub.df$CHR[1]; locus <- sub.df$LOCUS[1]
   locus <- gsub("/","-",locus)
   locus <- gsub(" ","-",locus)
+  locus <- gsub("(","",locus,fixed=TRUE); locus <- gsub(")","",locus,fixed=TRUE)
   mymin <- mn-window; mymax<-mx+window
   fname <- chrom%&%"_"%&%mymin%&%"-"%&%mymax%&%"_"%&%locus%&%".positions"
   eqtl.sub <- filter(eqtl.df,CHR==chrom,POS>=mymin,POS<=mymax)
