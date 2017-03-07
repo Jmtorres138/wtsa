@@ -116,21 +116,42 @@ get_external_control <- function(segnum,window=5000){
   
   mymin <- mn - window; mymax <- mx + window 
   chrom <- gsub("chr","ch",chrom)
-  min.gr <- GRanges(chrom,IRanges(start(tad.constrain),mymin))
-  max.gr <- GRanges(chrom,IRanges(mymax,end(tad.constrain)))
-  upstream.snps <- snpsByOverlaps(SNPlocs.Hsapiens.dbSNP144.GRCh37,ranges = min.gr)
-  downstream.snps <- snpsByOverlaps(SNPlocs.Hsapiens.dbSNP144.GRCh37,ranges = max.gr)
-  # Subset to ATAC overlaps 
-  up.atac.snps <- upstream.snps[upstream.snps %over% atac.gr]
-  down.atac.snps <- downstream.snps[downstream.snps %over% atac.gr]
-  up <- max(pos(up.atac.snps)); down <- min(pos(down.atac.snps))
-  up.dist <- abs(mymin-up); down.dist <- abs(down-mymax)
-  up.rs <- up.atac.snps$RefSNP_id[which(pos(up.atac.snps)==up)]
-  down.rs <- down.atac.snps$RefSNP_id[which(pos(down.atac.snps)==down)]
-  pos <- ifelse(up.dist<down.dist,up,down)
-  rsid <- ifelse(up.dist<down.dist,up.rs,down.rs)
+  if (start(tad.constrain)<mymin){
+    min.gr <- GRanges(chrom,IRanges(start(tad.constrain),mymin))
+    upstream.snps <- snpsByOverlaps(SNPlocs.Hsapiens.dbSNP144.GRCh37,ranges = min.gr)
+    up.atac.snps <- upstream.snps[upstream.snps %over% atac.gr]
+    up <- max(pos(up.atac.snps))
+    up.dist <- abs(mymin-up)
+    up.rs <- up.atac.snps$RefSNP_id[which(pos(up.atac.snps)==up)]
+  } else{
+    min.gr <- NA
+    upstream.snps <- NA
+  }
+  if (end(tad.constrain)>mymax){
+    max.gr <- GRanges(chrom,IRanges(mymax,end(tad.constrain)))
+    downstream.snps <- snpsByOverlaps(SNPlocs.Hsapiens.dbSNP144.GRCh37,ranges = max.gr)
+    down.atac.snps <- downstream.snps[downstream.snps %over% atac.gr]
+    down <- min(pos(down.atac.snps))
+    down.dist <- abs(down-mymax)
+    down.rs <- down.atac.snps$RefSNP_id[which(pos(down.atac.snps)==down)]
+  } else {
+    max.gr <- NA
+    downstream.snps <- NA
+  }
+  if (!is.na(max.gr) & !is.na(min.gr)){
+    pos <- ifelse(up.dist<down.dist,up,down)
+    rsid <- ifelse(up.dist<down.dist,up.rs,down.rs)
+  }
+  if (!is.na(max.gr) & is.na(min.gr)){
+    pos <- down
+    rsid <- down.rs   
+  }
+  if (!is.na(min.gr) & is.na(max.gr)){
+    pos <- up
+    rsid <- up.rs   
+  }
   chrom <- temp$CHR[1]
-  return(c(chrom,pos,rsid))
+  return(c(chrom,pos,rsid))    
 }
 
 ```
