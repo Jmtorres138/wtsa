@@ -21,6 +21,7 @@ rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
 
 ```
 
+
 Read RDS files 
 
 ```{r}
@@ -204,7 +205,7 @@ credld_plot <- function(segnum,fac=10){
           panel.grid.minor=element_blank(),
                 axis.title.y=element_text(size=5),
                 axis.text.y=element_text(size=4)) +
-    scale_y_continuous(breaks=seq(0,1,0.1),limits=c(0,1)) + 
+    scale_y_continuous(breaks=seq(0,1,0.2),limits=c(0,1)) + 
     coord_cartesian(ylim=c(0,1),expand=TRUE)
   return(plt)
 }
@@ -233,7 +234,7 @@ fgwas_plot <- function(segnum,fac=0.10){
           panel.grid.minor=element_blank(),
                 axis.title.y=element_text(size=5),
                 axis.text.y=element_text(size=4)) +
-    scale_y_continuous(breaks=seq(0,1,0.1),limits=c(0,1)) + 
+    scale_y_continuous(breaks=seq(0,1,0.2),limits=c(0,1)) + 
     coord_cartesian(ylim=c(0,1),expand=TRUE)
   return(plt)
 }
@@ -254,7 +255,8 @@ gene_plot <- function(segnum,fac=0.10){
   gr <- GRanges(chrom,IRanges(start=mn-1e6,end=mx+1e6))
   aplt <- autoplot(Homo.sapiens, which = gr, label.color = "black",#
                  color = "brown",
-                 fill = "brown") + #,stat="reduce"
+                 #fill = "brown") + #,stat="reduce"
+                 fill = "brown",stat="reduce") + 
         xlim(c(mn,mx)) + 
         theme_alignment(grid = FALSE,border = FALSE) 
   return(aplt)
@@ -371,7 +373,50 @@ prob_plot <- function(segnum,fac=0.1){
                                          ymin=0.6, ymax=0.7) +
     geom_rect(sub, fill="dodgerblue2", aes(xmin=right.start,xmax=right.end),
                                          ymin=0.3, ymax=0.4) +
-    coord_cartesian(xlim=c(mymin,mymax)) + theme_bw()
+    coord_cartesian(xlim=c(mymin,mymax)) + theme_bw() + 
+    theme(panel.grid = element_blank())
+  return(plt)
+}
+
+```
+
+
+**TAD Domains Bing Ren** 
+
+```{r}
+
+imr90 <- fread(serv.dir%&%
+                   "reference/tads/IMR90/combined/total.combined.domain")
+hesc <- fread(serv.dir%&%
+                   "reference/tads/hESC/combined/total.combined.domain")
+cell <- c(rep("IMR90",dim(imr90)[1]),rep("hESC",dim(hesc)[1]))
+tad.df <- as.data.frame(cbind(rbind(imr90,hesc),cell))
+names(tad.df) <- c("chr","start","end","id")
+tad.df$start <- tad.df$start + 1
+tad.df$end <- tad.df$end + 1
+
+tad.gr <- gread(tad.df)
+
+tad_plot <- function(segnum,fac=0.1){
+  df <- filter(credt2d.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS)
+  mychrom <- df$CHR[1]; loc <- df$LOCUS[1]; span <- mx - mn
+  mymin <- (mn-fac*span); mymax <- (mx+fac*span) 
+  gr <- GRanges(mychrom,IRanges(mymin,mymax))
+  df <- as.data.frame(tad.gr[tad.gr %over% gr])
+  yhigh <- as.numeric(as.factor(df$id))
+  ylow <- as.numeric(as.factor(df$id)) - 1 
+  df <- cbind(df,ylow,yhigh)
+  plt <- ggplot(data=df,aes(xmin=start,xmax=end,
+                            ymin=ylow,ymax=yhigh,fill=id)) + 
+    geom_rect(color="black",alpha=0.3) + 
+    scale_fill_manual(values=c("gold","dodgerblue4")) + 
+    theme_bw() + 
+    theme(panel.grid=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank(),
+          legend.position="none") + 
+    coord_cartesian(xlim=c(mymin,mymax))
   return(plt)
 }
 
@@ -394,25 +439,25 @@ track_plot <- function(segnum,fac=0.10){
   eqtl_plt <- islet_eqtl_plot(segnum,fac)
   gene_plt <- gene_plot(segnum,fac)
   probe_plt <- prob_plot(segnum,fac)
+  tad_plt <- tad_plot(segnum,fac)
   
-  tracks(`ATAC \nEndoC`=atac_plt,
-          `Islet eQTL`=eqtl_plt,
-          #`DpnII`=dpn_plt,
-          `T2D Credible Set \n(LD)`=credld_plt,
+  tracks(`Islet eQTL`=eqtl_plt,
+          `ATAC \nEndoC`=atac_plt,
+          `Credible Set \n(Islet fGWAS)`=fgwas_plt,
+          `Credible Set \n(LD)`=credld_plt,
           `Oligos`=probe_plt,
-          `T2D Credible Set \n(Islet fGWAS)`=fgwas_plt,
+          `DpnII`=dpn_plt,
+          `TAD`=tad_plt,
           `Genes`=gene_plt,
-          #heights=c(1,2,1,3,1,4,1),title=loc %&% "\nInterval: " %&% 
-          heights=c(1,2,3,1,4,1),title=loc %&% "\nInterval: " %&% 
+          heights=c(2,0.5,2,2,0.5,0.5,1,1),title=loc %&% "\nInterval: " %&% 
 
            round(span/1000,digits=2) %&%" kb",
-         label.text.cex=0.7,main.height=2) +
+         label.text.cex=0.6,main.height=2) +
     scale_x_sequnit("Mb") + 
     theme(axis.text.x=element_text(size=5)) 
 }
 
 ```
-
 
 
 ```{r}

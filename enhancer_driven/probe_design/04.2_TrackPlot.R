@@ -26,9 +26,6 @@ dpn.df$V2 <- dpn.df$V2 + 1
 dpn.df$V3 <- dpn.df$V3 + 1 
 
 
-
-
-
 gread <- function(bed.df){
   # names must be c(chr, start, end, id, score, strand), where available 
   if(length(bed.df)==3){
@@ -52,11 +49,6 @@ get_overlaps <- function(a,b){
 }
 
 
-
-
-
-# Functions for creating ggplot objects 
-
 atac_plot <- function(segnum,fac=0.10){
   df <- filter(credt2d.df,SEGNUMBER==segnum)
   mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn
@@ -67,7 +59,12 @@ atac_plot <- function(segnum,fac=0.10){
   a2sub <- filter(atac.df,chr==chrom,start>=mymin,end<=mymax,id=="Parker") %>% 
     dplyr::select(one_of("chr","start","end"))
   a2.g <- gread(a2sub[,1:3])
-
+  #if (length(a1.g)==0){
+  #  a1.g <- GRanges(seqnames=chrom,IRanges(start=0,end=0),id="null")
+  #}
+  #if (length(a2.g)==0){
+  #  a2.g <- GRanges(seqnames=chrom,IRanges(start=0,end=0),id="null")
+  #}
   if (length(a1.g)>0 & length(a2.g)>0){
     plt <- ggplot(a2.g) + geom_segment(color="firebrick3",size=30,alpha=0.9) +
       geom_segment(a1.g,color="yellow2",size=25,alpha=0.9) + ylab("") +
@@ -92,7 +89,7 @@ dpnII_plot <- function(segnum,fac=0.10){
   df <- filter(credt2d.df,SEGNUMBER==segnum)
   mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn
   chrom <- df$CHR[1];mymin <- (mn-fac*span);mymax <- (mx+fac*span)
-  dpnsub <- filter(dpn.df,V1==chrom,V2>mymin,V3<mymax)
+  dpnsub <- filter(dpn.df,V1==chrom,V2>=mymin,V3<=mymax)
   if (dim(dpnsub)[1]==0){
     dpnsub <- data.frame(V1=chrom,V2=mymin,V3=mymax)
     plt <-  ggplot(data=dpnsub)
@@ -152,8 +149,9 @@ credld_plot <- function(segnum,fac=10){
     theme(legend.position="none",
           panel.grid.minor=element_blank(),
           axis.title.y=element_text(size=5),
-          axis.text.y=element_text(size=4)) +
-    scale_y_continuous(breaks=seq(0,1,0.1),limits=c(0,1)) + 
+          axis.text.y=element_text(size=4),
+          panel.grid=element_line(size=0.1)) +
+    scale_y_continuous(breaks=seq(0,1,0.2),limits=c(0,1)) + 
     coord_cartesian(ylim=c(0,1),expand=TRUE)
   return(plt)
 }
@@ -174,9 +172,10 @@ fgwas_plot <- function(segnum,fac=0.10){
     theme_bw() +  
     theme(legend.position="none",
           panel.grid.minor=element_blank(),
+          panel.grid=element_line(size=0.1),
           axis.title.y=element_text(size=5),
           axis.text.y=element_text(size=4)) +
-    scale_y_continuous(breaks=seq(0,1,0.1),limits=c(0,1)) + 
+    scale_y_continuous(breaks=seq(0,1,0.2),limits=c(0,1)) + 
     coord_cartesian(ylim=c(0,1),expand=TRUE)
   return(plt)
 }
@@ -191,13 +190,12 @@ gene_plot <- function(segnum,fac=0.10){
   gr <- GRanges(chrom,IRanges(start=mn-1e6,end=mx+1e6))
   aplt <- autoplot(Homo.sapiens, which = gr, label.color = "black",#
                    color = "brown",
-                   fill = "brown") + #,stat="reduce"
+                   #fill = "brown") + #,stat="reduce"
+                   fill = "brown",stat="reduce") + 
     xlim(c(mn,mx)) + 
     theme_alignment(grid = FALSE,border = FALSE) 
   return(aplt)
 }
-
-
 
 islet_eqtl_plot <- function(segnum,fac=0.10){
   df <- filter(credt2d.df,SEGNUMBER==segnum)
@@ -210,7 +208,10 @@ islet_eqtl_plot <- function(segnum,fac=0.10){
     sub.df <- data.frame(snp=NA,chr=NA,pos=0,gene=NA,beta=NA,tstat=NA,
                          pval=1,qval=NA)
   }
-
+  #if (dim(e.sub)[1]==0){
+  #  e.sub <- data.frame(RSID=NA,ENSID=NA,Beta=NA,`T`=NA,P=1,Q=NA,CHR=NA,
+  #                      POS=0,GENE=NA,SNPID=NA)
+  #}
   plt <- ggplot(data=sub.df, aes(x=pos,y=-log(pval,base=10))) +  
     geom_point(shape=21,color="grey", size=2,
                fill="grey",alpha=0.80) + 
@@ -288,7 +289,43 @@ prob_plot <- function(segnum,fac=0.1){
               ymin=0.6, ymax=0.7) +
     geom_rect(sub, fill="dodgerblue2", aes(xmin=right.start,xmax=right.end),
               ymin=0.3, ymax=0.4) +
-    coord_cartesian(xlim=c(mymin,mymax)) + theme_bw()
+    coord_cartesian(xlim=c(mymin,mymax)) + theme_bw() + 
+    theme(panel.grid = element_blank())
+  return(plt)
+}
+
+imr90 <- fread(serv.dir%&%
+                 "reference/tads/IMR90/combined/total.combined.domain")
+hesc <- fread(serv.dir%&%
+                "reference/tads/hESC/combined/total.combined.domain")
+cell <- c(rep("IMR90",dim(imr90)[1]),rep("hESC",dim(hesc)[1]))
+tad.df <- as.data.frame(cbind(rbind(imr90,hesc),cell))
+names(tad.df) <- c("chr","start","end","id")
+tad.df$start <- tad.df$start + 1
+tad.df$end <- tad.df$end + 1
+
+tad.gr <- gread(tad.df)
+
+tad_plot <- function(segnum,fac=0.1){
+  df <- filter(credt2d.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS)
+  mychrom <- df$CHR[1]; loc <- df$LOCUS[1]; span <- mx - mn
+  mymin <- (mn-fac*span); mymax <- (mx+fac*span) 
+  gr <- GRanges(mychrom,IRanges(mymin,mymax))
+  df <- as.data.frame(tad.gr[tad.gr %over% gr])
+  yhigh <- as.numeric(as.factor(df$id))
+  ylow <- as.numeric(as.factor(df$id)) - 1 
+  df <- cbind(df,ylow,yhigh)
+  plt <- ggplot(data=df,aes(xmin=start,xmax=end,
+                            ymin=ylow,ymax=yhigh,fill=id)) + 
+    geom_rect(color="black",alpha=0.3) + 
+    scale_fill_manual(values=c("gold","dodgerblue4")) + 
+    theme_bw() + 
+    theme(panel.grid=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank(),
+          legend.position="none") + 
+    coord_cartesian(xlim=c(mymin,mymax))
   return(plt)
 }
 
@@ -305,19 +342,22 @@ track_plot <- function(segnum,fac=0.10){
   eqtl_plt <- islet_eqtl_plot(segnum,fac)
   gene_plt <- gene_plot(segnum,fac)
   probe_plt <- prob_plot(segnum,fac)
+  tad_plt <- tad_plot(segnum,fac)
   
-  tracks(`ATAC \nEndoC`=atac_plt,
-         `Islet eQTL`=eqtl_plt,
-         `DpnII`=dpn_plt,
-         `T2D Credible Set \n(LD)`=credld_plt,
+  tracks(`Islet eQTL`=eqtl_plt,
+         `ATAC \nEndoC`=atac_plt,
+         `Credible Set \n(Islet fGWAS)`=fgwas_plt,
+         `Credible Set \n(LD)`=credld_plt,
          `Oligos`=probe_plt,
-         `T2D Credible Set \n(Islet fGWAS)`=fgwas_plt,
+         `DpnII`=dpn_plt,
+         `TAD`=tad_plt,
          `Genes`=gene_plt,
-         heights=c(1,2,1,3,1,4,1),title=loc %&% "\nInterval: " %&% 
+         heights=c(2,0.5,2,2,0.5,0.5,1,1),title=loc %&% "\nInterval: " %&% 
            
            round(span/1000,digits=2) %&%" kb",
-         label.text.cex=0.7,main.height=2) +
+         label.text.cex=0.6,main.height=2) +
     scale_x_sequnit("Mb") + 
     theme(axis.text.x=element_text(size=5)) 
 }
+
 
