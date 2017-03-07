@@ -148,7 +148,8 @@ credld_plot <- function(segnum,fac=10){
     theme(legend.position="none",
           panel.grid.minor=element_blank(),
           axis.title.y=element_text(size=5),
-          axis.text.y=element_text(size=4)) +
+          axis.text.y=element_text(size=4),
+          panel.grid=element_line(size=0.1)) +
     scale_y_continuous(breaks=seq(0,1,0.2),limits=c(0,1)) + 
     coord_cartesian(ylim=c(0,1),expand=TRUE)
   return(plt)
@@ -170,6 +171,7 @@ fgwas_plot <- function(segnum,fac=0.10){
     theme_bw() +  
     theme(legend.position="none",
           panel.grid.minor=element_blank(),
+          panel.grid=element_line(size=0.1),
           axis.title.y=element_text(size=5),
           axis.text.y=element_text(size=4)) +
     scale_y_continuous(breaks=seq(0,1,0.2),limits=c(0,1)) + 
