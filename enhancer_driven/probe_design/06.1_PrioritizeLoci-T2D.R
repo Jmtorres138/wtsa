@@ -1,23 +1,11 @@
----
-title: "06.1_PrioritizeLoci-T2D.Rmd"
-author: "Jason Torres"
-date: "February 17, 2017"
-output: pdf_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-
-```{r}
-
 
 "%&%" <- function(a,b) paste0(a,b) 
 library("data.table")
 library("dplyr")
 
-serv.dir <- "/Users/jtorres/FUSE/"
+#serv.dir <- "/Users/jtorres/FUSE/"
+serv.dir <- "/well/got2d/jason/"
+
 work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/"
 rds.dir <- work.dir %&% "rds/"
 profile.dir <- work.dir %&% "profile-snps/"
@@ -30,21 +18,14 @@ dir.create(save.dir)
 
 fig.dir <- work.dir %&% "figures/"
 
-```
 
 
 
-Read in prioritized data fram 
-
-```{r}
 prof.df <- fread(profile.dir%&%"profile_credt2d.txt")
-```
 
 
-Build loci summary data frame 
 
 
-```{r}
 
 cumm_99 <- function(vec){
   # vec is a arranged (descending) vector of PPAs 
@@ -92,12 +73,7 @@ build_summary <- function(df=prof.df){
 
 sum.df <- build_summary()
 
-```
 
-# Designate Tiers 
-
-
-```{r}
 
 build_tiers <- function(){
   top.tier <- filter(sum.df,top.endo.atac==TRUE) %>% arrange(desc(top.num.eqtls))
@@ -120,8 +96,8 @@ build_tiers <- function(){
     dim(tier8)[1] # sanity check   
   if (check==(dim(top.tier)[1]+dim(bottom.tier)[1])){
     tier <- c(rep(1,dim(tier1)[1]), rep(2,dim(tier2)[1]), rep(3,dim(tier3)[1]),
-                rep(4,dim(tier4)[1]), rep(5,dim(tier5)[1]), rep(6,dim(tier6)[1]),
-               rep(7,dim(tier7)[1]), rep(8,dim(tier8)[1]))
+              rep(4,dim(tier4)[1]), rep(5,dim(tier5)[1]), rep(6,dim(tier6)[1]),
+              rep(7,dim(tier7)[1]), rep(8,dim(tier8)[1]))
   }
   out.df <- rbind(tier1,tier2,tier3,tier4,tier5,
                   tier6,tier7,tier8)
@@ -139,15 +115,6 @@ plt <- ggplot(data=filter(tier.df,cred.num<=100),
   geom_abline(slope=1)
 
 
-
-```
-
-Save Plots 
-
-```{r}
-
-#p = track_plot(1)
-#ggsave(fig.dir%&%"test.png",plot=p,width=5,height = 8)
 save_top <- function(){
   for (i in 1:length(top.tier$segnum)){
     segnum <- top.tier$segnum[i]
@@ -165,7 +132,6 @@ save_top <- function(){
 
 save_top()
 
-```
 
 
 
