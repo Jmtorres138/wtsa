@@ -3,8 +3,8 @@
 library("data.table")
 library("dplyr")
 
-serv.dir <- "/Users/jtorres/FUSE/"
-
+#serv.dir <- "/Users/jtorres/FUSE/"
+serv.dir <- "/well/got2d/jason/"
 work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/"
 rds.dir <- work.dir %&% "rds/"
 profile.dir <- work.dir %&% "profile-snps/"
