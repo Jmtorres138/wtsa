@@ -161,7 +161,7 @@ save_top <- function(){
     savename <- fig.dir %&% segnum %&% "_" %&% chr %&% "_" %&% locus %&% ".png"
     print(paste("index: ",i, " segnum: ",segnum))
     plt <- track_plot(segnum)
-    ggsave(savename,plot=p,width=5,height = 8)
+    ggsave(savename,plot=plt,width=5,height = 8)
   }
 }
 
