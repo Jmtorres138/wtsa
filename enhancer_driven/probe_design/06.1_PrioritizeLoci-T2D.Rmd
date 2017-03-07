@@ -150,6 +150,8 @@ Save Plots
 #ggsave(fig.dir%&%"test.png",plot=p,width=5,height = 8)
 save_top <- function(){
   for (i in 1:length(top.tier$segnum)){
+  top.tier <- filter(sum.df,top.endo.atac==TRUE) %>% 
+    arrange(desc(top.num.eqtls))
     segnum <- top.tier$segnum[i]
     chr <- top.tier$chr[i]
     locus <- top.tier$locus[i]

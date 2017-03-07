@@ -116,6 +116,7 @@ plt <- ggplot(data=filter(tier.df,cred.num<=100),
 
 
 save_top <- function(){
+  top.tier <- filter(sum.df,top.endo.atac==TRUE) %>% arrange(desc(top.num.eqtls))
   for (i in 1:length(top.tier$segnum)){
     segnum <- top.tier$segnum[i]
     chr <- top.tier$chr[i]
