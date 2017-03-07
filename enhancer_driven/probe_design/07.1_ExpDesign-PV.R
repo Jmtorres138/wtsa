@@ -2,6 +2,9 @@
 "%&%" <- function(a,b) paste0(a,b) 
 library("data.table")
 library("dplyr")
+library("GenomicRanges")
+library("SNPlocs.Hsapiens.dbSNP144.GRCh37")
+library("BSgenome")
 
 #serv.dir <- "/Users/jtorres/FUSE/"
 serv.dir <- "/well/got2d/jason/"
@@ -66,9 +69,7 @@ atac.df <- readRDS(rds.dir%&%"atac.df.RDS")
 atac.df$chr <- gsub("chr","ch",atac.df$chr)
 atac.gr <- gread(atac.df)
 
-library("GenomicRanges")
-library("SNPlocs.Hsapiens.dbSNP144.GRCh37")
-library("BSgenome")
+
 
 get_external_control <- function(segnum,window=5000){
   temp <- filter(prof.df,SEGNUMBER==segnum) %>% arrange(desc(PPA.fgwas))
