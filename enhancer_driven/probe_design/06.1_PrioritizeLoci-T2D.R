@@ -27,7 +27,7 @@ prof.df <- fread(profile.dir%&%"profile_credt2d.txt")
 
 
 
-cumm_99 <- function(vec){
+cumm_99_old <- function(vec){
   # vec is a arranged (descending) vector of PPAs 
   # returns the indeces needed to get cummulative PPA of 0.99 
   sum = 0 
@@ -39,6 +39,24 @@ cumm_99 <- function(vec){
       out.vec<-append(out.vec,i)
     }
   }
+  return(out.vec)
+}
+
+cumm_99 <- function(vec){
+  # vec is a arranged (descending) vector of PPAs 
+  # returns the indeces needed to get cummulative PPA of 0.99 
+  sum = 0 
+  count = 0
+  out.vec <- c()
+  for (i in 1:length(vec)){
+    val <- vec[i]
+    sum <- sum+val
+    if (sum<=0.99){
+      out.vec<-append(out.vec,i)
+      count <- count + 1 
+    }
+  }
+  out.vec <- append(out.vec,count+1)
   return(out.vec)
 }
 
