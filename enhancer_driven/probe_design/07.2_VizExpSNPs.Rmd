@@ -1,0 +1,159 @@
+---
+title: "07.2_VizExpSNPs.Rmd"
+author: "Jason Torres"
+date: "March 8, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b) 
+library("data.table")
+library("dplyr")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+source(serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/" %&%
+         "04.2_TrackPlot.R")
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/"
+profile.dir <- work.dir %&% "profile-snps/"
+exp.dir <- work.dir %&% "experimental-design-pv/"
+prof.df <- fread(profile.dir%&%"profile_credt2d.txt")
+
+exp.df <- fread(exp.dir %&% "design-pv.txt")
+
+```
+
+Build full exp.df 
+
+```{r}
+
+fvec <- list.files(exp.dir)[grep("chr",list.files(exp.dir))]
+exp.df <- c()
+for (f in fvec){
+  error.vec <- c()
+  if (!(f %in% error.vec)){
+    df <- fread(exp.dir %&% f)
+  } else{
+    df = c()
+  }
+  if (!is.null(df)){
+    exp.df <- rbind(exp.df,df)
+  } else{
+    print
+  }
+}
+
+
+```
+
+
+Viz function
+
+
+```{r}
+
+targ_plot <- function(segnum,fac=0.10){
+  df <- filter(credt2d.df,SEGNUMBER==segnum);  loc <- df$LOCUS[1]; mychrom <- df$CHR[1]
+  exp.sub <- filter(cbind(exp.df,yval=rep(0,dim(exp.df)[1])),SEGNUMBER==segnum)
+  exp.sub$PPA.fgwas[is.na(exp.sub$PPA.fgwas)] <- 0
+  mx <- max(exp.sub$POS); mn <- min(exp.sub$POS); span <- mx - mn
+  chrom <- df$CHR[1];mymin <- (mn-fac*span);mymax <- (mx+fac*span)
+  plt1 <- ggplot(df,aes(x=POS)) + 
+    geom_point(aes(y=PPA),shape=21,
+               color="gray",fill="gray") + 
+    geom_point(aes(y=PPA.fgwas,fill=(change>0)),
+               shape=23,color="black") +   
+    scale_fill_manual(values=c("dodgerblue2","firebrick2")) + 
+    xlab("Position on Chromosome " %&% chrom) + 
+    theme_bw() +  
+    theme(legend.position="none",
+          panel.grid.minor=element_blank(),
+          panel.grid=element_line(size=0.1),
+          axis.title.y=element_text(size=5),
+          axis.text.y=element_text(size=4)) +
+    scale_y_continuous(breaks=seq(0,1,0.2),limits=c(0,1)) + 
+    coord_cartesian(ylim=c(0,1),expand=TRUE) + 
+    geom_point(data=exp.sub,aes(x=POS,y=PPA.fgwas),shape=4,size=5)
+  a1sub <- filter(atac.df,chr==chrom,start>=mymin,end<=mymax,id=="Oxford") %>% 
+    dplyr::select(one_of("chr","start","end"))
+  a1.g <- gread(a1sub[,1:3])
+  a2sub <- filter(atac.df,chr==chrom,start>=mymin,end<=mymax,id=="Parker") %>% 
+    dplyr::select(one_of("chr","start","end"))
+  a2.g <- gread(a2sub[,1:3])
+  #if (length(a1.g)==0){
+  #  a1.g <- GRanges(seqnames=chrom,IRanges(start=0,end=0),id="null")
+  #}
+  #if (length(a2.g)==0){
+  #  a2.g <- GRanges(seqnames=chrom,IRanges(start=0,end=0),id="null")
+  #}
+  if (length(a1.g)>0 & length(a2.g)>0){
+    plt2 <- ggplot(a2.g) + geom_segment(color="firebrick3",size=30,alpha=0.9) +
+      geom_segment(a1.g,color="yellow2",size=25,alpha=0.9) + ylab("") +
+      theme_bw() + theme(panel.grid = element_blank())
+  } else if (length(a1.g)>0){
+    plt2 <- ggplot(a1.g) + geom_segment(color="yellow2",size=25,alpha=0.9) +
+      theme_bw() + theme(panel.grid = element_blank())
+  } else if (length(a2.g)>0){
+    plt2 <- ggplot(a2.g) + geom_segment(color="firebrick3",size=30,alpha=0.9) +
+      theme_bw() + theme(panel.grid = element_blank())
+  } else {
+    dframe <- data.frame(start=mymin,end=mymax)
+    plt2 <- ggplot(data=dframe) + geom_rect(data=dframe,aes(xmin=start,xmax=end),
+                                           ymin=0,ymax=0) + theme_bw()
+  }  
+  
+  
+
+  gr <- GRanges(mychrom,IRanges(mymin,mymax))
+  df <- as.data.frame(tad.gr[tad.gr %over% gr])
+  yhigh <- as.numeric(as.factor(df$id))
+  ylow <- as.numeric(as.factor(df$id)) - 1 
+  df <- cbind(df,ylow,yhigh)
+  plt3 <- ggplot(data=df,aes(xmin=start,xmax=end,
+                            ymin=ylow,ymax=yhigh,fill=id)) + 
+    geom_rect(color="black",alpha=0.3) + 
+    scale_fill_manual(values=c("gold","dodgerblue4")) + 
+    theme_bw() + 
+    theme(panel.grid=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank(),
+          legend.position="none") + 
+    coord_cartesian(xlim=c(mymin,mymax))
+  
+  tracks(`TAD`=plt3,
+         `ATAC \nEndoC`=plt2,
+         `Target SNPs`=plt1,
+         title=loc %&% "\nInterval: " %&% 
+           
+           round(span/1000,digits=2) %&%" kb",
+         label.text.cex=0.6,main.height=2,
+         heights=c(1,1,4)) +
+    scale_x_sequnit("Mb") + 
+    theme(axis.text.x=element_text(size=5))
+}
+
+targ_plot(80)
+targ_plot(67)
+targ_plot(60)
+targ_plot(27)
+
+```
+
+
+
+```{r}
+
+test <- as.logical(sapply(1:length(unique(prof.df$SEGNUMBER)), function(i){
+  seg <- unique(prof.df$SEGNUMBER)[i]
+  sub <- filter(prof.df,SEGNUMBER==seg)
+  pre <- sub$POS[sub$PPA==max(sub$PPA)]
+  post <- sub$POS[sub$PPA.fgwas==max(sub$PPA.fgwas)]
+  return(pre[1]!=post[1])
+}))
+
+```
+

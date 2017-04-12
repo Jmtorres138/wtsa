@@ -1,0 +1,50 @@
+---
+title: "01.2_Prepare-CredbileSet-T2D-Metabo-file.Rmd"
+author: "Jason Torres"
+date: "March 15, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Setup libraries and directories 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b) 
+library("dplyr")
+library("data.table")
+library("ggplot2")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+input.dir <- serv.dir %&% "projects/t2d-integration/fgwas/metabochip/"
+rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
+
+```
+
+
+
+```{r}
+
+cred.df <- fread(input.dir%&%"intermediate_files/metabo-fgwas-core.txt") %>% dplyr::select(one_of("SNPID","CHR","POS","SEGNUMBER","PPA","LOCUS"))
+
+fgwas.outfile <- input.dir%&%"fgwas_output/" %&% "intron+utr_3-p0.05.bfs.gz"
+fgwas.df <- fread("cat " %&% fgwas.outfile %&% " | zmore") %>% dplyr::select(one_of("id","PPA","chunk"))
+names(fgwas.df) <- c("SNPID","PPA.fgwas","SEGNUMBER")
+fgwas.df$SEGNUMBER <- fgwas.df$SEGNUMBER + 1 # fgwas file is 0-based 
+
+cred.df <- inner_join(cred.df,fgwas.df,by="SNPID")
+cred.df <- cred.df[(cred.df$SEGNUMBER.x == cred.df$SEGNUMBER.y),]
+cred.df <- mutate(cred.df, change=PPA.fgwas-PPA) %>% arrange(desc(change))
+cred.df <- dplyr::select(cred.df, -SEGNUMBER.y)
+names(cred.df)[which(names(cred.df)=="SEGNUMBER.x")] = "SEGNUMBER"
+
+saveRDS(cred.df,file=rds.dir%&%"credmetab.df.RDS")
+
+```
+
+
+
+
+
