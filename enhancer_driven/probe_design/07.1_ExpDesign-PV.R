@@ -135,7 +135,8 @@ build_stack <- function(seg){
 build_full <- function(){
   out.df <- c()
   pb <- txtProgressBar(min=0,max=length(unique(prof.df$SEGNUMBER)),style=3)
-  for (i in 1:length(unique(prof.df$SEGNUMBER))){
+  for (i in 12:length(unique(prof.df$SEGNUMBER))){
+    error_index <- c(11)
     setTxtProgressBar(pb,i)
     segnum <- unique(prof.df$SEGNUMBER)[i]
     print(paste("index: ",i, " segnum: ",segnum))
