@@ -2,7 +2,7 @@
 "%&%" <- function(a,b) paste0(a,b) 
 library("data.table")
 library("dplyr")
-
+library("ggplot2")
 #serv.dir <- "/Users/jtorres/FUSE/"
 serv.dir <- "/well/got2d/jason/"
 
@@ -109,15 +109,16 @@ build_tiers <- function(){
 
 tier.df <- build_tiers()
 
-plt <- ggplot(data=filter(tier.df,cred.num<=100),
-              aes(x=cred.num,y=fgwas.cred.num)) + 
-  geom_point(shape=21,color="black",aes(fill=as.factor(tier))) + theme_bw() + 
-  geom_abline(slope=1)
+#plt <- ggplot(data=filter(tier.df,cred.num<=100),
+ #             aes(x=cred.num,y=fgwas.cred.num)) + 
+ # geom_point(shape=21,color="black",aes(fill=as.factor(tier))) + theme_bw() + 
+ # geom_abline(slope=1)
 
 
 save_top <- function(){
   top.tier <- filter(sum.df,top.endo.atac==TRUE) %>% arrange(desc(top.num.eqtls))
-  for (i in 1:length(top.tier$segnum)){
+  error_index <- c(7) #1-6 work fine 
+  for (i in 8:length(top.tier$segnum)){
     segnum <- top.tier$segnum[i]
     chr <- top.tier$chr[i]
     locus <- top.tier$locus[i]
@@ -127,7 +128,7 @@ save_top <- function(){
     savename <- fig.dir %&% segnum %&% "_" %&% chr %&% "_" %&% locus %&% ".png"
     print(paste("index: ",i, " segnum: ",segnum))
     plt <- track_plot(segnum)
-    ggsave(savename,plot=p,width=5,height = 8)
+    ggsave(savename,plot=plt,width=5,height = 8)
   }
 }
 
