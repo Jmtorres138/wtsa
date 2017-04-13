@@ -18,8 +18,12 @@ library("data.table")
 library("ggplot2")
 
 serv.dir <- "/Users/jtorres/FUSE/"
-input.dir <- serv.dir %&% "projects/t2d-integration/fgwas/metabochip/"
 rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
+
+fgwas.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/fgwas_output/"
+
+fgwas.input.file <- serv.dir %&% "projects/t2d-integration/fgwas/metabochip/" %&% 
+  "intermediate_files/metabo-fgwas-core.txt"
 
 ```
 
@@ -27,9 +31,9 @@ rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
 
 ```{r}
 
-cred.df <- fread(input.dir%&%"intermediate_files/metabo-fgwas-core.txt") %>% dplyr::select(one_of("SNPID","CHR","POS","SEGNUMBER","PPA","LOCUS"))
+cred.df <- fread(fgwas.input.file) %>% dplyr::select(one_of("SNPID","CHR","POS","SEGNUMBER","PPA","LOCUS"))
 
-fgwas.outfile <- input.dir%&%"fgwas_output/" %&% "intron+utr_3-p0.05.bfs.gz"
+fgwas.outfile <- fgwas.dir  %&% "metabochip_gwasmod.bfs.gz"
 fgwas.df <- fread("cat " %&% fgwas.outfile %&% " | zmore") %>% dplyr::select(one_of("id","PPA","chunk"))
 names(fgwas.df) <- c("SNPID","PPA.fgwas","SEGNUMBER")
 fgwas.df$SEGNUMBER <- fgwas.df$SEGNUMBER + 1 # fgwas file is 0-based 
@@ -40,7 +44,7 @@ cred.df <- mutate(cred.df, change=PPA.fgwas-PPA) %>% arrange(desc(change))
 cred.df <- dplyr::select(cred.df, -SEGNUMBER.y)
 names(cred.df)[which(names(cred.df)=="SEGNUMBER.x")] = "SEGNUMBER"
 
-saveRDS(cred.df,file=rds.dir%&%"credmetab.df.RDS")
+saveRDS(cred.df,file=rds.dir%&%"fgwas.cred.metab.df.RDS")
 
 ```
 
