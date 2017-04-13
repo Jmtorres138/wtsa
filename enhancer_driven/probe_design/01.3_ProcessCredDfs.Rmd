@@ -1,0 +1,57 @@
+---
+title: "01.2_Prepare-CredbileSet-T2D-Metabo-file.Rmd"
+author: "Jason Torres"
+date: "March 15, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Setup libraries and directories 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b) 
+library("dplyr")
+library("data.table")
+library("ggplot2")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
+txt.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/txt/"
+
+df1 <- readRDS(file=rds.dir%&%"fgwas.cred.diag.df.RDS")
+df2 <- readRDS(file=rds.dir%&%"fgwas.cred.metab.df.RDS")
+
+```
+
+Process data frames 
+
+```{r}
+
+df1$STUDY <- rep("DIAGRAM",dim(df1)[1])
+df2$STUDY <- rep("Metabochip",dim(df2)[1])
+df2 <- df2[,c(1,2,3,4,5,7,8,6,9)]
+df1$CHROM <- as.integer(gsub("chr","",df1$CHR))
+df2$CHROM <- as.integer(gsub("chr","",df2$CHR))
+df1 <- arrange(df1,CHROM,POS)
+df2 <- arrange(df2,CHROM,POS)
+df1 <- df1[,1:9]
+df2 <- df2[,1:9]
+
+gz1 <- gzfile(txt.dir%&%"fgwas-cred-diag.txt.gz", "w")
+write.table(x=df1,gz1,sep="\t",quote=FALSE,row.names=F)
+close(gz1)
+
+gz2 <- gzfile(txt.dir%&%"fgwas-cred-metab.txt.gz", "w")
+write.table(x=df2,gz1,sep="\t",quote=FALSE,row.names=F)
+close(gz2)
+
+```
+
+
+
+
+
+
