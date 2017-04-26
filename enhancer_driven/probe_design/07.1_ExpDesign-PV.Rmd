@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 "%&%" <- function(a,b) paste0(a,b) 
 library("data.table")
 library("dplyr")
+library("GenomicRanges")
 
 serv.dir <- "/Users/jtorres/FUSE/"
 
@@ -102,7 +103,7 @@ atac.gr <- gread(atac.df)
 Lookup external control SNPs within specified region 
 
 ```{r}
-library("GenomicRanges")
+
 library("SNPlocs.Hsapiens.dbSNP144.GRCh37")
 library("BSgenome")
 

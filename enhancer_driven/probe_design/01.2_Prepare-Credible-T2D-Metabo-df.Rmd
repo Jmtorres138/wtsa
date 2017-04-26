@@ -22,8 +22,7 @@ rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
 
 fgwas.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/fgwas_output/"
 
-fgwas.input.file <- serv.dir %&% "projects/t2d-integration/fgwas/metabochip/" %&% 
-  "intermediate_files/metabo-fgwas-core.txt"
+fgwas.input.file <- serv.dir %&% "projects/t2d-integration/fgwas/" %&% "credsets_metabochip/intermediate_files/metabo-fgwas-core.txt"
 
 ```
 
@@ -47,8 +46,6 @@ names(cred.df)[which(names(cred.df)=="SEGNUMBER.x")] = "SEGNUMBER"
 saveRDS(cred.df,file=rds.dir%&%"fgwas.cred.metab.df.RDS")
 
 ```
-
-
 
 
 

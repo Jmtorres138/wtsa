@@ -1,5 +1,5 @@
 ---
-title: "01.2_Prepare-CredbileSet-T2D-Metabo-file.Rmd"
+title: "01.3_ProcessCredDfs.Rmd"
 author: "Jason Torres"
 date: "March 15, 2017"
 output: pdf_document
@@ -8,6 +8,8 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+This script simply reformats the credible set dataframes from the DIAGRAM and Metabochip studies 
 
 Setup libraries and directories 
 

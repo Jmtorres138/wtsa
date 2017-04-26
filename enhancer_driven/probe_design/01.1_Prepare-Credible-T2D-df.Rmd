@@ -21,9 +21,8 @@ serv.dir <- "/Users/jtorres/FUSE/"
 rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
 fgwas.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/fgwas_output/"
 
-fgwas.input.file <- serv.dir %&% "projects/t2d-integration/fGWAS_files/" %&% 
-  "diagram_1Kgenomes/fgwas_input27.txt.gz"
-
+fgwas.input.file <- serv.dir %&% "projects/t2d-integration/fgwas/" %&% 
+  "credsets_diagram_1KG/fgwas_input/fgwas_input27.txt.gz"
 
 ```
 
@@ -84,7 +83,6 @@ LOCUS <- as.character(sapply(1:length(cred.df$SNPID), function(i){
 
 cred.df <- cbind(cred.df,LOCUS)
 cred.df$LOCUS <- as.character(cred.df$LOCUS)
-#saveRDS(cred.df,file=rds.dir%&%"credt2d.df.RDS")
 saveRDS(cred.df,file=rds.dir%&%"fgwas.cred.diag.df.RDS")
 
 ```
