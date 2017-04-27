@@ -63,7 +63,7 @@ build_cred_df <- function(){
     fname <- te.dir %&% f #f.vec[1]
     loc.name <- strsplit(f,split="_")[[1]][1]
     temp.df <- fread("cat " %&% fname %&% " | zmore") %>% 
-      select(one_of("ID","P","LOGBF","POST")) 
+      dplyr::select(one_of("ID","P","LOGBF","POST")) 
     names(temp.df) <- c("SNPID","P","LNBF","PPA")
     CHR <- as.character(sapply(1:dim(temp.df)[1],function(i){
       snpid <- temp.df$SNPID[i]
@@ -90,7 +90,7 @@ build_cred_df <- function(){
   out.df$chrom <- chrom
   out.df <- arrange(out.df,chrom,POS)
   out.df$SEGNUMBER <- 1:dim(out.df)[1] 
-  out.df <- select(out.df,one_of("SNPID","CHR","POS",
+  out.df <- dplyr::select(out.df,one_of("SNPID","CHR","POS",
                                  "SEGNUMBER","PPA","LOCUS","STUDY",
                                  "P","LNBF"))
   return(out.df)
