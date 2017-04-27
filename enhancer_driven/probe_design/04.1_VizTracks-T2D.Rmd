@@ -25,8 +25,8 @@ Read RDS files
 
 ```{r}
 
-credt2d.df <- readRDS(rds.dir%&%"credt2d.df.RDS")
-eqtl.df <- readRDS(rds.dir%&%"eqtl.df.RDS")
+credt2d.df <- readRDS(rds.dir%&%"credComb.100less.df.RDS")#"credt2d.df.RDS")
+eqtl.df <- readRDS(rds.dir%&%"eqtl.fdr01.df.RDS")
 atac.df <- readRDS(rds.dir%&%"atac.df.RDS")
 
 ```
@@ -78,8 +78,11 @@ library(Homo.sapiens)
 
 viz_loc <- function(segnum,fac=0.10,genes=TRUE){
   df <- filter(credt2d.df,SEGNUMBER==segnum)
+  study <- df$STUDY[1]
   mx <- max(df$POS); mn <- min(df$POS)
   (span <- mx - mn)
+  span <- ifelse(span==0,1,span)
+  fac <- ifelse(span==1,10000,fac)
   print(span)
   chrom <- df$CHR[1] 
   mymin <- (mn-fac*span)
@@ -132,35 +135,36 @@ viz_loc <- function(segnum,fac=0.10,genes=TRUE){
   plt3 <- ggplot(a2.g) + geom_segment(color="firebrick3",size=30,alpha=0.9) +
     geom_segment(a1.g,color="yellow2",size=25,alpha=0.9) + ylab("") +
     theme_bw() + theme(panel.grid = element_blank())
+  mytitl <- paste0(study," : ",loc)
   if (genes==TRUE){
     if(dim(e.sub)[1]>0){
       tracks(`ATAC \nEndoC`=plt3,
-             `Islet eQTL\n(FDR < 0.05)`=plt2,
+             `Islet eQTL\n(FDR < 0.01)`=plt2,
              `DpnII`=plt.dpnII,
             `T2D Credible Set \n(DIAGRAM)`=plt1,
             `Genes`=ap,
-            heights=c(0.80,1.5,0.80,3,1),title=loc) + scale_x_sequnit("Mb") 
+            heights=c(0.80,1.5,0.80,3,1),title=mytitl) + scale_x_sequnit("Mb") 
     } else{
       tracks(`ATAC \nEndoC`=plt3,
-             #`Islet eQTL\n(FDR < 0.05)`=plt2,
+             #`Islet eQTL\n(FDR < 0.01)`=plt2,
              `DpnII`=plt.dpnII,
             `T2D Credible Set \n(DIAGRAM)`=plt1,
             `Genes`=ap,
-            heights=c(1,1,3,1),title=loc) + scale_x_sequnit("Mb")    
+            heights=c(1,1,3,1),title=mytitl) + scale_x_sequnit("Mb")    
     }
 
   } else{
     if(dim(e.sub)[1]>0){
       tracks(`ATAC \nEndoC`=plt3,
-             `Islet eQTL\n(FDR < 0.05)`=plt2,
+             `Islet eQTL\n(FDR < 0.01)`=plt2,
              `DpnII`=plt.dpnII,
              `T2D Credible Set \n(DIAGRAM)`=plt1,
-              heights=c(1,1,0.5,2),title=loc) + scale_x_sequnit("Mb") 
+              heights=c(1,1,0.5,2),title=mytitl) + scale_x_sequnit("Mb") 
     } else{
       tracks(`ATAC \nEndoC`=plt3,
              `DpnII`=plt.dpnII,
              `T2D Credible Set \n(DIAGRAM)`=plt1,
-              heights=c(1,0.5,3),title=loc) + scale_x_sequnit("Mb")       
+              heights=c(1,0.5,3),title=mytitl) + scale_x_sequnit("Mb")       
     }
   }
 }

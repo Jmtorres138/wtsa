@@ -4,7 +4,7 @@ library("data.table")
 library("dplyr")
 library("GenomicRanges")
 
-serv.dir <- "/Users/jtorres/FUSE/"
+serv.dir <- "/well/got2d/jason/"
 rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
 
 
@@ -49,8 +49,11 @@ library(Homo.sapiens)
 
 viz_loc <- function(segnum,fac=0.10,genes=TRUE){
   df <- filter(credt2d.df,SEGNUMBER==segnum)
+  study <- df$STUDY[1]
   mx <- max(df$POS); mn <- min(df$POS)
   (span <- mx - mn)
+  span <- ifelse(span==0,1,span)
+  fac <- ifelse(span==1,10000,fac)
   print(span)
   chrom <- df$CHR[1] 
   mymin <- (mn-fac*span)
@@ -61,9 +64,9 @@ viz_loc <- function(segnum,fac=0.10,genes=TRUE){
   dpnsub <- filter(dpn.df,V1==chrom,V2>mymin,V3<mymax)
   # Credible Set Plot 
   plt1 <- ggplot(df,aes(x=POS)) + 
-                geom_point(aes(y=PPA),shape=21,color="gray",fill="gray") + 
-                geom_point(aes(y=PPA.fgwas,fill=(change>0)),shape=23,color="black") +   
-                scale_fill_manual(values=c("dodgerblue2","firebrick2")) + 
+    geom_point(aes(y=PPA),shape=21,color="gray",fill="gray") + 
+    geom_point(aes(y=PPA.fgwas,fill=(change>0)),shape=23,color="black") +   
+    scale_fill_manual(values=c("dodgerblue2","firebrick2")) + 
     xlab("Position on Chromosome " %&% chrom) + 
     theme_bw() + scale_y_continuous(breaks=seq(0,1,0.05)) + 
     theme(legend.position="none",
@@ -80,20 +83,20 @@ viz_loc <- function(segnum,fac=0.10,genes=TRUE){
   gr <- GRanges(chrom,IRanges(start=mn-1e6,end=mx+1e6))
   if (genes==TRUE){
     ap <- autoplot(Homo.sapiens, which = gr, label.color = "black",#
-                 color = "brown",
-                 fill = "brown") + #,stat="reduce"
+                   color = "brown",
+                   fill = "brown") + #,stat="reduce"
       xlim(c(mn,mx)) + 
       theme_alignment(grid = FALSE,border = FALSE) 
-      
+    
   }
   # Make Significant eQTL plot 
   e.sub <- filter(eqtl.df, CHR==chrom, POS >=mymin) %>% filter(POS<=mymax)
   plt2 <- ggplot(data=e.sub, aes(x=POS,y=-log(P,base=10))) +
-                   geom_point(color="black",shape=25,fill="green1",size=2) +
+    geom_point(color="black",shape=25,fill="green1",size=2) +
     ylab(expression(paste("-log"[10],"(p-value)"))) + theme_bw() + 
     theme(panel.grid = element_blank())
   
-
+  
   a1sub <- filter(atac.df,chr==chrom,start>=mymin,end<=mymax,id=="Oxford") %>% 
     dplyr::select(one_of("chr","start","end"))
   a1.g <- gread(a1sub[,1:3])
@@ -103,38 +106,36 @@ viz_loc <- function(segnum,fac=0.10,genes=TRUE){
   plt3 <- ggplot(a2.g) + geom_segment(color="firebrick3",size=30,alpha=0.9) +
     geom_segment(a1.g,color="yellow2",size=25,alpha=0.9) + ylab("") +
     theme_bw() + theme(panel.grid = element_blank())
+  mytitl <- paste0(study," : ",loc)
   if (genes==TRUE){
     if(dim(e.sub)[1]>0){
       tracks(`ATAC \nEndoC`=plt3,
-             `Islet eQTL\n(FDR < 0.05)`=plt2,
+             `Islet eQTL\n(FDR < 0.01)`=plt2,
              `DpnII`=plt.dpnII,
-            `T2D Credible Set \n(DIAGRAM)`=plt1,
-            `Genes`=ap,
-            heights=c(0.80,1.5,0.80,3,1),title=loc) + scale_x_sequnit("Mb") 
+             `T2D Credible Set \n(DIAGRAM)`=plt1,
+             `Genes`=ap,
+             heights=c(0.80,1.5,0.80,3,1),title=mytitl) + scale_x_sequnit("Mb") 
     } else{
       tracks(`ATAC \nEndoC`=plt3,
-             #`Islet eQTL\n(FDR < 0.05)`=plt2,
+             #`Islet eQTL\n(FDR < 0.01)`=plt2,
              `DpnII`=plt.dpnII,
-            `T2D Credible Set \n(DIAGRAM)`=plt1,
-            `Genes`=ap,
-            heights=c(1,1,3,1),title=loc) + scale_x_sequnit("Mb")    
+             `T2D Credible Set \n(DIAGRAM)`=plt1,
+             `Genes`=ap,
+             heights=c(1,1,3,1),title=mytitl) + scale_x_sequnit("Mb")    
     }
-
+    
   } else{
     if(dim(e.sub)[1]>0){
       tracks(`ATAC \nEndoC`=plt3,
-             `Islet eQTL\n(FDR < 0.05)`=plt2,
+             `Islet eQTL\n(FDR < 0.01)`=plt2,
              `DpnII`=plt.dpnII,
              `T2D Credible Set \n(DIAGRAM)`=plt1,
-              heights=c(1,1,0.5,2),title=loc) + scale_x_sequnit("Mb") 
+             heights=c(1,1,0.5,2),title=mytitl) + scale_x_sequnit("Mb") 
     } else{
       tracks(`ATAC \nEndoC`=plt3,
              `DpnII`=plt.dpnII,
              `T2D Credible Set \n(DIAGRAM)`=plt1,
-              heights=c(1,0.5,3),title=loc) + scale_x_sequnit("Mb")       
+             heights=c(1,0.5,3),title=mytitl) + scale_x_sequnit("Mb")       
     }
   }
 }
-
-
-
