@@ -4,7 +4,7 @@ library("data.table")
 library("dplyr")
 library("GenomicRanges")
 
-serv.dir <- "/Users/jtorres/FUSE/"# "/well/got2d/jason/"
+serv.dir <- "/well/got2d/jason/" # "/Users/jtorres/FUSE/"# 
 
 rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
 
