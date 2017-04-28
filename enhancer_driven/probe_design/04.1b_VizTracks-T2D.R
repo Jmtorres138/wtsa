@@ -4,13 +4,14 @@ library("data.table")
 library("dplyr")
 library("GenomicRanges")
 
-serv.dir <- "/well/got2d/jason/"
+serv.dir <- "/Users/jtorres/FUSE/"# "/well/got2d/jason/"
+
 rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
 
 
 
-credt2d.df <- readRDS(rds.dir%&%"credt2d.df.RDS")
-eqtl.df <- readRDS(rds.dir%&%"eqtl.df.RDS")
+credt2d.df <- readRDS(rds.dir%&%"credComb.100less.df.RDS")#"credt2d.df.RDS")
+eqtl.df <- readRDS(rds.dir%&%"eqtl.fdr01.df.RDS")
 atac.df <- readRDS(rds.dir%&%"atac.df.RDS")
 
 
