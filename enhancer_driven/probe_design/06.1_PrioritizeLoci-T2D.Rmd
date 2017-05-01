@@ -23,7 +23,7 @@ rds.dir <- work.dir %&% "rds/"
 profile.dir <- work.dir %&% "profile-snps/"
 
 source(serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/" %&%
-         "04.2_TrackPlot.R")
+         "04.1b_VizTracks-T2D.R")
 
 save.dir <- work.dir %&% "profile-loci/"
 dir.create(save.dir)
@@ -69,24 +69,34 @@ build_summary <- function(df=prof.df){
     seg <- unique(df$SEGNUMBER)[i]
     temp <- filter(df,SEGNUMBER==seg) %>% arrange(desc(PPA.fgwas))
     chr <- temp$CHR[1]; locus <- temp$LOCUS[1]; segnum <- temp$SEGNUMBER[1]
-    top.endo.atac <- temp$endo.atac[1]; top.num.eqtls <- temp$num.eqtls[1]
-    top.egenes <- temp$egenes[1]
+    top.endo.atac <- temp$endo.atac[1] 
+    top.num.eqtls.ld80 <- temp$num.eqtls.ld80[1]
+    top.egenes.ld80 <- temp$egenes.ld80[1]
+    top.num.eqtls.ld20 <- temp$num.eqtls.ld20[1]
+    top.egenes.ld20 <- temp$egenes.ld20[1]
     cred.num <- dim(temp)[1]
-    fgwas.cred.num <- length(cumm_99(temp$PPA.fgwas))
+    if (is.na(temp$PPA.fgwas)){
+      fgwas.cred.num <- length(cumm_99(temp$PPA))
+    } else{
+      fgwas.cred.num <- length(cumm_99(temp$PPA.fgwas))
+    }
     if (fgwas.cred.num==0){
       fgwas.cred.num=1
     }
     stack.df <- data.frame(segnum,chr,locus,cred.num,fgwas.cred.num,
-                           top.endo.atac,top.num.eqtls,top.egenes)
+                           top.endo.atac,top.num.eqtls.ld80,top.egenes.ld80,
+                           top.num.eqtls.ld20,top.egenes.ld20)
     out.df <- rbind(out.df,stack.df)
   }
   out.df$chr <- as.character(out.df$chr)
   out.df$locus <- as.character(out.df$locus)
-  out.df$top.egenes <- as.character(out.df$top.egenes)
+  out.df$top.egenes.ld80 <- as.character(out.df$top.egenes.ld80)
+  out.df$top.egenes.ld20 <- as.character(out.df$top.egenes.ld20)
   prop.reduced <- ifelse(out.df$fgwas.cred.num>=1 & out.df$cred.num!=1,
                          (1 - (out.df$fgwas.cred.num/out.df$cred.num)) ,NA)
   out.df <- cbind(out.df,prop.reduced)
   out.df <- arrange(out.df,desc(prop.reduced))
+  out.df$segnum <- as.character(out.df$segnum)
   return(out.df)
 }
 
@@ -100,31 +110,39 @@ sum.df <- build_summary()
 ```{r}
 
 build_tiers <- function(){
-  top.tier <- filter(sum.df,top.endo.atac==TRUE) %>% arrange(desc(top.num.eqtls))
+  top.tier <- filter(sum.df,top.endo.atac==TRUE) %>% arrange(desc(top.num.eqtls.ld20))
   
   bottom.tier <- filter(sum.df,top.endo.atac==FALSE) %>% 
-    arrange(desc(top.num.eqtls))
+    arrange(desc(top.num.eqtls.ld20))
   
-  tier1 <- filter(top.tier,top.num.eqtls>0,fgwas.cred.num<=10)
-  tier2 <- filter(top.tier,top.num.eqtls>0,fgwas.cred.num>10)
-  tier3 <- filter(top.tier,top.num.eqtls==0,fgwas.cred.num<=10)
-  tier4 <- filter(top.tier,top.num.eqtls==0,fgwas.cred.num>10)
+  tier1 <- filter(top.tier,top.num.eqtls.ld80>0,fgwas.cred.num<=10)
+  tier2 <- filter(top.tier,top.num.eqtls.ld20>0 & top.num.eqtls.ld80==0,fgwas.cred.num<=10)
+  tier3 <- filter(top.tier,top.num.eqtls.ld80>0,fgwas.cred.num>10)
+  tier4 <- filter(top.tier,top.num.eqtls.ld20>0 & top.num.eqtls.ld80==0,fgwas.cred.num>10)
+  tier5 <- filter(top.tier,top.num.eqtls.ld20==0,fgwas.cred.num<=10)
+  tier6 <- filter(top.tier,top.num.eqtls.ld20==0,fgwas.cred.num>10)
   
-  tier5 <- filter(bottom.tier,top.num.eqtls>0,fgwas.cred.num<=10)
-  tier6 <- filter(bottom.tier,top.num.eqtls>0,fgwas.cred.num>10)
-  tier7 <- filter(bottom.tier,top.num.eqtls==0,fgwas.cred.num<=10)
-  tier8 <- filter(bottom.tier,top.num.eqtls==0,fgwas.cred.num>10)
+  tier7 <- filter(bottom.tier,top.num.eqtls.ld80>0,fgwas.cred.num<=10)
+  tier8 <- filter(bottom.tier,top.num.eqtls.ld20>0 & top.num.eqtls.ld80==0,fgwas.cred.num<=10)
+
+  tier9 <- filter(bottom.tier,top.num.eqtls.ld80>0,fgwas.cred.num>10)
+  tier10 <- filter(bottom.tier,top.num.eqtls.ld20>0 & top.num.eqtls.ld80==0,fgwas.cred.num>10)
+
+  tier11 <- filter(bottom.tier,top.num.eqtls.ld20==0,fgwas.cred.num<=10)
+  tier12 <- filter(bottom.tier,top.num.eqtls.ld20==0,fgwas.cred.num>10)
   
   check = dim(tier1)[1] +  dim(tier2)[1]+ dim(tier3)[1]+ dim(tier4)[1]+ 
     dim(tier5)[1] + dim(tier6)[1]+ dim(tier7)[1] + 
-    dim(tier8)[1] # sanity check   
+    dim(tier8)[1] + dim(tier9)[1]+ dim(tier10)[1] + 
+    dim(tier11)[1] + dim(tier12)[1]# sanity check   
   if (check==(dim(top.tier)[1]+dim(bottom.tier)[1])){
     tier <- c(rep(1,dim(tier1)[1]), rep(2,dim(tier2)[1]), rep(3,dim(tier3)[1]),
                 rep(4,dim(tier4)[1]), rep(5,dim(tier5)[1]), rep(6,dim(tier6)[1]),
-               rep(7,dim(tier7)[1]), rep(8,dim(tier8)[1]))
+               rep(7,dim(tier7)[1]), rep(8,dim(tier8)[1]),rep(9,dim(tier9)[1]), rep(10,dim(tier10)[1]),
+              rep(11,dim(tier11)[1]), rep(12,dim(tier12)[1]))
   }
   out.df <- rbind(tier1,tier2,tier3,tier4,tier5,
-                  tier6,tier7,tier8)
+                  tier6,tier7,tier8,tier9,tier10,tier11,tier12)
   out.df <- cbind(out.df,tier)
   write.table(x=out.df,file=save.dir%&%"profile-t2d-loci.txt",
               row.names=F,sep="\t",quote=F)
@@ -146,12 +164,11 @@ Save Plots
 
 ```{r}
 
-#p = track_plot(1)
-#ggsave(fig.dir%&%"test.png",plot=p,width=5,height = 8)
+
 save_top <- function(){
   for (i in 1:length(top.tier$segnum)){
   top.tier <- filter(sum.df,top.endo.atac==TRUE) %>% 
-    arrange(desc(top.num.eqtls))
+    arrange(desc(top.num.eqtls.ld20))
     segnum <- top.tier$segnum[i]
     chr <- top.tier$chr[i]
     locus <- top.tier$locus[i]
@@ -160,7 +177,7 @@ save_top <- function(){
     locus <- gsub(")","",locus,fixed = TRUE)
     savename <- fig.dir %&% segnum %&% "_" %&% chr %&% "_" %&% locus %&% ".png"
     print(paste("index: ",i, " segnum: ",segnum))
-    plt <- track_plot(segnum)
+    plt <- viz_loc(segnum)
     ggsave(savename,plot=plt,width=5,height = 8)
   }
 }

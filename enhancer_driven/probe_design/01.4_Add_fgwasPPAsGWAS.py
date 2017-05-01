@@ -12,7 +12,9 @@ import sys,os,gzip
 # globals
 cur_dir = "/well/got2d/jason/projects/wtsa/enhancer_driven/probe_design/"
 txt_dir = cur_dir + "txt/"
-full_file = txt_dir + "diagram1KG-fgwas14annot.bfs.gz" # "test.txt.gz" #
+full_file_dir = "/well/got2d/jason/projects/t2d-integration/fgwas/diagram_1kG_gwas/fgwas_output/best/"
+full_file = full_file_dir + "fgwas_diagram1KG_5annot.bfs.gz"
+
 
 # functions
 
