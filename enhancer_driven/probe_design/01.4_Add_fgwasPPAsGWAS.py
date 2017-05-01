@@ -78,6 +78,6 @@ def update(fname,outname):
 
 def main():
     update(txt_dir+"fgwas-cred-diag.txt.gz",txt_dir+"fgwas-cred-diag-updated.txt.gz")
-    #update(txt_dir+"fgwas-cred-metab.txt.gz",txt_dir+"fgwas-cred-metab-updated.txt.gz")
+    update(txt_dir+"fgwas-cred-metab.txt.gz",txt_dir+"fgwas-cred-metab-updated.txt.gz")
 
 if (__name__=="__main__"): main()
