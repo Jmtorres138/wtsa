@@ -24,8 +24,8 @@ output_dir = "/well/got2d/jason/projects/wtsa/enhancer_driven/probe_design/fgwas
 # functions
 
 def apply_to_metabochip():
-    home_dir = "/well/got2d/jason/projects/t2d-integration/fgwas/metabochip/"
-    input_file = home_dir + "intermediate_files/fgwas-metabo_input27.txt.gz"
+    home_dir = "/well/got2d/jason/projects/t2d-integration/fgwas/credsets_metabochip/fgwas_input/"
+    input_file = home_dir + "fgwas-metabo_input27.txt.gz"
     keep_list = list(model_list)
     job_file = cur_dir + "jobs/job_metabo.sh"
     fout=open(job_file,'w')
@@ -60,8 +60,8 @@ def apply_to_metabochip():
     sp.check_call(call)
 
 def apply_to_diagram():
-    home_dir = "/well/got2d/jason/projects/t2d-integration/fGWAS_files/"
-    input_file = home_dir + "diagram_1Kgenomes/fgwas_input27.txt.gz"
+    home_dir = "/well/got2d/jason/projects/t2d-integration/fgwas/credsets_diagram_1KG/fgwas_input/"
+    input_file = home_dir + "fgwas_input27.txt.gz"
     keep_list = list(model_list)
     job_file = cur_dir + "jobs/job_diag.sh"
     fout=open(job_file,'w')
