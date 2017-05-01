@@ -12,7 +12,7 @@ import sys,os,gzip
 # globals
 cur_dir = "/well/got2d/jason/projects/wtsa/enhancer_driven/probe_design/"
 txt_dir = cur_dir + "txt/"
-full_file = txt_dir + "diagram1KG-fgwas14annot.bfs.gz" # "test.txt.gz" # 
+full_file = txt_dir + "diagram1KG-fgwas14annot.bfs.gz" # "test.txt.gz" #
 
 # functions
 
@@ -54,7 +54,7 @@ def update(fname,outname):
     dic = build_pos_dic(fname)
     fin = gzip.open(fname,'rb')
     fout = gzip.open(outname,'wb')
-    head_list = fin.readline().strip().split()
+    head_list = fin.readline().strip().split("\t")
     head_list.append("PPA.fgwas.full")
     fout.write("\t".join(head_list)+"\n")
     count=0
@@ -62,7 +62,7 @@ def update(fname,outname):
         count+=1
         sys.stdout.write("\r%d" % count)
         sys.stdout.flush()
-        l = line.strip().split()
+        l = line.strip().split("\t")
         snpid = l[0]
         if len(dic[snpid])==3:
             l.append(dic[snpid][2])
@@ -76,6 +76,6 @@ def update(fname,outname):
 
 def main():
     update(txt_dir+"fgwas-cred-diag.txt.gz",txt_dir+"fgwas-cred-diag-updated.txt.gz")
-    update(txt_dir+"fgwas-cred-metab.txt.gz",txt_dir+"fgwas-cred-metab-updated.txt.gz")
+    #update(txt_dir+"fgwas-cred-metab.txt.gz",txt_dir+"fgwas-cred-metab-updated.txt.gz")
 
 if (__name__=="__main__"): main()
