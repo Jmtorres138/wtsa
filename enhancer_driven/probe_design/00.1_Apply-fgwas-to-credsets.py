@@ -16,10 +16,8 @@ from select import select
 
 # globals
 fgwas = "/users/mccarthy/jmtorres/software/fgwas-0.3.6/bin/fgwas"
-model_list = ["islet_state8","islet_state9","cds","islet_state6","distance_tss",
-              "intron","transcript","islet_state7","utr_5","islet_state13",
-              "islet_state15","utr_3","promoter","islet_atac"]
-ridgeparam = str(0.5)
+model_list = ["islet_state8","cds","islet_state5","islet_atac","islet_state2"]
+ridgeparam = str(0.65)
 cur_dir = "/well/got2d/jason/projects/wtsa/enhancer_driven/probe_design/"
 output_dir = "/well/got2d/jason/projects/wtsa/enhancer_driven/probe_design/fgwas_output/"
 
@@ -100,7 +98,7 @@ def apply_to_diagram():
 
 
 def main():
-    #apply_to_metabochip()
+    apply_to_metabochip()
     apply_to_diagram()
 
 if (__name__=="__main__"): main()

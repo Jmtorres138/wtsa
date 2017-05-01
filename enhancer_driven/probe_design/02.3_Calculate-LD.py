@@ -42,19 +42,16 @@ module load python/2.7.11
 
 	''' % (pre,work_dir,pre,work_dir,pre,command)
 	print ("Writing job script")
-	fout = open(work_dir+"jobs/"+pre+"_job.sh",'w')
+	fout = open(work_dir+"jobs/"+pre+"_Job.sh",'w')
 	fout.write(script)
 	fout.close()
-	call = "qsub " + work_dir+"jobs/"+pre+"_job.sh"
-	qsp.check_call(call,shell=True)
+	call = "qsub " + work_dir+"jobs/"+pre+"_Job.sh"
+	sp.check_call(call,shell=True)
 
 def main():
 	posfiles = [x for x in os.listdir(work_dir+"positions/") if ".positions" in x]
 	for posfile in posfiles:
 			run_job(work_dir+"positions/",posfile)
-		#l = posfile.split("_")
-		#chrom,start,end = l[0],l[1].split("-")[0], l[1].split("-")[1]
-		#loc = l[2].split(".positions")[0]
-		#print chrom,start,end,loc
+
 
 if (__name__=="__main__"): main()
