@@ -25,7 +25,8 @@ output_dir = "/well/got2d/jason/projects/wtsa/enhancer_driven/probe_design/fgwas
 
 def apply_to_metabochip():
     home_dir = "/well/got2d/jason/projects/t2d-integration/fgwas/credsets_metabochip/fgwas_input/"
-    input_file = home_dir + "fgwas-metabo_input27.txt.gz"
+    input_file = home_dir + "fgwas-metabo_input27_var100.txt.gz"
+    #input_file = home_dir + "fgwas-metabo_input27.txt.gz"
     keep_list = list(model_list)
     job_file = cur_dir + "jobs/job_metabo.sh"
     fout=open(job_file,'w')
@@ -36,11 +37,15 @@ def apply_to_metabochip():
                         "-dists", "distance_tss"+":"+home_dir+"dist_model",
                         "-w", model_sub,
                         "-p", ridgeparam, "-xv", "-print",
-                        "-o", output_dir+"metabochip_gwasmod"]
+                        #"-o", output_dir+"metabochip_gwasmod"]
+                        "-o", output_dir+"metabochip_gwasmod_var100"]
+
     else:
         command_list = [fgwas, "-i", input_file, "-cc", "-fine",
                         "-w", "+".join(keep_list), "-p", ridgeparam, "-xv", "-print",
-                        "-o", output_dir+"metabochip_gwasmod"]
+                        #"-o", output_dir+"metabochip_gwasmod"]
+                        "-o", output_dir+"metabochip_gwasmod_var100"]
+
     command = " ".join(command_list)
     script='''
 #$ -N job_metab
@@ -61,7 +66,7 @@ def apply_to_metabochip():
 
 def apply_to_diagram():
     home_dir = "/well/got2d/jason/projects/t2d-integration/fgwas/credsets_diagram_1KG/fgwas_input/"
-    input_file = home_dir + "fgwas_input27.txt.gz"
+    input_file = home_dir + "fgwas_input27_var100.txt.gz"
     keep_list = list(model_list)
     job_file = cur_dir + "jobs/job_diag.sh"
     fout=open(job_file,'w')
@@ -72,11 +77,15 @@ def apply_to_diagram():
                         "-dists", "distance_tss"+":"+home_dir+"dist_model",
                         "-w", model_sub,
                         "-p", ridgeparam, "-xv", "-print",
-                        "-o", output_dir+"diagram_gwasmod"]
+                        #"-o", output_dir+"diagram_gwasmod"]
+                        "-o", output_dir+"diagram_gwasmod_var100"]
+
     else:
         command_list = [fgwas, "-i", input_file, "-cc", "-fine",
                         "-w", "+".join(keep_list), "-p", ridgeparam, "-xv", "-print",
-                        "-o", output_dir+"diagram_gwasmod"]
+                        #"-o", output_dir+"diagram_gwasmod"]
+                        "-o", output_dir+"diagram_gwasmod_var100"]
+
     command = " ".join(command_list)
     script='''
 #$ -N job_diag
