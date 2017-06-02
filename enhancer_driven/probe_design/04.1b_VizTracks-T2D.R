@@ -55,6 +55,9 @@ viz_loc <- function(segnum,fac=0.10,genes=TRUE){
   (span <- mx - mn)
   span <- ifelse(span==0,1,span)
   fac <- ifelse(span==1,10000,fac)
+  # May need to use this line for single variant credible sets 
+  #fac <- ifelse(span==1,50000,fac)
+  
   print(span)
   chrom <- df$CHR[1] 
   mymin <- (mn-fac*span)

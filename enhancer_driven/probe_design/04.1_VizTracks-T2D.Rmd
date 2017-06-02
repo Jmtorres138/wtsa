@@ -172,4 +172,3 @@ viz_loc <- function(segnum,fac=0.10,genes=TRUE){
 #viz_loc(20)
 
 ```
-
