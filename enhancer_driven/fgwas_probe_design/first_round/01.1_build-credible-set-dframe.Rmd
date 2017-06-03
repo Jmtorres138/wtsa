@@ -1,0 +1,47 @@
+---
+title: "Building Credible Set Input Files"
+author: "Jason Torres"
+date: "June 3, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+
+library("dplyr")
+library("data.table")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
+setwd(work.dir)
+fgwas.dir <- serv.dir %&% "projects/t2d-integration/fgwas/diagram_hrc/"
+
+rds.dir <- work.dir %&% "RDS/"
+ifelse(dir.exists(rds.dir),"RDS directory Exists",dir.create(rds.dir))
+
+```
+
+
+# Read in "functional" 95% credible sets from Islet/Genomic annoation fgwas run of DIAGRAM HRC data 
+
+```{r}
+
+fcred.df <- fread(fgwas.dir %&% "credible_sets/fgwas_credsets_95_cum80.txt")
+names(fcred.df)[1] <- "refGene" # indicated that this is the most frequent, nearest refGene for set of credible set snps 
+fcred.df$SEGNUMBER <- paste0(fcred.df$SEGNUMBER,"DF") # D = DIAGRAM HRC ; F = "functional" credible set
+fcred.df$CHR  <- as.integer(gsub("chr","",fcred.df$CHR))
+fcred.df <- arrange(fcred.df,CHR,POS)
+
+saveRDS(object=fcred.df,file=rds.dir%&%"fcred.df.RDS")
+
+```
+
+
+
