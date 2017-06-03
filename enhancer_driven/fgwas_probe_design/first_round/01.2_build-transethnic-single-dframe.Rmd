@@ -1,0 +1,120 @@
+---
+title: "Build Trans-Ethnic DIAMANTE single variant fine-mapped credilbe set data frame"
+author: "Jason Torres"
+date: "March 15, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Setup libraries and directories 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b) 
+
+library("dplyr")
+library("data.table")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
+rds.dir <- work.dir %&% "RDS/"
+txt.dir <- work.dir %&% "txt/"
+ifelse(dir.exists(txt.dir),"Text directory Exists",dir.create(txt.dir))
+
+te.dir <- serv.dir %&% "reference/gwas/trans-ethnic_single/"
+
+```
+
+Function to determine number of SNPs in 99% credible set 
+
+```{r}
+
+num99 <- function(dframe){
+  index <- match("PPA",names(dframe))
+  vec <- sort(dframe[,index],decreasing=TRUE)
+  count=0
+  sum=0
+  for (v in vec){
+    count <- count + 1
+    sum <- sum + v
+    if (sum >= 0.99){
+      break
+    }
+  }
+  out.df <- arrange(dframe,desc(PPA))[1:count,]
+  return(out.df)
+}
+
+```
+
+
+
+#Build Credible Set dataframe 
+
+```{r}
+
+build_cred_df <- function(){
+  f.vec <- list.files(te.dir)
+  out.df <- c() 
+  for (f in f.vec){
+    fname <- te.dir %&% f #f.vec[1]
+    loc.name <- strsplit(f,split="_")[[1]][1]
+    temp.df <- fread("cat " %&% fname %&% " | zmore") %>% 
+      dplyr::select(one_of("ID","P","LOGBF","POST")) 
+    names(temp.df) <- c("SNPID","P","LNBF","PPA")
+    CHR <- as.character(sapply(1:dim(temp.df)[1],function(i){
+      snpid <- temp.df$SNPID[i]
+      chrom <- strsplit(snpid,split=":")[[1]][1]
+      return(chrom)
+    }))
+    POS <- as.integer(sapply(1:dim(temp.df)[1],function(i){
+      snpid <- temp.df$SNPID[i]
+      pos <- strsplit(snpid,split=":")[[1]][2]
+      return(pos)
+    }))
+    temp.df$CHR <- CHR
+    temp.df$POS <- POS 
+    LOCUS <- rep(loc.name,dim(temp.df)[1])
+    temp.df$LOCUS <- LOCUS
+    temp.df$STUDY <- rep("DIAMANTE.Morris",dim(temp.df)[1])
+    temp.df <- num99(as.data.frame(temp.df))
+    out.df <- rbind(out.df,temp.df)
+  }
+  chrom <- as.integer(sapply(1:dim(out.df)[1],function(i){
+    c <- strsplit(out.df$CHR[i],split="chr")[[1]][2]
+    return(c)
+  }))
+  out.df$chrom <- chrom
+  out.df <- arrange(out.df,chrom,POS)
+  out.df$SEGNUMBER <- 1:dim(out.df)[1] 
+  out.df <- dplyr::select(out.df,one_of("SNPID","CHR","POS",
+                                 "SEGNUMBER","PPA","LOCUS","STUDY",
+                                 "P","LNBF"))
+  return(out.df)
+}
+
+te.df <- build_cred_df()
+
+```
+
+# Modify data frame 
+
+```{r}
+
+te.df$SEGNUMBER <- paste0(te.df$SEGNUMBER,"TG") # T = DIAMANTE trans-ethnic ; G = genetic credible set
+te.df$CHR <- as.integer(gsub("chr","",te.df$CHR))
+
+saveRDS(te.df,file=rds.dir%&%"te.df.RDS")
+write.table(x=te.df,txt.dir%&%"cred-diamante-17single.txt",sep="\t",quote=FALSE,row.names=F)
+
+```
+
+
+
+
+
+
+
