@@ -3,5 +3,5 @@ Will be using fgwas to help prioritize loci to capture
 Functional 95% credible sets are available from t2d_integration repo 
 /well/got2d/jason/projects/t2d-integration/fgwas/diagram_hrc/
 
-
+Required that cumulative PPA for a 5K SNP block >= 0.80 (138 blocks meet this threshold) 
  
