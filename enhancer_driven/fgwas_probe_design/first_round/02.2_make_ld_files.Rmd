@@ -1,0 +1,83 @@
+---
+title: "Prepare LD Positions files for VCF tools limiting to eQTL and 'functional' credilbe SNPs only"
+author: "Jason Torres"
+date: "June 2, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Setup libraries and directories 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+
+library("dplyr")
+library("data.table")
+library("ggplot2")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
+rds.dir <- work.dir %&% "RDS/"
+ld.dir <- work.dir %&% "ld/"
+ifelse(dir.exists(ld.dir),"LD directory exists",dir.create(ld.dir))
+pos.dir <- ld.dir %&% "positions/"
+ifelse(dir.exists(pos.dir),"Positions directory exists",dir.create(pos.dir))
+
+credt2d.df <- readRDS(rds.dir%&%"fcred.df.RDS")
+
+
+cred.limit <- 1000 # snps 
+
+vec <- as.integer(table(credt2d.df$SEGNUMBER))
+names(vec) <- names(table(credt2d.df$SEGNUMBER))
+
+keep.ids <- names(vec[vec <=1000])
+credt2d.df <- filter(credt2d.df,SEGNUMBER %in% keep.ids)
+saveRDS(credt2d.df,rds.dir%&%"credComb.1000less.df.RDS")
+
+```
+
+
+Create Position files for credible set with positons for credible SNPs and significant eQTLs 
+
+```{r}
+
+
+eqtl.df <- readRDS(rds.dir%&%"eqtl.fdr01.df.RDS")
+
+window<-1e6
+
+pb <- txtProgressBar(min = 0, max = length(unique(credt2d.df$SEGNUMBER)), 
+                     initial = 0, style = 3)
+for (i in 1:length(unique(credt2d.df$SEGNUMBER))){
+  seg <- unique(credt2d.df$SEGNUMBER)[i]
+  setTxtProgressBar(pb,i)
+  sub.df <- filter(credt2d.df,SEGNUMBER==seg)
+  mn <- min(sub.df$POS); mx <- max(sub.df$POS); 
+  chrom<-paste0("chr",sub.df$CHR[1]); #locus <- sub.df$LOCUS[1]
+  locus <- sub.df$refGene[1] # nearest annotated refGene id to credible set SNP group 
+  study<- sub.df$STUDY[1]
+  locus <- gsub("/","-",locus)
+  locus <- gsub(" ","-",locus)
+  locus <- gsub("(","",locus,fixed=TRUE); locus <- gsub(")","",locus,fixed=TRUE)
+  mymin <- mn-window; mymax<-mx+window
+  fname <- chrom%&%"_"%&%mymin%&%"-"%&%mymax%&%"_"%&%locus%&%"_" %&%
+    seg %&%  ".positions"
+  eqtl.sub <- filter(eqtl.df,CHR==chrom,POS>=mymin,POS<=mymax)
+  pos <- unique(c(sub.df$POS,eqtl.sub$POS))
+  chr <- rep(gsub("chr","",chrom),length(pos))
+  df <- data.frame(chr,pos); names(df) <- c("#chr","pos")
+  write.table(x=df,file=pos.dir%&%fname,quote=F,sep="\t",row.names=F,col.names=T)
+}
+
+```
+
+
+
+
+
+
