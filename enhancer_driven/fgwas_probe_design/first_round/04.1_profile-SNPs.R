@@ -16,7 +16,7 @@ credt2d.df <- readRDS(rds.dir %&% "credComb.1000less.df.RDS")
 
 eval_endo_atac <- function(segnum,cred.df=credt2d.df){
   sub.df <- filter(cred.df,SEGNUMBER==segnum)
-  chrom <- sub.df$CHR[1]
+  chrom <- "chr" %&% sub.df$CHR[1]
   endo.atac  <- as.logical(sapply(1:dim(sub.df)[1], function(i){
     pos <- sub.df$POS[i];temp <- filter(atac.df,chr==chrom,start<=pos,end>=pos)
     return(ifelse(dim(temp)[1]>0,TRUE,FALSE))
