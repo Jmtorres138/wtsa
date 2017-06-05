@@ -304,6 +304,7 @@ track_plot <- function(segnum){
                        ifelse(span>10000,0.1,0.1)))
   mymin <- (mn-fac*span); mymax <- (mx+fac*span)
   loc <- df$refGene[1]
+  chrom <- df$CHR[1]
   gloc <- filter(gcred.df,CHR==(gsub("chr","",chrom)),POS>=mn,POS<=mx)$LOCUS
   loc <- ifelse(loc==gloc,loc,(loc%&%"/"%&%gloc))
   atac_plt <- atac_plot(segnum,fac)
