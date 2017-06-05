@@ -154,9 +154,20 @@ gcred_plot <- function(segnum,fac=10){
   span <- ifelse(span==0,1,span)
   chrom <- df$CHR[1];mymin <- (mn-fac*span);mymax <- (mx+fac*span)  
 
-  gloc <- filter(gcred.df,CHR==(gsub("chr","",chrom)),POS>=mn,POS<=mx)$LOCUS
-  sub.df <- filter(gcred.df,LOCUS==gloc)
-  plt <- ggplot(data=sub.df,aes(x=POS,y=PPA)) + 
+  #gloc <- filter(gcred.df,CHR==(gsub("chr","",chrom)),POS>=mn,POS<=mx)$LOCUS
+  #sub.df <- filter(gcred.df,LOCUS==gloc)
+  
+  gen.df <- filter(gencred.df,CHR==as.numeric(gsub("chr","",chrom)),POS >= mn & POS <=mx) %>% arrange(desc(PPA))
+  if (dim(gen.df)[1]==0){ # single variant, where mn = mx 
+    for (locus in unique(gencred.df$LOCUS)){
+      temp.df <- filter(gencred.df,LOCUS==locus)
+      lcmn <- min(temp.df$POS); lcmx <- max(temp.df$POS); lchr <- temp.df$CHR[1]
+      if (as.numeric(gsub("chr","",chrom))==lchr & mn >= lcmn & mn <= lcmx){
+        gen.df <- arrange(temp.df,desc(PPA))
+      }
+    }
+  }
+  plt <- ggplot(data=gen.df,aes(x=POS,y=PPA)) + 
     geom_point(shape=21,color="black",size=2,fill="grey") + 
     scale_y_continuous(limits=c(0,1),breaks=seq(0,1,0.1)) + 
     theme_bw() + 
@@ -166,7 +177,7 @@ gcred_plot <- function(segnum,fac=10){
                 axis.text.y=element_text(size=4)) +
     scale_y_continuous(breaks=seq(0,1,0.2),limits=c(0,1)) + 
     coord_cartesian(ylim=c(0,1),expand=TRUE)
-  plt <- plt + geom_label_repel(data=arrange(sub.df,desc(PPA))[1:1,],
+  plt <- plt + geom_label_repel(data=arrange(gen.df,desc(PPA))[1:1,],
                                 aes(x=POS,y=PPA,label=SNPID),size=3)
   return(plt)
 }
@@ -374,7 +385,9 @@ track_plot <- function(segnum){
                        ifelse(span>10000,0.1,0.1)))
   mymin <- (mn-fac*span); mymax <- (mx+fac*span)
   loc <- df$refGene[1]
+  chrom <- df$CHR[1]
   gloc <- filter(gcred.df,CHR==(gsub("chr","",chrom)),POS>=mn,POS<=mx)$LOCUS
+  gloc <- ifelse(length(gloc)==0,loc,gloc)
   loc <- ifelse(loc==gloc,loc,(loc%&%"/"%&%gloc))
   atac_plt <- atac_plot(segnum,fac)
   dpn_plt <- dpnII_plot(segnum,fac)
