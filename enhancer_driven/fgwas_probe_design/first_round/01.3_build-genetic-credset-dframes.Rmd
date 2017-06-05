@@ -1,0 +1,76 @@
+---
+title: "Build Genetic Credible Set Reference Files"
+author: "Jason Torres"
+date: "June 5, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+
+library("dplyr")
+library("data.table")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
+rds.dir <- work.dir %&% "RDS/"
+
+gencred.dir <- serv.dir %&% "reference/gwas/diagram_hrc/genetic_credible_sets/"
+
+```
+
+
+# Top Independent signals 
+
+```{r}
+
+get_gen_top <- function(){
+  gentop.df <- fread(gencred.dir %&% "lead-signal-ind-loci.txt")
+  names(gentop.df) <- c("CHR","POS","LOCUS")
+  gentop.df$CHR <- "chr" %&% gentop.df$CHR
+  saveRDS(gentop.df,file=rds.dir%&%"genetic-credible-set-lead-ind.df.RDS") 
+  return(gentop.df)
+}
+
+gentop.df <- get_gen_top()
+```
+
+
+# Genetic Credible Sets 
+
+
+```{r}
+
+get_gencred <- function(){
+  f.vec <- list.files(gencred.dir)[grepl("_cred",list.files(gencred.dir))]
+  out.df <- c() 
+  for (f in f.vec){
+    l <- strsplit(f,"_")[[1]]
+    loc <- l[1]
+    temp.df <- fread(gencred.dir%&%f)
+    #print(c(loc,sum(temp.df$V5)))
+    temp.df <- dplyr::select(temp.df,one_of("V1","V2","V5"))
+    names(temp.df) <- c("CHR","POS","PPA")
+    #temp.df$CHR <- "chr" %&% temp.df$CHR
+    LOCUS <- rep(loc,dim(temp.df)[1])
+    temp.df$LOCUS <- LOCUS
+    temp.df$SNPID <- "chr" %&% temp.df$CHR %&% ":" %&% temp.df$POS
+    out.df <- rbind(out.df,temp.df)
+  }
+  out.df <- arrange(out.df,CHR,LOCUS,PPA)
+  saveRDS(gentop.df,file=rds.dir%&%"genetic-credible-sets-ind.RDS")  
+  return(out.df)
+}
+
+gencred.df <- get_gencred()
+
+```
+
+
