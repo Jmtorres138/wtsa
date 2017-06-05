@@ -1,0 +1,377 @@
+---
+title: "Rank functional credible set loci by PPA explained by islet regulatory annotations, credible set size, LD with islet eQTLs, and Endo ATAC peaks"
+author: "Jason Torres"
+date: "June 4, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b) 
+library("data.table")
+library("dplyr")
+library("ggplot2")
+library("gridExtra")
+serv.dir <- "/Users/jtorres/FUSE/"
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
+rds.dir <- work.dir %&% "RDS/"
+prof.dir <- work.dir %&% "profile-snps/"
+phys.dir <- serv.dir %&% "reference/physiology/"
+
+```
+
+
+** Dimas / Wood Genes ** 
+
+
+```{r}
+
+phys.df <- fread(phys.dir%&%"dimas-wood.txt")
+dimas.genes <- filter(phys.df,Dimas2014!="IR" & Dimas2014!="UC")$Locus
+wood.genes <- filter(phys.df,!is.na(phys.df$Wood2017.GenomeWide))$Locus
+wood.genes2 <- filter(phys.df,!is.na(phys.df$Wood2017))$Locus
+phys.genes <- unique(c(dimas.genes,wood.genes,wood.genes2))
+phys.genes <- c(phys.genes,"HHEX","KCNQ1","CDKN2A","CDKN2B") # manual adjustment
+
+```
+
+
+# Rank by PPA explained by islet regulatory state 
+
+
+Proportion PPA plotting 
+
+```{r}
+
+cred.df <- fread(prof.dir%&%"profile_fcredt2d.txt")
+cred.df <- arrange(cred.df,CHR,SEGNUMBER,desc(PPA))
+anvec <- c("islet_atac","islet_state8","coding",
+               "islet_state2","islet_state5","islet_state1")
+
+get_reg_df <- function(cred.df,annot.vec){
+ seg.vec <- unique(cred.df$SEGNUMBER)
+  out.df <- c() 
+  for (seg in seg.vec){
+    temp.df <- filter(cred.df,SEGNUMBER==seg)
+    cumppa <- sum(temp.df$PPA)
+    myrow <- c(as.integer(gsub("DF","",seg)))
+    for (annot in annot.vec){
+      index <- match(annot,names(temp.df))
+      sub.df <- temp.df[,c(1:8,index),]
+      annotppa <- sum(sub.df$PPA[as.logical(sub.df[,9])]) / cumppa
+      myrow <- c(myrow,annotppa)
+    }
+    other <- (1-sum(unique(myrow[2:(length(myrow))])))
+    other <- ifelse(other>=0,other,0)
+    myrow <- c(myrow,other)
+    names(myrow) <- c("SEGNUMBER",annot.vec,"other")
+    cumsum <- sum((myrow[2:(length(myrow))]))
+    myrow[2:length(myrow)] <- myrow[2:length(myrow)] / cumsum # scale to give proper proportion
+    out.df <- rbind(out.df,myrow)
+  }
+  out.df <- as.data.frame(out.df)
+  out.df$SEGNUMBER <- paste0(out.df$SEGNUMBER,"DF")
+  row.names(out.df) <- NULL 
+  return(out.df)
+}
+
+get_format_df <- function(out.df){ # out.df is output from get_reg_df
+  seg.vec <- unique(cred.df$SEGNUMBER)
+  format.df <- c() 
+  for (i in 1:dim(out.df)[1]){
+    myrow <- out.df[i,]
+    SEGNUMBER <- rep(myrow$SEGNUMBER,length(2:length(myrow)))
+    Annotation <- names(myrow)[2:length(myrow)]
+    Proportion <- as.numeric(myrow[2:length(myrow)])
+    stack.df <- data.frame(SEGNUMBER,Annotation,Proportion)
+    format.df <- rbind(format.df,stack.df)
+  }
+  
+  format.df$Annotation <- factor(format.df$Annotation,                          levels=c("islet_state8","islet_atac","coding",                     "islet_state5","islet_state2","islet_state1","other"))
+  
+  refGene <- c()
+  for (i in 1:dim(format.df)[1]){
+    seg <- format.df$SEGNUMBER[i]
+    symb <- filter(cred.df,SEGNUMBER==seg)$refGene[1]
+    refGene <- c(refGene,symb)
+  }
+  format.df <- cbind(refGene,format.df)
+  
+  isletreg.df <- c()
+  for (seg in seg.vec){
+    temp.df <- filter(format.df,SEGNUMBER==seg,
+                      Annotation=="islet_atac" | Annotation=="islet_state8")
+    islet.reg.prop <- sum(temp.df$Proportion)
+    gene <- filter(format.df,SEGNUMBER==seg)$refGene[1]
+    stack.df <- data.frame(refGene=gene,SEGNUMBER=seg,islet.reg.prop)
+    isletreg.df <- rbind(isletreg.df,stack.df)
+  }
+  isletreg.df <- arrange(isletreg.df,(islet.reg.prop))
+  PlotID <- paste0(isletreg.df$SEGNUMBER,": ",isletreg.df$refGene)
+  isletreg.df <- cbind(PlotID,isletreg.df)
+  
+  PlotID <- paste0(format.df$SEGNUMBER,": ",format.df$refGene)
+  format.df <- cbind(PlotID,format.df)
+  format.df$PlotID <- factor(format.df$PlotID,levels=isletreg.df$PlotID)
+  format.df$SEGNUMBER <- factor(format.df$SEGNUMBER,levels=isletreg.df$SEGNUMBER)
+  #format.df$Symbol <- factor(format.df$Symbol,levels=isletreg.df$Symbol)
+  
+  SNPCOUNT <- c()
+  for (i in 1:dim(format.df)[1]){
+    seg <- format.df[i,]$SEGNUMBER
+    annot <- format.df[i,]$Annotation
+    temp.df <- filter(cred.df,SEGNUMBER==seg)
+    if (annot !="other"){
+      index <- match(annot,names(cred.df))
+      #print(c(index,seg))
+      snpcount <- sum(temp.df[,index])
+      #print(snpcount)
+    } else{
+      snpcount <- dim(temp.df)[1] - 
+        sum(as.integer(as.matrix(temp.df[,9:14]))) # NOTE!!! 9:14 
+      # NOTE!!! 9:14 indicate columns of fgwas model included annotations 
+      # Inputted manually here 
+      #print(c(seg,snpcount))
+      if (snpcount < 0){
+        snpcount <- 0 
+      }
+    }
+    SNPCOUNT <- c(SNPCOUNT,snpcount)
+  }
+  format.df$SNPCOUNT <- SNPCOUNT 
+  print(dim(format.df))
+  return(format.df)
+}
+
+ppa_plot <- function(format.df){
+  plt <- ggplot(data=format.df,aes(x=PlotID,y=Proportion,fill=Annotation)) + 
+            geom_bar(stat="identity",color="black",size=0.2) + 
+            scale_y_continuous(breaks=seq(0,1,0.1)) + 
+            xlab("Locus") + 
+            coord_flip() + 
+            scale_fill_brewer(palette="Spectral") +
+            ggtitle("Proportion of PPA attributable to each annotation")
+  return(plt)
+}
+
+snpcount_plot <- function(format.df){
+  plt <- ggplot(data=format.df,aes(x=PlotID,y=SNPCOUNT,fill=Annotation)) + 
+            geom_bar(stat="identity",color="black",size=0.2) + 
+            scale_y_continuous(breaks=seq(0,300,50)) + 
+            xlab("Locus")+
+            coord_flip() + 
+            scale_fill_brewer(palette="Spectral") +
+            ggtitle("Proportion of SNP count attributable to each annotation")  
+  return(plt)
+}
+
+form95 <- get_format_df(get_reg_df(cred.df,anvec))
+ppa.plt.95 <- ppa_plot(form95)
+sc.plt.95 <- snpcount_plot(form95)
+
+```
+
+Ranking functional credible sets 
+
+
+```{r}
+
+# NOTE: dimas.wood column indicates if either the refGene or any eGenes (eQTL LD >0.20) are in physiological gene set above 
+
+build_rank_df <- function(cred.df,annot.vec){
+  rank.df <- get_reg_df(cred.df,annot.vec)
+  # irp = islet regulatory proportion 
+  rank.df$irp <- rank.df$islet_atac + rank.df$islet_state8
+  refGene <- c()
+  eqtls.ld80 <- c() 
+  eqtls.ld20 <- c() 
+  endo.atac <- c()
+  dimas.wood <- c() 
+  num.snps <-c()
+  for (seg in rank.df$SEGNUMBER){
+    sub.df <- filter(cred.df,SEGNUMBER==seg)
+    num.snps <- c(num.snps,dim(sub.df)[1])
+    refGene <- c(refGene,sub.df$refGene[1])
+    check.genes <- unique(c(sub.df$refGene[1],strsplit(unique(sub.df$egenes.ld20),",")[[1]]))
+    dimas.wood <- c(dimas.wood,any(check.genes %in% phys.genes))
+    endo.atac <- c(endo.atac,!all(sub.df$endo.atac==FALSE))
+    eqtls.ld80 <- c(eqtls.ld80,!all(sub.df$num.eqtls.ld80==0))
+    eqtls.ld20 <- c(eqtls.ld20,!all(sub.df$num.eqtls.ld20==0))
+  }
+  rank.df <- cbind(refGene,rank.df,endo.atac,eqtls.ld80,eqtls.ld20,num.snps,dimas.wood)
+  rank.df <- arrange(rank.df, desc(endo.atac), desc(eqtls.ld80),
+                     desc(eqtls.ld20), desc(dimas.wood),desc(irp),num.snps)
+  rank.df$refGene <- as.character(rank.df$refGene)
+  return(rank.df)
+}
+
+rank.df <- build_rank_df(cred.df,anvec)
+
+saveRDS(object=rank.df,file=rds.dir%&%"rank.df.RDS")
+
+```
+
+
+# Cross Reference with Genetic Credible Sets 
+
+
+```{r}
+
+gentop.df <- readRDS(rds.dir %&% "genetic-credible-set-lead-ind.df.RDS")
+gencred.df <- readRDS(rds.dir%&%"genetic-credible-sets-ind.RDS")
+
+get_compare_df <- function(){
+  func.lead.snp <- c() # SNPID of the lead SNP in the functional credible set 
+  func.lead.ppa <- c() # PPA of the lead SNP in the functional credible set 
+  gcred.locus <- c() # The annotated locus name in the genetic credible set file, if available 
+  gcred.nsnps <- c() # The number of SNPs in the corresponding genetic credible set, if available
+  gcred.ind <- c() # Whether the functional credible set overlaps an independent genetic credible set signal 
+  gen.lead.snp <- c() # SNPID of the lead SNP in the genetic credible set 
+  gen.lead.ppa <- c() # PPA of the lead SNP in the genetic credible set 
+  leads.agree <- c() # Do the functional and genetic credible set lead SNPs agree? 
+  fgwas.higher <- c() # If so, does fgwas yield a higher PPA? 
+  
+  for (seg in rank.df$SEGNUMBER){
+    sub.df <- filter(cred.df,SEGNUMBER==seg) %>% arrange(desc(PPA))
+    fun.lead <- sub.df$SNPID[1]
+    fun.lead.ppa <- sub.df$PPA[1]
+    func.lead.snp <- c(func.lead.snp,fun.lead)
+    func.lead.ppa <- c(func.lead.ppa,fun.lead.ppa)
+    chrom <- sub.df$CHR[1]; mn <- min(sub.df$POS); mx <- max(sub.df$POS)
+    gen.df <- filter(gencred.df,CHR==chrom,POS >= mn & POS <=mx) %>% arrange(desc(PPA))
+    if (dim(gen.df)[1]>0){
+      gcred.locus <- c(gcred.locus, gen.df$LOCUS[1])
+      gcred.nsnps <- c(gcred.nsnps, dim(gen.df)[1])
+      gen.lead <- gen.df$SNPID[1]
+      gen.lead.snp <- c(gen.lead.snp,gen.lead)
+      gen.ppa <- gen.df$PPA[1]
+      gen.lead.ppa <- c(gen.lead.ppa,gen.ppa)
+      leads.agree <- c(leads.agree,(fun.lead==gen.lead))  
+      if (fun.lead==gen.lead){
+        higher <- ifelse(fun.lead.ppa>gen.ppa,TRUE,FALSE)
+        fgwas.higher <- c(fgwas.higher,higher)
+      } else{
+        fgwas.higher <- c(fgwas.higher,NA)
+      }
+    } else{
+      gcred.locus <- c(gcred.locus, NA)
+      gcred.nsnps <- c(gcred.nsnps, NA)    
+      gen.lead.snp <- c(gen.lead.snp,NA)
+      gen.lead.ppa <- c(gen.lead.ppa,NA)
+      leads.agree <- c(leads.agree,NA)  
+      fgwas.higher <- c(fgwas.higher,NA)
+    }
+    ind.df <- filter(gentop.df,CHR==("chr"%&%chrom),POS >= mn & POS <=mx)
+    if (dim(ind.df)[1]>0){
+      gcred.ind <- c(gcred.ind,TRUE)
+    } else{
+      gcred.ind <- c(gcred.ind,FALSE)
+    }
+  }
+  out.df <- cbind(rank.df,func.lead.snp,func.lead.ppa,gcred.locus,
+                  gcred.nsnps,gcred.ind,gen.lead.snp,gen.lead.ppa,
+                  leads.agree,fgwas.higher)
+  out.df$gcred.locus <- as.character(out.df$gcred.locus)
+  out.df$gen.lead.snp <- as.character(out.df$gen.lead.snp)
+  out.df$func.lead.snp <- as.character(out.df$func.lead.snp)
+  return(out.df)
+}
+
+compare.df <- get_compare_df()
+
+saveRDS(compare.df,file=rds.dir%&%"compare.df.RDS")
+
+```
+
+
+# Prioritize Loci from multiple features 
+
+** Loci with Independent Signals from Genetic Credible Sets ** 
+
+```{r}
+
+keep.segs <- c() 
+var.limit <- 300
+var.count <- 0 
+
+keep.df <- c() 
+
+group1.df <- filter(compare.df,gcred.ind==TRUE)
+
+tier1.df <- filter(group1.df, num.snps <= 20, endo.atac==TRUE, irp >= 0.5, dimas.wood==TRUE, eqtls.ld20==TRUE)
+keep.segs <- c(keep.segs,tier1.df$SEGNUMBER)
+(var.count <- var.count + sum(tier1.df$num.snps))
+
+tier2.df <- filter(group1.df, num.snps <= 20, endo.atac==TRUE, irp >= 0.5, dimas.wood==FALSE, eqtls.ld20==TRUE)
+keep.segs <- c(keep.segs,tier2.df$SEGNUMBER)
+(var.count <- var.count + sum(tier2.df$num.snps))
+
+tier3.df <- filter(group1.df, num.snps > 20 & num.snps <=50, endo.atac==TRUE, irp >= 0.5, dimas.wood==TRUE, eqtls.ld20==TRUE) # EMPTY 
+keep.segs <- c(keep.segs,tier3.df$SEGNUMBER)
+(var.count <- var.count + sum(tier3.df$num.snps)) # EMPTY 
+
+tier4.df <- filter(group1.df, num.snps <= 20, endo.atac==TRUE, irp >= 0.5, !(SEGNUMBER %in% keep.segs))
+keep.segs <- c(keep.segs,tier4.df$SEGNUMBER)
+(var.count <- var.count + sum(tier4.df$num.snps))
+
+tier5.df <- filter(group1.df, num.snps <= 50, irp >= 0.5, dimas.wood==TRUE, 
+                   eqtls.ld20==TRUE, !(SEGNUMBER %in% keep.segs))
+keep.segs <- c(keep.segs,tier5.df$SEGNUMBER)
+(var.count <- var.count + sum(tier5.df$num.snps))
+
+tier6.df <- filter(group1.df, num.snps <= 50, irp >= 0.5, endo.atac==TRUE, 
+                   eqtls.ld20==TRUE, !(SEGNUMBER %in% keep.segs))
+keep.segs <- c(keep.segs,tier6.df$SEGNUMBER)
+(var.count <- var.count + sum(tier6.df$num.snps))
+
+remainder.df <- filter(group1.df,!(SEGNUMBER %in% keep.segs))
+
+
+keep.df <- rbind(tier1.df,tier2.df,tier3.df,
+                 tier4.df,tier5.df,tier6.df)
+tier <- c(rep("1",dim(tier1.df)[1]),rep("2",dim(tier2.df)[1]),rep("3",dim(tier3.df)[1]),
+          rep("4",dim(tier4.df)[1]),rep("5",dim(tier5.df)[1]),rep("6",dim(tier6.df)[1]))
+keep.df <- cbind(keep.df,tier)
+saveRDS(keep.df,file=rds.dir%&%"round1.loci.df.RDS")
+
+```
+
+
+** Plotting Table ** 
+
+```{r}
+
+plot.df <- select(keep.df,one_of("refGene","gcred.locus","irp","endo.atac","eqtls.ld20","dimas.wood","num.snps","tier"))
+names(plot.df) <- c("refGene","Locus","Islet.Score","Endo.ATAC",
+                    "eQTL.Signal","Phys.Dimas.Wood","Number.SNPs","Tier")
+plot.df$Islet.Score <- round(plot.df$Islet.Score,3)
+plt <- grid.arrange(tableGrob(plot.df))
+ggsave(plot=plt,filename=work.dir%&%"first-round-keep.table.pdf",height=20,width=20)
+
+plot.df2 <- select(remainder.df,one_of("refGene","gcred.locus","irp","endo.atac","eqtls.ld20","dimas.wood","num.snps"))
+names(plot.df2) <- c("refGene","Locus","Islet.Score","Endo.ATAC",
+                    "eQTL.Signal","Phys.Dimas.Wood","Number.SNPs")
+plot.df2$Islet.Score <- round(plot.df2$Islet.Score,3)
+plt2 <- grid.arrange(tableGrob(plot.df2))
+ggsave(plot=plt2,filename=work.dir%&%"first-round-remainder.table.pdf",height=20,width=20)
+
+
+```
+
+
+# Plot loci 
+
+```{r}
+
+plot.dir <- work.dir %&% "plots/"
+ifelse(dir.exists(plot.dir),"Plot directory exists",dir.create(plot.dir))
+
+```
+
+

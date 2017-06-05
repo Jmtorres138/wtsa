@@ -48,6 +48,15 @@ gentop.df <- get_gen_top()
 
 ```{r}
 
+tcf7l2.top.df <- data.frame(matrix(rep(NA,15),nrow=3,ncol=5))
+names(tcf7l2.top.df) <- c("CHR","POS","PPA","LOCUS","SNPID")
+tcf7l2.top.df$CHR <- c(10,10,10)
+tcf7l2.top.df$POS <- c(114758349,114754784,114754071)
+tcf7l2.top.df$PPA <- c(0.800,0.110,0.090)
+tcf7l2.top.df$LOCUS <- c("TCF7L2","TCF7L2","TCF7L2")
+tcf7l2.top.df$SNPID <- c("chr10:114758349","chr10:114754784","chr10:114754071")
+
+
 get_gencred <- function(){
   f.vec <- list.files(gencred.dir)[grepl("_cred",list.files(gencred.dir))]
   out.df <- c() 
@@ -64,8 +73,9 @@ get_gencred <- function(){
     temp.df$SNPID <- "chr" %&% temp.df$CHR %&% ":" %&% temp.df$POS
     out.df <- rbind(out.df,temp.df)
   }
+  out.df <- rbind(out.df,tcf7l2.top.df)
   out.df <- arrange(out.df,CHR,LOCUS,PPA)
-  saveRDS(gentop.df,file=rds.dir%&%"genetic-credible-sets-ind.RDS")  
+  saveRDS(out.df,file=rds.dir%&%"genetic-credible-sets-ind.RDS")  
   return(out.df)
 }
 
