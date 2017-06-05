@@ -219,17 +219,21 @@ islet_eqtl_plot <- function(segnum,fac=0.10){
   span <- ifelse(span==0,1,span)
   mymin <- (mn-fac*span); mymax <- (mx+fac*span)
   sub.df <- filter(eqtl.df, CHR==chrom, POS>=mymin) %>% filter(POS<=mymax)
-  maxy <- max(-log(sub.df$P,base=10))
-  maxy <- ifelse(maxy<10,10,maxy+2)
-  plt <- ggplot(data=sub.df, aes(x=POS,y=-log(P,base=10))) +  
-    geom_point(shape=21,color="black", size=2,
-               fill="green1",alpha=0.80) + 
-    ylab(expression(paste("-log"[10],"(p-value)"))) + theme_bw() + 
-    theme(panel.grid = element_blank(),
-          axis.title.y=element_text(size=5),
-          axis.text.y=element_text(size=4)) +  xlim(c(mn,mx)) +
-    ylim(c(0,maxy))
-  return(plt)
+  if (dim(sub.df)[1]){
+    maxy <- max(-log(sub.df$P,base=10))
+    maxy <- ifelse(maxy<10,10,maxy+2)  
+    plt <- ggplot(data=sub.df, aes(x=POS,y=-log(P,base=10))) +  
+      geom_point(shape=21,color="black", size=2,
+                 fill="green1",alpha=0.80) + 
+      ylab(expression(paste("-log"[10],"(p-value)"))) + theme_bw() + 
+      theme(panel.grid = element_blank(),
+            axis.title.y=element_text(size=5),
+            axis.text.y=element_text(size=4)) +  xlim(c(mn,mx)) +
+      ylim(c(0,maxy))
+    return(plt)
+  } else{
+    return(FALSE)
+  }
 }
 
 
@@ -326,20 +330,35 @@ track_plot <- function(segnum){
   probe_plt <- prob_plot(segnum,fac)
   eqtl_plt <- islet_eqtl_plot(segnum,fac)
   gcred_plt <- gcred_plot(segnum,fac)
-  
-  tracks(`Islet eQTL \n(FDR<0.1)`=eqtl_plt,
-         `ATAC \nEndoC`=atac_plt,
-         `Functional Credible Set \n(LD)`=fcredld_plt,
-         `Genetic Credible Set`=gcred_plt,
-         `Oligos`=probe_plt,
-         `DpnII`=dpn_plt,
-         `Genes`=gene_plt,
-         heights=c(0.5,0.5,2,2,0.2,0.5,2),title=loc %&% "\nInterval: " %&% 
-           
-           round(span/1000,digits=2) %&%" kb",
-         label.text.cex=0.6,main.height=2) +
-    scale_x_sequnit("Mb") + 
-    theme(axis.text.x=element_text(size=5)) 
+  if (eqtl_plt!=FALSE){
+    tracks(`Islet eQTL \n(FDR<0.1)`=eqtl_plt,
+           `ATAC \nEndoC`=atac_plt,
+           `Functional Credible Set \n(LD)`=fcredld_plt,
+           `Genetic Credible Set`=gcred_plt,
+           `Oligos`=probe_plt,
+           `DpnII`=dpn_plt,
+           `Genes`=gene_plt,
+           heights=c(0.5,0.5,2,2,0.2,0.5,2),title=loc %&% "\nInterval: " %&% 
+             
+             round(span/1000,digits=2) %&%" kb",
+           label.text.cex=0.6,main.height=2) +
+      scale_x_sequnit("Mb") + 
+      theme(axis.text.x=element_text(size=5))     
+  } else{
+    tracks(
+      `ATAC \nEndoC`=atac_plt,
+      `Functional Credible Set \n(LD)`=fcredld_plt,
+      `Genetic Credible Set`=gcred_plt,
+      `Oligos`=probe_plt,
+      `DpnII`=dpn_plt,
+      `Genes`=gene_plt,
+      heights=c(0.5,2,2,0.2,0.5,2),title=loc %&% "\nInterval: " %&% 
+        
+        round(span/1000,digits=2) %&%" kb",
+      label.text.cex=0.6,main.height=2) +
+      scale_x_sequnit("Mb") + 
+      theme(axis.text.x=element_text(size=5))      
+  }
 }
 
 
