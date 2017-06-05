@@ -21,29 +21,11 @@ gcred.df <- readRDS(rds.dir%&%"genetic-credible-sets-ind.RDS")
 
 
 
-Read in all eQTLs file 
-
-
-
-#all.eqtls.df <- fread("cat " %&% all.eqtl.dir%&%"nominal.all.chunks.txt.gz" %&% " | zmore")
-
-
-
-
-
-Read in DpnII file 
-Read 0-based "bed" file of DpnII (hg19) cut sites (from Jelena Telenius )
-
-
 dpn.file <- serv.dir %&% "reference/DpnII/hg19_DpnII-sites.bed.gz" #  0-based bed file 
 dpn.df <- fread("cat " %&% dpn.file %&% " | zmore")
 # adjust to 1-based scheme 
 dpn.df$V2 <- dpn.df$V2 + 1 
 dpn.df$V3 <- dpn.df$V3 + 1 
-
-
-
-Define functions for reading in input (bed) files into grange objects and checking for overlaps 
 
 
 
