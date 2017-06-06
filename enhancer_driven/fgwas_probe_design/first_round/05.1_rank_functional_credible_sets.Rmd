@@ -245,6 +245,15 @@ get_compare_df <- function(){
     func.lead.ppa <- c(func.lead.ppa,fun.lead.ppa)
     chrom <- sub.df$CHR[1]; mn <- min(sub.df$POS); mx <- max(sub.df$POS)
     gen.df <- filter(gencred.df,CHR==chrom,POS >= mn & POS <=mx) %>% arrange(desc(PPA))
+    if (dim(gen.df)[1]==0){ # single variant, where mn = mx 
+      for (locus in unique(gencred.df$LOCUS)){
+        temp.df <- filter(gencred.df,LOCUS==locus)
+        lcmn <- min(temp.df$POS); lcmx <- max(temp.df$POS); lchr <- temp.df$CHR[1]
+        if (chrom==lchr & mn >= lcmn & mn <= lcmx){
+          gen.df <- temp.df
+        }
+      }
+    }
     if (dim(gen.df)[1]>0){
       gcred.locus <- c(gcred.locus, gen.df$LOCUS[1])
       gcred.nsnps <- c(gcred.nsnps, dim(gen.df)[1])
@@ -347,19 +356,19 @@ saveRDS(keep.df,file=rds.dir%&%"round1.loci.df.RDS")
 
 ```{r}
 
-plot.df <- select(keep.df,one_of("refGene","gcred.locus","irp","endo.atac","eqtls.ld20","dimas.wood","num.snps","tier"))
+plot.df <- dplyr::select(keep.df,one_of("refGene","gcred.locus","irp","endo.atac","eqtls.ld20","dimas.wood","num.snps","tier"))
 names(plot.df) <- c("refGene","Locus","Islet.Score","Endo.ATAC",
                     "eQTL.Signal","Phys.Dimas.Wood","Number.SNPs","Tier")
 plot.df$Islet.Score <- round(plot.df$Islet.Score,3)
 plt <- grid.arrange(tableGrob(plot.df))
-ggsave(plot=plt,filename=work.dir%&%"first-round-keep.table.pdf",height=20,width=20)
+ggplot2::ggsave(plot=plt,filename=work.dir%&%"first-round-keep.table.pdf",height=20,width=20)
 
-plot.df2 <- select(remainder.df,one_of("refGene","gcred.locus","irp","endo.atac","eqtls.ld20","dimas.wood","num.snps"))
+plot.df2 <- dplyr::select(remainder.df,one_of("refGene","gcred.locus","irp","endo.atac","eqtls.ld20","dimas.wood","num.snps"))
 names(plot.df2) <- c("refGene","Locus","Islet.Score","Endo.ATAC",
                     "eQTL.Signal","Phys.Dimas.Wood","Number.SNPs")
 plot.df2$Islet.Score <- round(plot.df2$Islet.Score,3)
 plt2 <- grid.arrange(tableGrob(plot.df2))
-ggsave(plot=plt2,filename=work.dir%&%"first-round-remainder.table.pdf",height=20,width=20)
+ggplot2::ggsave(plot=plt2,filename=work.dir%&%"first-round-remainder.table.pdf",height=20,width=20)
 
 
 ```
@@ -371,7 +380,37 @@ ggsave(plot=plt2,filename=work.dir%&%"first-round-remainder.table.pdf",height=20
 
 plot.dir <- work.dir %&% "plots/"
 ifelse(dir.exists(plot.dir),"Plot directory exists",dir.create(plot.dir))
+source(work.dir%&%"viz-tracks.R")
+
+for (i in 1:dim(keep.df)){
+  print(i) 
+  tier <- keep.df$tier[i]
+  seg <- keep.df$SEGNUMBER[i]
+  save.name <- plot.dir %&% "tier"%&% tier %&%"_" %&% seg %&%".png"
+  tplt <- track_plot(seg)
+  ggsave(plot=tplt,filename=save.name,height=10,width=5)
+}
 
 ```
+
+
+# Write SNP file of variants to target in first round of capture 
+
+
+```{r}
+
+get_first_round_snps <- function(){
+  out.df <- c()
+  for (seg in keep.df$SEGNUMBER){
+    stack.df <- filter(cred.df,SEGNUMBER==seg)
+    out.df <- rbind(out.df,stack.df)
+  }
+  out.df <- dplyr::select(out.df,one_of("refGene","SEGNUMBER","SNPID","CHR","POS"))
+}
+
+first.round.df <- get_first_round_snps()
+saveRDS(first.round.df,file = rds.dir%&%"first.round.df.RDS")
+```
+
 
 
