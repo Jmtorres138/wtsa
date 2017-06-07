@@ -1,0 +1,85 @@
+---
+title: "Supplement the list with additionals SNPs"
+author: "Jason Torres"
+date: "June 6, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b) 
+library("data.table")
+library("dplyr")
+library("ggplot2")
+library("gridExtra")
+library("GenomicRanges")
+library("SNPlocs.Hsapiens.dbSNP144.GRCh37")
+library("BSgenome")
+serv.dir <- "/Users/jtorres/FUSE/"
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
+rds.dir <- work.dir %&% "RDS/"
+txt.dir <- work.dir %&% "txt/"
+
+cred.df <- fread(prof.dir%&%"profile_fcredt2d.txt")
+
+df <- readRDS(rds.dir%&%"first.round.withCon.df.RDS")
+
+```
+
+
+# Add DIAMANTE (17 loci fine-mapped to single variant)
+
+```{r}
+
+te.df <- readRDS(rds.dir%&%"te.df.RDS")
+te.df$LOCUS[te.df$SNPID %in% df$SNPID] # NOTE: CDC123 and TC7L2 SNPs are already included 
+temp.df <- dplyr::select(te.df,one_of("LOCUS","SEGNUMBER","SNPID","CHR","POS","STUDY"))
+#temp.df <- filter(temp.df,!(SNPID %in% df$SNPID))
+names(temp.df) <- c("Locus","SEGNUMBER","SNPID","CHR","POS","Type")
+
+df <- rbind(df,temp.df)
+
+```
+
+
+# Add Islet index eQTLs (to complement Promoter Driven Study)
+
+
+```{r}
+
+index.df <- fread(work.dir %&% "eQTL-index.bed")
+index.df <- index.df[!duplicated(index.df$V4),]
+Locus <- index.df$V4
+SEGNUMBER <- 1:dim(index.df)[1] %&% "QTL" # Islet eQTL index 
+SNPID <- index.df$V1 %&% ":" %&%  index.df$V2
+CHR <- as.integer(gsub("chr","",index.df$V1))
+POS <- index.df$V2
+Type <- rep("eQTL",dim(index.df)[1])
+index.df <- data.frame(Locus,SEGNUMBER,SNPID,CHR,POS,Type,stringsAsFactors = FALSE)
+
+index.df$Locus[(index.df$SNPID %in% df$SNPID)]
+# "rs11708067_ADCY5"   "rs11603334_STARD10" "rs9854769_IGF2BP2"  "rs7903146_TCF7L2"
+index.df$SEGNUMBER[(index.df$SNPID %in% df$SNPID)]
+# "1QTL"  "4QTL"  "9QTL"  "12QTL"
+
+df <- rbind(df,index.df)
+df <- arrange(df,CHR,POS)
+
+
+saveRDS(object=df,file = rds.dir%&%"first.round.full.df.RDS")
+write.table(x=df,file=txt.dir%&%"first-round-variants.txt",sep="\t",
+            quote = FALSE,row.names=FALSE,col.names=TRUE)
+
+length(unique(df$SNPID)) # 358 unique SNPs in the final set 
+
+```
+
+
+
+
+

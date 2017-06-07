@@ -1,0 +1,219 @@
+---
+title: "Choose control variants to capture at each locus"
+author: "Jason Torres"
+date: "June 6, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b) 
+library("data.table")
+library("dplyr")
+library("ggplot2")
+library("gridExtra")
+library("GenomicRanges")
+library("SNPlocs.Hsapiens.dbSNP144.GRCh37")
+library("BSgenome")
+serv.dir <- "/Users/jtorres/FUSE/"
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
+rds.dir <- work.dir %&% "RDS/"
+
+cred.df <- fread(prof.dir%&%"profile_fcredt2d.txt")
+first.round.df <- readRDS(rds.dir%&%"first.round.df.RDS")
+names(first.round.df)[1] <- "Locus"
+
+```
+
+
+Functions 
+
+```{r}
+gread <- function(bed.df){
+  # names must be c(chr, start, end, id, score, strand), where available 
+  if(length(bed.df)==3){
+    gr <- with(bed.df, GRanges(chr, IRanges(start, end)))
+  } else if (length(bed.df)==4){
+    gr <- with(bed.df, GRanges(chr, IRanges(start, end), id=id))
+  } else if (length(bed.df)==5){
+    gr <- with(bed.df, GRanges(chr, IRanges(start, end), id=id, score=score))
+  } else if (length(bed.df)>=6){
+    bed.df$strand <- gsub(pattern="[^+-]+",replacement='*', bed.df$strand)
+    gr <- with(bed.df, GRanges(chr, IRanges(start, end), id=id, score=score, strand=strand))
+  }
+  return(gr)
+}
+
+```
+
+
+** EndoC-BH1 ATAC regions ** 
+
+```{r}
+atac.df <- readRDS(rds.dir%&%"atac.df.RDS")
+atac.df$chr <- gsub("chr","ch",atac.df$chr)
+atac.gr <- gread(atac.df)
+```
+
+
+
+```{r}
+
+build_control_df <- function(){
+  out.df <- c() 
+  pb <- txtProgressBar(min=0,max=length(unique(first.round.df$SEGNUMBER)),initial = 0,style=3)
+  for (i in 1:length(unique(first.round.df$SEGNUMBER))){
+    setTxtProgressBar(pb,i)
+    seg <- unique(first.round.df$SEGNUMBER)[i]
+    sub.df <- filter(cred.df,SEGNUMBER==seg)
+    chrom <- "ch" %&% sub.df$CHR[1]
+    low <- min(sub.df$POS); high <- max(sub.df$POS)
+    cred.interval <- GRanges(chrom,IRanges(low,high))
+    # UPSTREAM 
+    up.interval <- GRanges(chrom,IRanges(low-500000, low-50000))
+    upstream.snps <- snpsByOverlaps(SNPlocs.Hsapiens.dbSNP144.GRCh37,ranges = up.interval)
+    up.atac.snps <- upstream.snps[upstream.snps %over% atac.gr]
+    up <- max(pos(up.atac.snps))
+    up.dist <- abs(low-up)
+    up.rs <- up.atac.snps$RefSNP_id[which(pos(up.atac.snps)==up)]
+    # DOWNSTREAM
+    down.interval <- GRanges(chrom,IRanges(high+50000,high+500000))
+    downstream.snps <- snpsByOverlaps(SNPlocs.Hsapiens.dbSNP144.GRCh37,ranges = down.interval)
+    down.atac.snps <- downstream.snps[downstream.snps %over% atac.gr]
+    down <- min(pos(down.atac.snps))
+    down.dist <- abs(down-high)
+    down.rs <- down.atac.snps$RefSNP_id[which(pos(down.atac.snps)==down)]
+    Locus <- rep(sub.df$refGene[1],2)
+    SEGNUMBER <- rep(sub.df$SEGNUMBER[1],2)
+    SNPID <- c("chr"%&%sub.df$CHR[1]%&%":"%&%up, "chr"%&%sub.df$CHR[1]%&%":"%&%down)
+    CHR <- rep(sub.df$CHR[1],2)
+    POS <- c(up,down)
+    Type <- c("upstream.control","downstream.control")
+    stack.df <- data.frame(Locus,SEGNUMBER,SNPID,CHR,POS,Type,stringsAsFactors=FALSE)
+    out.df <- rbind(out.df,stack.df)
+  }
+  return(out.df)
+}
+
+control.df <- build_control_df()
+temp.df <- first.round.df
+temp.df$Type <- rep("credible.variant",dim(temp.df)[1])
+
+first.round.withCon.df <- rbind(temp.df,control.df)
+first.round.withCon.df <- arrange(first.round.withCon.df,CHR,POS)
+
+saveRDS(object=first.round.withCon.df, file=rds.dir%&%"first.round.withCon.df.RDS")
+
+```
+
+
+# Plotting 
+
+```{r}
+
+atac_plot <- function(segnum,fac=0.10){
+  df <- filter(first.round.withCon.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn
+  span <- ifelse(span==0,1,span)
+  chrom <- df$CHR[1];mymin <- (mn-fac*span);mymax <- (mx+fac*span)
+  chrom <- "ch"%&%chrom
+  a1sub <- filter(atac.df,chr==chrom,start>=mymin,end<=mymax,id=="Oxford") %>% 
+    dplyr::select(one_of("chr","start","end"))
+  a1.g <- gread(a1sub[,1:3])
+  a2sub <- filter(atac.df,chr==chrom,start>=mymin,end<=mymax,id=="Parker") %>% 
+    dplyr::select(one_of("chr","start","end"))
+  a2.g <- gread(a2sub[,1:3])
+  if (length(a1.g)>0 & length(a2.g)>0){
+    plt <- ggplot(a2.g) + geom_segment(color="firebrick3",size=30,alpha=0.9) +
+      geom_segment(a1.g,color="yellow2",size=25,alpha=0.9) + ylab("") +
+      theme_bw() + theme(panel.grid = element_blank())
+  } else if (length(a1.g)>0){
+    plt <- ggplot(a1.g) + geom_segment(color="yellow2",size=25,alpha=0.9) +
+      theme_bw() + theme(panel.grid = element_blank())
+  } else if (length(a2.g)>0){
+    plt <- ggplot(a2.g) + geom_segment(color="firebrick3",size=30,alpha=0.9) +
+      theme_bw() + theme(panel.grid = element_blank())
+  } else {
+    dframe <- data.frame(start=mymin,end=mymax)
+    plt <- ggplot(data=dframe) + geom_rect(data=dframe,aes(xmin=start,xmax=end),
+                                           ymin=0,ymax=0) + theme_bw()
+  }
+  return(plt)
+}
+
+dpn.file <- serv.dir %&% "reference/DpnII/hg19_DpnII-sites.bed.gz" #  0-based bed file 
+dpn.df <- fread("cat " %&% dpn.file %&% " | zmore")
+# adjust to 1-based scheme 
+dpn.df$V2 <- dpn.df$V2 + 1 
+dpn.df$V3 <- dpn.df$V3 + 1 
+
+dpnII_plot <- function(segnum,fac=0.10){
+  df <- filter(first.round.withCon.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn
+  span <- ifelse(span==0,1,span)
+  chrom <- df$CHR[1];mymin <- (mn-fac*span);mymax <- (mx+fac*span)
+  chrom <- "chr"%&%chrom
+  dpnsub <- filter(dpn.df,V1==chrom,V2>=mymin,V3<=mymax)
+  if (dim(dpnsub)[1]==0){
+    dpnsub <- data.frame(V1=chrom,V2=mymin,V3=mymax)
+    plt <-  ggplot(data=dpnsub)
+    plt <- plt + geom_vline(aes(xintercept=V2), size=0,color="white") + 
+      geom_vline(aes(xintercept=V3),size=0,color="white")
+  } else{
+    plt <-  ggplot(data=dpnsub)
+    plt <- plt + geom_vline(aes(xintercept=V2), size=0.1) + 
+      geom_vline(aes(xintercept=V3),size=0.1) 
+  }
+  plt <- plt + ylim(c(0,1)) + 
+    theme_bw() + theme(axis.text.y=element_blank(),
+                       axis.ticks = element_blank(),
+                       panel.grid = element_blank())  
+  
+  return(plt)
+}
+
+cred_plot <- function(segnum,fac=0.10){
+  df <- filter(first.round.withCon.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn
+  span <- ifelse(span==0,1,span)
+  chrom <- df$CHR[1];mymin <- (mn-fac*span);mymax <- (mx+fac*span)  
+  plt <- ggplot(data=df,aes(x=POS,y=(POS*0))) + 
+    geom_point(shape=21,aes(fill=Type)) + 
+    theme_bw() + theme(legend.position = "none" )
+}
+
+track_plot_con <- function(segnum){
+  df <- filter(first.round.withCon.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn
+  span <- ifelse(span==0,1,span)
+  fac <- ifelse(span==1,10000, 
+                ifelse(span>1&span<10000,1,
+                       ifelse(span>10000,0.1,0.1)))
+  mymin <- (mn-fac*span); mymax <- (mx+fac*span)
+  loc <- df$Locus[1]
+  chrom <- df$CHR[1]
+  gloc <- filter(first.round.withCon.df,CHR==(gsub("chr","",chrom)),POS>=mn,POS<=mx)$Locus
+  gloc <- ifelse(length(gloc)==0,loc,gloc)
+  loc <- ifelse(loc==gloc,loc,(loc%&%"/"%&%gloc))
+  atac_plt <- atac_plot(segnum,fac)
+  dpn_plt <- dpnII_plot(segnum,fac)
+  cred_plt <- cred_plot(segnum,fac)
+  tracks(
+            `ATAC \nEndoC`=atac_plt,
+            `Credible Set`=cred_plt,
+            `DpnII`=dpn_plt,
+            heights=c(0.5,0.2,0.5),title=loc %&% "\nInterval: " %&% 
+  
+             round(span/1000,digits=2) %&%" kb",
+           label.text.cex=0.6,main.height=2) +
+    scale_x_sequnit("Mb") + 
+    theme(axis.text.x=element_text(size=5))     
+}
+
+```
+

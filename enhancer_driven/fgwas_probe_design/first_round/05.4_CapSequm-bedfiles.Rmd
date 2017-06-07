@@ -1,0 +1,39 @@
+---
+title: "Make Capsequm Bed file"
+author: "Jason Torres"
+date: "June 7, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b) 
+library("data.table")
+library("dplyr")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+rds.dir <- work.dir %&% "RDS/"
+txt.dir <- work.dir %&% "txt/"
+
+```
+
+
+# First Round Capture variants BED File 
+
+
+```{r}
+
+df <- fread(txt.dir%&%"first-round-variants.txt")
+CHROM <- "chr" %&%  df$CHR
+POS0 <- df$POS - 1
+POS1 <- df$POS
+NAME <- df$Locus %&% ":" %&% df$SEGNUMBER %&% ":" %&% df$Type
+bed.df <- data.frame(CHROM,POS0,POS1,NAME,stringsAsFactors = FALSE)
+write.table(x=bed.df,file = txt.dir %&% "first-round-variants.bed",
+            sep="\t",quote=FALSE,col.names=FALSE,row.names=FALSE)
+
+```
+
