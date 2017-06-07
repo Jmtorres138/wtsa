@@ -107,6 +107,10 @@ temp.df$Type <- rep("credible.variant",dim(temp.df)[1])
 first.round.withCon.df <- rbind(temp.df,control.df)
 first.round.withCon.df <- arrange(first.round.withCon.df,CHR,POS)
 
+# Remove entries without control coordinates 
+filter(first.round.withCon.df,POS==-Inf)
+first.round.withCon.df <- filter(first.round.withCon.df,POS!=-Inf)
+
 saveRDS(object=first.round.withCon.df, file=rds.dir%&%"first.round.withCon.df.RDS")
 
 ```
