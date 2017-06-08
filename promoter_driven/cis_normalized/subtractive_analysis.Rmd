@@ -1,0 +1,24 @@
+---
+title: "Subtractive analysis"
+author: "Jason Torres"
+date: "June 8, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+
+library("dplyr")
+library("data.table")
+
+cbrg.dir <- "/Users/jtorres/FUSE2/promoter-driven/CisTransNormalized/PromoterDriven_cis_analysis/"
+cis.dir <- cbrg.dir %&% "Cis_analysis/"
+
+```
+
