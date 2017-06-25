@@ -1,0 +1,273 @@
+---
+title: "Evaluate MIG Exported Oligos file for filtering "
+author: "Jason Torres"
+date: "June 8, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Setup 
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b) 
+library("data.table")
+library("dplyr")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
+
+#rds.dir <- work.dir %&% "RDS/"
+txt.dir <- work.dir %&% "txt/"
+cap.dir <- work.dir %&% "capsequm_output/"
+
+roi.df <- fread(txt.dir %&% "first-round-variants_error-adjust.bed",header=F,sep="\t")
+mig.df <- fread(cap.dir %&% "MIG_exported_data.txt") 
+
+
+```
+
+
+
+# Correct FragIDs 
+
+```{r}
+
+fix_mig_ids <- function(){
+  out.df <- mig.df
+  FragID <- c()
+  nums <- c(1,2,3,4)
+  for (i in 1:dim(mig.df)[1]){
+    vec <- strsplit(split=", ",mig.df$FragID[i])[[1]]
+    snpid <- vec[grepl(pattern=":",vec) & !(grepl(pattern="_",vec))]
+    segnum <- vec[grepl("DF",vec)|grepl("TG",vec)|grepl("QTL",vec)]
+    segnum <- segnum[!grepl(":",x=segnum)]
+    segnum <- segnum[!grepl("eQTL",x=segnum)]
+    type <- vec[grepl("DIAMANTE.Morris",vec)|grepl(".",vec,fixed=TRUE)|grepl("eQTL",vec)]
+    type <- type[!grepl(":",x=type)]
+    index <- nums[!(nums %in% c(match(snpid,vec),match(segnum,vec),match(type,vec)))]
+    name <- strsplit(split="_",x=vec[index])[[1]]
+    name <- paste(name[2:length(name)],sep="_",collapse="_")
+    fragid <- paste(name,segnum,type,snpid,sep=",")
+    print(c(i,fragid))
+    FragID <- c(FragID,fragid)
+  }
+  out.df$FragID <- FragID
+  return(out.df)
+}
+
+mig.df <- fix_mig_ids()
+
+```
+
+
+Manually Remove ACSL1 gene variants (33 is too many)
+
+```{r}
+
+roi.df <- filter(roi.df,!grepl("ACSL1",roi.df$V4))
+mig.df <- filter(mig.df,!grepl("ACSL1",mig.df$FragID))
+
+saveRDS(mig.df,cap.dir%&%"mig.df.RDS")
+
+
+
+```
+
+
+
+# Filter oligos 
+
+```{r}
+
+get_filter_df <- function(){
+  thresh <- 70 * 0.25
+  filter.df <- filter(mig.df,Density<=30)
+  out.df <- c()
+  for (i in 1:dim(filter.df)[1]){
+    row <- filter.df[i,]
+    if (filter.df$SRepeatLength <= thresh | filter.df$Percent_CG >= 0.50 | filter.df$Percent_GC >= 0.50){
+      out.df <- rbind(out.df,row)
+    } else{
+      print(row)
+    }
+  }
+  return(out.df)
+}
+
+get_paired_df <- function(){
+  filter.df <- get_filter_df()
+  filter.df$chrom <- as.integer(gsub("chr","",filter.df$chr))
+  oligo.df <- arrange(filter.df,chrom,`bp start`,FragID)
+  out.df <- c()
+  for (frag in unique(oligo.df$FragID)){
+    stack.df <- filter(oligo.df,FragID==frag)
+    if (dim(stack.df)[1]==2){
+      out.df <- rbind(out.df,stack.df)
+    }
+  }
+  return(out.df)   
+}
+
+paired.df <- get_paired_df()
+saveRDS(paired.df,cap.dir%&%"high.quality.paired.probes.df.RDS")
+write.table(x=paired.df,file=cap.dir%&%"high-quality-oligos_first-round_enhancer-drivenCapC.txt",
+            sep="\t",quote=FALSE,row.names=FALSE)
+
+
+get_frag_df <- function(paired.df){
+  frag <- c()
+  id <- c() 
+  chrom <- c()
+  start <- c()
+  end <- c() 
+  for (i in 1:length(unique(paired.df$FragID))){
+    frag <- c(frag,"frag"%&%i)
+    f<- unique(paired.df$FragID)[i]
+    id <- c(id,f)
+    stack.df <- filter(paired.df,FragID==f) %>% arrange(`bp start`)
+    ch <- stack.df$chr[1]
+    chrom <- c(chrom,ch)
+    start <- c(start,stack.df$`bp start`[1])
+    end <- c(end,stack.df$`bp end`[2])
+  }
+  out.df <- data.frame(frag,id,chrom,start,end,stringsAsFactors = FALSE)
+  return(out.df) 
+}
+frag.df <- get_frag_df(paired.df)
+saveRDS(frag.df,cap.dir%&%"high.quality.frags.df.RDS")
+write.table(x=paired.df,file=cap.dir%&%"high-quality-fragments_first-round_enhancer-drivenCapC.txt",
+            sep="\t",quote=FALSE,row.names=FALSE)
+
+```
+
+
+# Medium-high quality
+
+```{r}
+
+remain.df <- filter(mig.df,!(FragID %in% paired.df$FragID)) %>% arrange(as.integer(gsub("chr","",chr)),FragID,`bp start`)
+remain.tg.df <- filter(remain.df,grepl("DIAMANTE.Morris",remain.df$FragID))
+remain.qtl.df <- filter(remain.df,grepl("rs",remain.df$FragID))
+
+medhigh.df <- filter(remain.df, Density<=100)
+get_mhpaired_df <- function(medhigh.df){
+  filter.df <- medhigh.df
+  filter.df$chrom <- as.integer(gsub("chr","",filter.df$chr))
+  oligo.df <- arrange(filter.df,chrom,`bp start`,FragID)
+  out.df <- c()
+  for (frag in unique(oligo.df$FragID)){
+    stack.df <- filter(oligo.df,FragID==frag)
+    if (dim(stack.df)[1]==2){
+      out.df <- rbind(out.df,stack.df)
+    }
+  }
+  return(out.df)   
+}
+
+medhigh.paired.df <- get_mhpaired_df(medhigh.df)
+saveRDS(medhigh.paired.df,cap.dir%&%"medium.quality.paired.probes.df.RDS")
+write.table(x=medhigh.paired.df,file=cap.dir%&%"medium-quality-oligos_first-round_enhancer-drivenCapC.txt",
+            sep="\t",quote=FALSE,row.names=FALSE)
+
+med.frag.df <- get_frag_df(medhigh.paired.df)
+saveRDS(med.frag.df,cap.dir%&%"medium.quality.frags.df.RDS")
+write.table(x=med.frag.df,file=cap.dir%&%"medium-quality-fragments_first-round_enhancer-drivenCapC.txt",
+            sep="\t",quote=FALSE,row.names=FALSE)
+
+# Get single high quality probes 
+rem.df <-  filter(remain.df,!(FragID %in% medhigh.paired.df$FragID)) %>% arrange(as.integer(gsub("chr","",chr)),FragID,`bp start`)
+single.high.df <- filter(rem.df,Density<=30)
+saveRDS(single.high.df,cap.dir%&%"high.quality.single.probes.df.RDS")
+write.table(x=single.high.df,file=cap.dir%&%"high-quality-SINGLE-oligos_first-round_enhancer-drivenCapC.txt",
+            sep="\t",quote=FALSE,row.names=FALSE)
+```
+
+
+# Determine if variants will be covered 
+
+
+```{r}
+
+capturable <- c()
+segid <- c() 
+for (i in 1:dim(roi.df)[1]){
+  ch <- roi.df$V1[i]
+  pos <- roi.df$V3[i]
+  varid <- roi.df$V4[i]
+  seg <- strsplit(roi.df$V4[i],split=",")[[1]][2]
+  segid <- c(segid,seg)
+  h.frag.sub <- filter(frag.df,chrom==ch,start<=pos & end >=pos)
+  m.frag.sub <- filter(med.frag.df,chrom==ch,start<=pos & end >=pos)
+  if (dim(h.frag.sub)[1]>0){
+    capturable <- c(capturable,"highQuality.PairedProbes")
+  } else if(dim(m.frag.sub)[1]>0){
+    capturable <- c(capturable,"mediumQuality.PairedProbes")
+  } else if (varid %in% single.high.df$FragID){
+    capturable <- c(capturable,"highQuality.SingleProbe")
+  } else{
+    capturable <- c(capturable,"PoorQuality")
+  }
+}
+
+roi.cov.df <- cbind(roi.df,capturable,segid) # 289 variants 
+names(roi.cov.df) <- c("Chrom","Start","End","ID","Capture.Status","SEGNUMBER")
+saveRDS(roi.cov.df,cap.dir%&%"roi.df.RDS")
+write.table(x=roi.cov.df,file=cap.dir%&%"SNPs-of-interest_enhancer-drivenCapC.txt",
+            sep="\t",quote=FALSE,row.names=FALSE)
+
+capture.df <- filter(roi.cov.df,Capture.Status!="PoorQuality") # 235 
+poor.df <- filter(roi.cov.df,Capture.Status=="PoorQuality") # 54
+
+#dim(filter(roi.cov.df,Capture.Status=="highQuality.PairedProbes"))[1] # 157 
+#dim(filter(roi.cov.df,Capture.Status=="mediumQuality.PairedProbes"))[1] # 22
+#dim(filter(roi.cov.df,Capture.Status=="highQuality.SingleProbe"))[1] # 56 
+
+```
+
+
+
+Profile fragment redundancies 
+
+```{r}
+
+gread <- function(bed.df){
+  # names must be c(chr, start, end, id, score, strand), where available 
+   if(length(bed.df)==3){
+      gr <- with(bed.df, GRanges(chr, IRanges(start, end)))
+   } else if (length(bed.df)==4){
+      gr <- with(bed.df, GRanges(chr, IRanges(start, end), id=id))
+   } else if (length(bed.df)==5){
+      gr <- with(bed.df, GRanges(chr, IRanges(start, end), id=id, score=score))
+   } else if (length(bed.df)>=6){
+      bed.df$strand <- gsub(pattern="[^+-]+",replacement='*', bed.df$strand)
+      gr <- with(bed.df, GRanges(chr, IRanges(start, end), id=id, score=score, strand=strand))
+   }
+   return(gr)
+}
+
+get_overlaps <- function(a,b){
+  # a and b are genomic ranges
+  vec <- a %over% b
+  ##print(sum(vec) %&% " / " %&% length(vec))
+  return(vec)
+}
+
+df1 <- data.frame(chr=frag.df$chrom,start=frag.df$start,end=frag.df$end,stringsAsFactors = FALSE)
+df2 <- data.frame(chr=med.frag.df$chrom,start=med.frag.df$start,end=med.frag.df$end,stringsAsFactors = FALSE)
+df <- rbind(df1,df2)
+df$chrom <- as.integer(gsub("chr","",df$chr))
+df <- arrange(df,chrom,start)
+
+frag.gr <- gread(df[,1:3])
+red<- reduce(frag.gr + 1000) #102/148
+
+1 - (102/148)
+
+
+```
+
+
