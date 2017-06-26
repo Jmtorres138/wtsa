@@ -145,7 +145,7 @@ write.table(x=paired.df,file=cap.dir%&%"high-quality-fragments_first-round_enhan
 ```
 
 
-# Medium-high quality
+# Medium-high quality (Density <= 40, single or paired)
 
 ```{r}
 
@@ -153,37 +153,176 @@ remain.df <- filter(mig.df,!(FragID %in% paired.df$FragID)) %>% arrange(as.integ
 remain.tg.df <- filter(remain.df,grepl("DIAMANTE.Morris",remain.df$FragID))
 remain.qtl.df <- filter(remain.df,grepl("rs",remain.df$FragID))
 
-medhigh.df <- filter(remain.df, Density<=100)
-get_mhpaired_df <- function(medhigh.df){
+medhigh.df <- filter(remain.df, Density<=40) # changed to 40 
+get_mh_df <- function(medhigh.df){
   filter.df <- medhigh.df
   filter.df$chrom <- as.integer(gsub("chr","",filter.df$chr))
   oligo.df <- arrange(filter.df,chrom,`bp start`,FragID)
   out.df <- c()
   for (frag in unique(oligo.df$FragID)){
     stack.df <- filter(oligo.df,FragID==frag)
-    if (dim(stack.df)[1]==2){
-      out.df <- rbind(out.df,stack.df)
-    }
+    #if (dim(stack.df)[1]==2){ # no longer require paired probes 
+    #  out.df <- rbind(out.df,stack.df)
+    #}
+    out.df <- rbind(out.df,stack.df)
   }
   return(out.df)   
 }
 
-medhigh.paired.df <- get_mhpaired_df(medhigh.df)
-saveRDS(medhigh.paired.df,cap.dir%&%"medium.quality.paired.probes.df.RDS")
-write.table(x=medhigh.paired.df,file=cap.dir%&%"medium-quality-oligos_first-round_enhancer-drivenCapC.txt",
+medhigh.df <- get_mh_df(medhigh.df)
+saveRDS(medhigh.df,cap.dir%&%"medium.quality.probes.df.RDS")
+write.table(x=medhigh.df,file=cap.dir%&%"medium-quality-oligos_first-round_enhancer-drivenCapC.txt",
             sep="\t",quote=FALSE,row.names=FALSE)
 
-med.frag.df <- get_frag_df(medhigh.paired.df)
-saveRDS(med.frag.df,cap.dir%&%"medium.quality.frags.df.RDS")
-write.table(x=med.frag.df,file=cap.dir%&%"medium-quality-fragments_first-round_enhancer-drivenCapC.txt",
-            sep="\t",quote=FALSE,row.names=FALSE)
+#med.frag.df <- get_frag_df(medhigh.paired.df)
+#saveRDS(med.frag.df,cap.dir%&%"medium.quality.frags.df.RDS")
+#write.table(x=med.frag.df,file=cap.dir%&%"medium-quality-fragments_first-round_enhancer-drivenCapC.txt",
+#            sep="\t",quote=FALSE,row.names=FALSE)
 
 # Get single high quality probes 
-rem.df <-  filter(remain.df,!(FragID %in% medhigh.paired.df$FragID)) %>% arrange(as.integer(gsub("chr","",chr)),FragID,`bp start`)
-single.high.df <- filter(rem.df,Density<=30)
-saveRDS(single.high.df,cap.dir%&%"high.quality.single.probes.df.RDS")
-write.table(x=single.high.df,file=cap.dir%&%"high-quality-SINGLE-oligos_first-round_enhancer-drivenCapC.txt",
+#rem.df <-  filter(remain.df,!(FragID %in% medhigh.paired.df$FragID)) %>% arrange(as.integer(gsub("chr","",chr)),FragID,`bp start`)
+#single.high.df <- filter(rem.df,Density<=30)
+#saveRDS(single.high.df,cap.dir%&%"high.quality.single.probes.df.RDS")
+#write.table(x=single.high.df,file=cap.dir%&%"high-quality-SINGLE-oligos_first-round_enhancer-drivenCapC.txt",
+#            sep="\t",quote=FALSE,row.names=FALSE)
+```
+
+
+# Filter out probes that capture redundant fragments 
+
+Read in DpnII file 
+Read 0-based "bed" file of DpnII (hg19) cut sites (from Jelena Telenius )
+
+```{r}
+dpn.file <- serv.dir %&% "reference/DpnII/hg19_DpnII-sites.bed.gz" #  0-based bed file 
+dpn.df <- fread("cat " %&% dpn.file %&% " | zmore")
+# adjust to 1-based scheme 
+dpn.df$V2 <- dpn.df$V2 + 1 
+dpn.df$V3 <- dpn.df$V3 + 1 
+
+dpn.df$fragid <- dpn.df$V1%&%":"%&%dpn.df$V2%&%"-"%&%dpn.df$V3
+```
+
+
+
+```{r}
+
+medhigh.df$chrom <- as.integer(gsub("chr","",medhigh.df$chr))
+full.df <- rbind(paired.df,medhigh.df)
+
+# Add manual entries 
+sub.df <- as.data.frame(matrix(rep(NA,19),nrow=1,ncol=19))
+names(sub.df) <- names(full.df)
+row1 <- c("chr3",187741980,187742050,TRUE,34.61,1,FALSE, "LOC105374266,29DF,credible.variant,chr3:187741842",70,0,30,NA,NA,NA,	"GTTTTAAGTGGAAATTTTAAAATATGTGCATACATGTGAGACTTCTGAGTCCTATCATTCATATTTGATC",FALSE,0,NA,3)
+sub.df[1,] <- row1
+
+row2 <- c("chr10",	12308720,	12308790,	TRUE,	21.27,	1,	FALSE, "CDC123,5TG,DIAMANTE.Morris,chr10:12307894.offset1000", 70	,0	,22.86,	NA,	NA,	NA,	"GATCAAAGCTTAATATAGTTAACATACAAATAAAAGGACTTCAAAATTAAACAAAATAAGATTGGGTTAA",	FALSE,	0, NA,10)
+sub.df[2,] <- row2
+
+row3 <- c("chr6",20689124,20689194,TRUE,14.26,4,TRUE,"CDKAL1,50DF,credible.variant,chr6:20688121.offset50",70,0,47.14,NA,NA,NA,"GGGAGAGGGAGTGTTCTGTAATCCACTGATTAGGTCTCAGTCCTTTAGTAAGCCTGTGCTTACTGTGATC",	FALSE,0,NA,6)
+sub.df[3,] <- row3
+
+full.df <- rbind(full.df,sub.df)
+full.df$`bp start` <- as.integer(full.df$`bp start`)
+full.df$`bp end` <- as.integer(full.df$`bp end`)
+full.df$chrom <- as.integer(full.df$chrom)
+
+# Filter outprobes that capture redundant fragments  
+
+full.df <- arrange(full.df,chrom,`bp start`)
+
+filter_redun <- function(){
+  track.vec <- c()
+  type <- c() 
+  quality <- c()
+  fragment <- c() 
+  out.df <- c()
+  for (id in unique(full.df$FragID)){
+    temp.df <- filter(full.df,FragID==id)
+    temp.df$Density <- as.integer(temp.df$Density)
+    temp.df <- arrange(temp.df,`bp start`)
+    c <- unique(temp.df$chr)
+    if (dim(temp.df)[1]==2){
+      pos1 <- temp.df$`bp start`[1]
+      pos2 <- temp.df$`bp end`[2]
+      f <- filter(dpn.df,V1==c,V2>=pos1,V3<=pos2)
+    } else if(regexpr(pattern="GATC",text = temp.df$Sequence) == 1){
+      pos <- temp.df$`bp start`
+      f <- filter(dpn.df,V1==c,V2==(pos+2))
+    } else if(regexpr(pattern="GATC",text = temp.df$Sequence) > 1){
+      pos <- temp.df$`bp end`
+      f <- filter(dpn.df,V1==c,V3==(pos-2))
+    }
+    #; pos <- temp.df$`bp start`[1]
+    #f <- filter(dpn.df,V1==c,V2<=pos,V3>=pos)
+    fragname <- f$V1 %&% ":" %&% f$V2 %&% "-" %&% f$V3
+    if (!(fragname %in% track.vec)){
+      out.df <- rbind(out.df,temp.df)
+      track.vec <- c(track.vec,fragname)
+      if (dim(temp.df)[1] ==2){
+        fragment <- c(fragment,rep(fragname,2))
+        type <- c(type,rep("paired",2))
+        if (all(temp.df$Density <=30)){
+          quality <- c(quality,rep("HighQuality",2))
+        } else{
+          quality <- c(quality,rep("MediumQuality",2))
+        }         
+      } else if(dim(temp.df)[1]==1){
+        fragment <- c(fragment,fragname)
+        type <- c(type,"single")
+        if (all(temp.df$Density <=30)){
+          quality <- c(quality,"HighQuality")
+        } else{
+          quality <- c(quality,"MediumQuality")
+        }  
+      } else {
+        print("Please inspect")
+      }
+    }
+  }
+  out.df <- cbind(out.df,type,quality,fragment)
+  out.df$type <- as.character(out.df$type)
+  out.df$quality <- as.character(out.df$quality)
+  out.df$fragment <- as.character(out.df$fragment)
+  return(out.df)
+}
+
+filtered.df <- filter_redun()
+write.table(x=filtered.df,file=cap.dir%&%"NonRedundant-Oligo-Probeset.txt",
             sep="\t",quote=FALSE,row.names=FALSE)
+```
+
+
+# Prune adjacent fragments from being captured 
+
+```{r}
+
+prune <- function(filtered.df){
+  out.df <- c() 
+  inspect.vec <- filtered.df$fragment
+  while(length(inspect.vec)>0){
+    print(length(inspect.vec))
+    f <- inspect.vec[1]
+    c <- strsplit(x=f,split=":")[[1]][1]
+    pos <- strsplit(x=f,split=":")[[1]][2]
+    start <- as.integer(strsplit(x=pos,split="-")[[1]][1])
+    end <- as.integer(strsplit(x=pos,split="-")[[1]][2])
+    index <- match(f,dpn.df$fragid)
+    f.adj.up <- dpn.df[(index-1),]$fragid
+    f.adj.dn <- dpn.df[(index+1),]$fragid
+    stack.df <- filter(filtered.df,fragment==f)
+    out.df <- rbind(out.df,stack.df)
+    remove.vec <- c(f.adj.up,f,f.adj.dn)
+    inspect.vec <- inspect.vec[!(inspect.vec %in% remove.vec)]
+  }
+  return(out.df)
+}
+
+
+pruned.df <- prune(filtered.df)
+write.table(x=pruned.df,file=cap.dir%&%"Pruned-Oligo-Probeset.txt",
+            sep="\t",quote=FALSE,row.names=FALSE)
+
 ```
 
 
@@ -192,39 +331,63 @@ write.table(x=single.high.df,file=cap.dir%&%"high-quality-SINGLE-oligos_first-ro
 
 ```{r}
 
-capturable <- c()
-segid <- c() 
-for (i in 1:dim(roi.df)[1]){
-  ch <- roi.df$V1[i]
-  pos <- roi.df$V3[i]
-  varid <- roi.df$V4[i]
-  seg <- strsplit(roi.df$V4[i],split=",")[[1]][2]
-  segid <- c(segid,seg)
-  h.frag.sub <- filter(frag.df,chrom==ch,start<=pos & end >=pos)
-  m.frag.sub <- filter(med.frag.df,chrom==ch,start<=pos & end >=pos)
-  if (dim(h.frag.sub)[1]>0){
-    capturable <- c(capturable,"highQuality.PairedProbes")
-  } else if(dim(m.frag.sub)[1]>0){
-    capturable <- c(capturable,"mediumQuality.PairedProbes")
-  } else if (varid %in% single.high.df$FragID){
-    capturable <- c(capturable,"highQuality.SingleProbe")
-  } else{
-    capturable <- c(capturable,"PoorQuality")
+annot_roi <- function(){
+  capturable <- c()
+  segid <- c() 
+  fragment <- c()
+  pb <- txtProgressBar(min=0,max=dim(roi.df)[1],initial=0,style = 3)
+  for (i in 1:dim(roi.df)[1]){
+    setTxtProgressBar(pb,i)
+    ch <- roi.df$V1[i]
+    pos <- roi.df$V3[i]
+    varid <- roi.df$V4[i]
+    seg <- strsplit(roi.df$V4[i],split=",")[[1]][2]
+    segid <- c(segid,seg)
+    frag <- filter(dpn.df,V1==ch,V2<=pos,V3>=pos)$fragid
+    fragment <- c(fragment,frag)
+    if (frag %in% filtered.df$fragment){
+      temp.df <- filter(filtered.df,fragment==frag)
+      temp.df$capt <- temp.df$quality %&% "." %&% temp.df$type
+      capturable <- c(capturable,unique(temp.df$capt))
+    } else{
+      capturable <- c(capturable,"PoorQuality")
+    }
+    #h.frag.sub <- filter(frag.df,chrom==ch,start<=pos & end >=pos)
+    #m.frag.sub <- filter(med.frag.df,chrom==ch,start<=pos & end >=pos)
+    
+    #if (dim(h.frag.sub)[1]>0){
+    #  capturable <- c(capturable,"highQuality.PairedProbes")
+    #} else if(dim(m.frag.sub)[1]>0){
+    #  capturable <- c(capturable,"mediumQuality.PairedProbes")
+    #} else if (varid %in% single.high.df$FragID){
+    #  capturable <- c(capturable,"highQuality.SingleProbe")
+    #} else{
+    #  capturable <- c(capturable,"PoorQuality")
+    #}
   }
+  
+  out.df <- cbind(roi.df,capturable,segid,fragment) # 289 variants 
+  names(out.df) <- c("Chrom","Start","End","ID","Capture.Status","SEGNUMBER","Fragment")
+  out.df$Capture.Status <- as.character(out.df$Capture.Status)
+  out.df$SEGNUMBER <- as.character(out.df$SEGNUMBER)
+  out.df$Fragment <- as.character(out.df$Fragment)
+  return(out.df)
+  
 }
 
-roi.cov.df <- cbind(roi.df,capturable,segid) # 289 variants 
-names(roi.cov.df) <- c("Chrom","Start","End","ID","Capture.Status","SEGNUMBER")
+roi.cov.df <- annot_roi()
+
 saveRDS(roi.cov.df,cap.dir%&%"roi.df.RDS")
 write.table(x=roi.cov.df,file=cap.dir%&%"SNPs-of-interest_enhancer-drivenCapC.txt",
             sep="\t",quote=FALSE,row.names=FALSE)
 
-capture.df <- filter(roi.cov.df,Capture.Status!="PoorQuality") # 235 
-poor.df <- filter(roi.cov.df,Capture.Status=="PoorQuality") # 54
+table(roi.cov.df$Capture.Status)
 
-#dim(filter(roi.cov.df,Capture.Status=="highQuality.PairedProbes"))[1] # 157 
-#dim(filter(roi.cov.df,Capture.Status=="mediumQuality.PairedProbes"))[1] # 22
-#dim(filter(roi.cov.df,Capture.Status=="highQuality.SingleProbe"))[1] # 56 
+capture.df <- filter(roi.cov.df,Capture.Status!="PoorQuality") # 253 
+poor.df <- filter(roi.cov.df,Capture.Status=="PoorQuality") # 36
+
+write.table(x=poor.df,file=cap.dir%&%"PoorQuality_SNPs-of-interest_enhancer-drivenCapC.txt",
+            sep="\t",quote=FALSE,row.names=FALSE)
 
 ```
 
@@ -255,17 +418,6 @@ get_overlaps <- function(a,b){
   ##print(sum(vec) %&% " / " %&% length(vec))
   return(vec)
 }
-
-df1 <- data.frame(chr=frag.df$chrom,start=frag.df$start,end=frag.df$end,stringsAsFactors = FALSE)
-df2 <- data.frame(chr=med.frag.df$chrom,start=med.frag.df$start,end=med.frag.df$end,stringsAsFactors = FALSE)
-df <- rbind(df1,df2)
-df$chrom <- as.integer(gsub("chr","",df$chr))
-df <- arrange(df,chrom,start)
-
-frag.gr <- gread(df[,1:3])
-red<- reduce(frag.gr + 1000) #102/148
-
-1 - (102/148)
 
 
 ```
