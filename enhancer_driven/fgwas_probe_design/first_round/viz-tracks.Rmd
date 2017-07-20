@@ -157,10 +157,10 @@ gcred_plot <- function(segnum,fac=10){
   #gloc <- filter(gcred.df,CHR==(gsub("chr","",chrom)),POS>=mn,POS<=mx)$LOCUS
   #sub.df <- filter(gcred.df,LOCUS==gloc)
   
-  gen.df <- filter(gencred.df,CHR==as.numeric(gsub("chr","",chrom)),POS >= mn & POS <=mx) %>% arrange(desc(PPA))
+  gen.df <- filter(gcred.df,CHR==as.numeric(gsub("chr","",chrom)),POS >= mn & POS <=mx) %>% arrange(desc(PPA))
   if (dim(gen.df)[1]==0){ # single variant, where mn = mx 
-    for (locus in unique(gencred.df$LOCUS)){
-      temp.df <- filter(gencred.df,LOCUS==locus)
+    for (locus in unique(gcred.df$LOCUS)){
+      temp.df <- filter(gcred.df,LOCUS==locus)
       lcmn <- min(temp.df$POS); lcmx <- max(temp.df$POS); lchr <- temp.df$CHR[1]
       if (as.numeric(gsub("chr","",chrom))==lchr & mn >= lcmn & mn <= lcmx){
         gen.df <- arrange(temp.df,desc(PPA))
