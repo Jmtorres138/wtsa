@@ -12,13 +12,195 @@ knitr::opts_chunk$set(echo = TRUE)
 # Setup 
 
 ```{r}
+
 "%&%" <- function(a,b) paste0(a,b)
 
 library("dplyr")
 library("data.table")
+library("ggplot2")
+library("ggbio")
 
-cbrg.dir <- "/Users/jtorres/FUSE2/promoter-driven/CisTransNormalized/PromoterDriven_cis_analysis/"
-cis.dir <- cbrg.dir %&% "Cis_analysis/"
+cbrg.dir <- "/Users/jtorres/FUSE2/promoter-driven/"
+cis.dir <- cbrg.dir %&% "CisTransNormalized/PromoterDriven_cis_analysis/Cis_analysis/"
+total.dir <- cbrg.dir %&% "CisTransNormalized/PromoterDriven_cis_analysis/Total_analysis/"
+rescomp.dir <- "/Users/jtorres/FUSE/projects/wtsa/promoter_driven/"
+oligo.df <- fread(cbrg.dir%&%"oligo-file.txt")
+
+```
+
+```{r}
+gwas.df <- fread(rescomp.dir %&% "gwas-index.bed")
+eqtl.df <- fread(rescomp.dir %&% "eQTL-index.bed")
+variant.df <- rbind(gwas.df,eqtl.df)
+names(variant.df) <- c("chrom","start","end","name")
+
+```
+
+
+
+# Subtractive Plot 
+
+
+```{r}
+
+diff.df <- fread(cis.dir %&% "ADCY5_cis_EndoB_minus_Blymph.bdg")
+control.df <- fread(cis.dir %&% "ADCY5_cis_Blymph_mean.bdg")
+treat.df <- fread(cis.dir %&% "ADCY5_cis_EndoB_mean.bdg")
+#diff.df <- fread(total.dir %&% "ADCY5_total_EndoB_minus_Blymph.bdg")
+#control.df <- fread(total.dir %&% "ADCY5_total_Blymph_mean.bdg")
+#treat.df <- fread(total.dir %&% "ADCY5_total_EndoB_mean.bdg")
+cap.start <- 123167701
+cap.end <- 123168440
+cap.chrom <- "chr3"
+
+make_poly_df <- function(df){
+  poly.df <- c()
+  pb <- txtProgressBar(min=0,max=dim(df)[1],initial=0,style=3)
+  for (i in 1:dim(df)[1]){
+    setTxtProgressBar(pb,i)
+    start <- df[i,]$start
+    end <- df[i,]$end 
+    score <- df[i,]$score
+    id <- rep("frag"%&%i,4)
+    x <- c(start,start,end,end)
+    y <- c(0,score,score,0)
+    stack.df <- data.frame(id,x,y,stringsAsFactors=FALSE)
+    poly.df <- rbind(poly.df,stack.df)
+  }
+  return(poly.df)
+}
+
+add_fill_column_to_poly <- function(poly.df){
+  build.df <- c()
+  for (frag in unique(poly.df$id)){
+    sub.df <- filter(poly.df,id==frag)
+    if (mean(sub.df$y)<0){
+      outline <- rep("control",4)
+      polyfill <- rep("control",4)
+    } else{
+      outline <- rep("treat",4)
+      polyfill <- rep("treat",4)        
+    }
+    stack.df <- data.frame(outline,polyfill,stringsAsFactors = FALSE)
+    build.df <- rbind(build.df,stack.df)
+  }
+  out.df <- cbind(poly.df,build.df)
+  return(out.df)
+}
+
+interaction_plot <- function(int.df,cap.chrom,cap.start,cap.end,limit=500000,ymax=1000,variant.df=NULL,
+                             outline="dodgerblue3",polyfill="dodgerblue2"){
+  win.low <- cap.start - limit 
+  win.high <- cap.end + limit 
+  names(int.df) <- c("chrom","start","end","score")
+  plt.df <- filter(int.df,chrom==cap.chrom,start>=win.low,end<=win.high)
+  poly.df <- make_poly_df(plt.df)
+  plt <- ggplot(data=poly.df) + 
+    geom_polygon(aes(x=x,y=y),color=outline,fill=polyfill) + 
+    ylim(c(0,ymax)) + 
+    theme_bw() + 
+    theme(legend.position="none",
+          panel.grid.minor=element_blank(),
+          panel.grid.major.x=element_blank()) 
+  if (!is.null(variant.df)){
+    snp.df <- filter(variant.df,chrom==cap.chrom,start>=win.low,end<=win.high)
+    plt <- plt + geom_point(data=snp.df,aes(x=start),y=0,shape=21,color="black",fill="red",size=2)
+  }
+  return(plt)
+}
+
+subtract_plot <- function(minus.df,cap.chrom,cap.start,cap.end,variant.df,limit=500000,ymax=1000){
+  win.low <- cap.start - limit 
+  win.high <- cap.end + limit 
+  names(minus.df) <- c("chrom","start","end","score")
+  plt.df <- filter(minus.df,chrom==cap.chrom,start>=win.low,end<=win.high)
+  poly.df <- make_poly_df(plt.df)
+  poly.df <- add_fill_column_to_poly(poly.df)
+  plt <- ggplot(data=poly.df) + geom_polygon(aes(x=x,y=y,color=outline,fill=polyfill)) +
+    #ylim(c(0,ymax)) + 
+    scale_color_manual(values=c("treat"="dodgerblue3","control"="green3")) + 
+    scale_fill_manual(values=c("treat"="dodgerblue2","control"="green2")) + 
+    theme_bw() + 
+    theme(legend.position="none",
+          panel.grid.minor=element_blank(),
+          panel.grid.major.x=element_blank()) 
+  #if (!is.null(variant.df)){
+  snp.df <- filter(variant.df,chrom==cap.chrom,start>=win.low,end<=win.high)
+  plt <- plt + geom_point(data=snp.df,aes(x=start),y=0,shape=21,color="black",fill="red",size=2)
+  #}
+  return(plt)
+}
+
+
+cap_track_plot <- function(locname,treat.df,control.df,diff.df,cap.chrom,cap.start,cap.end,limit,ymax,variant.df){
+  treat.plt <- interaction_plot(treat.df,cap.chrom,cap.start,cap.end,limit=limit,ymax=ymax,variant.df,
+                                outline="dodgerblue3",polyfill="dodgerblue2")
+  control.plt <- interaction_plot(control.df,cap.chrom,cap.start,cap.end,limit=limit,ymax=ymax,variant.df,
+                                outline="green3",polyfill="green2")
+  diff.plt <- subtract_plot(diff.df,cap.chrom,cap.start,cap.end,variant.df,limit=limit)
+  tracks(
+          `EndoC-BH1`=treat.plt,
+          `LCL`=control.plt,
+          `Difference`=diff.plt,
+           heights=c(1,1,1),title=locname,
+            label.text.cex=0.6,main.height=2) +
+    scale_x_sequnit("Mb") + 
+    theme(axis.text.x=element_text(size=5))    
+}
+
+
+cap_track_plot("ADCY5",treat.df,control.df,diff.df,cap.chrom,cap.start,cap.end,limit=500000,ymax=1000,variant.df=variant.df)
+
+```
+
+
+```{r}
+
+save.dir <- "/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/cis_normalized/figures/"
+
+gene.vec <- c("ADCY5","DGKB","AP3S2","C15orf38-AP3S2","CAMK1D","MADD","STARD10","NKX6-3","WARS")
+
+
+save_diff_plots <- function(gene.vec){
+  for (g in gene.vec){
+    print(g)
+    savename <- save.dir %&% g %&% "_diffplot.png"
+    sub <- filter(oligo.df,V1==g)
+    cap.start <- sub$V3
+    cap.end <- sub$V4
+    cap.chrom <- "chr" %&% sub$V2
+    diff.df <- fread(cis.dir %&% g %&% "_cis_EndoB_minus_Blymph.bdg")
+    control.df <- fread(cis.dir %&% g %&% "_cis_Blymph_mean.bdg")
+    treat.df <- fread(cis.dir %&% g %&% "_cis_EndoB_mean.bdg")    
+    plt <- cap_track_plot(g,treat.df,control.df,diff.df,cap.chrom,cap.start,cap.end,limit=500000,ymax=1000,variant.df=variant.df)
+    ggsave(savename,plot=plt)
+  }
+}
+
+save_diff_plots(gene.vec)
+
+```
+
+
+```{r}
+
+save_totdiff_plots <- function(gene.vec){
+  for (g in gene.vec){
+    print(g)
+    savename <- save.dir %&% g %&% "_total_diffplot.png"
+    sub <- filter(oligo.df,V1==g)
+    cap.start <- sub$V3
+    cap.end <- sub$V4
+    cap.chrom <- "chr" %&% sub$V2
+    diff.df <- fread(total.dir %&% g %&% "_total_EndoB_minus_Blymph.bdg")
+    control.df <- fread(total.dir %&% g %&% "_total_Blymph_mean.bdg")
+    treat.df <- fread(total.dir %&% g %&% "_total_EndoB_mean.bdg")    
+    plt <- cap_track_plot(g,treat.df,control.df,diff.df,cap.chrom,cap.start,cap.end,limit=500000,ymax=1000,variant.df=variant.df)
+    ggsave(savename,plot=plt)
+  }
+}
+
+save_totdiff_plots(gene.vec)
 
 ```
 
