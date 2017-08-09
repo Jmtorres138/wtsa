@@ -1,0 +1,121 @@
+
+---
+title: "promoter_track_plots"
+author: "Jason Torres"
+date: "7/5/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b) 
+
+library("data.table")
+library("dplyr")
+library("GenomicRanges")
+library(Homo.sapiens)
+library("ggbio")
+library("ggrepel")
+serv.dir <- "/Users/jtorres/FUSE/"
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
+rds.dir <- work.dir %&% "RDS/"
+
+eqtl.df <- readRDS(rds.dir%&%"eqtl.fdr01.df.RDS")
+saveRDS(eqtl.df,file="/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/RDS/eqtl.fdr01.df.RDS")
+
+peak.dir <- serv.dir %&% "projects/wtsa/promoter_driven/peakC/data_frames/cis_counts/"
+
+probe.df <- fread(serv.dir%&%"projects/wtsa/promoter_driven/oligo-file.txt")
+names(probe.df) <- c("Gene","Chr","Ex.Start","Ex.End","Chrom","Start","End","V8","V9")
+saveRDS(probe.df,file="/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/RDS/probe.df.RDS")
+
+rds.dir <- "/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/RDS/"  #
+```
+
+
+```{r}
+
+gwas.dir <- serv.dir %&% "reference/gwas/diagram_hrc/"
+gwas.df <- fread(gwas.dir %&% "EU.2016DecRel.filtered.Summary.txt")
+saveRDS(gwas.df,file="/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/RDS/gwas.df.RDS")
+gwas.df <- readRDS("/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/RDS/gwas.df.RDS")
+
+p.thresh <- 0.05 * 10^(-6)
+
+```
+
+
+```{r}
+
+track_plot <- function(genename,window=100e3){
+  
+  sub <- filter(probe.df,Gene==genename)
+  vp <- sub$Start
+  chrom <- sub$Chr
+  win.low <- vp - window
+  win.high <- vp + window
+  e.sub <- filter(eqtl.df,CHR==("chr"%&%chrom),POS>=win.low,POS<=win.high)
+  e.plt <- ggplot(data=e.sub,aes(x=POS,y=-log(x=P,base=10))) + 
+    geom_point(shape=21,color="black", size=2,
+                            fill="green1",alpha=0.80) + 
+            ylab(expression(paste("-log"[10],"(p-value)"))) + theme_bw() + 
+            theme(panel.grid = element_blank(),
+                  axis.title.y=element_text(size=5),
+                  axis.text.y=element_text(size=4))  #+ 
+    	  #coord_cartesian(xlim=c(win.low,win.high,expand=FALSE))
+
+  g.sub <- filter(gwas.df,CHR==chrom,POS>=win.low,POS<=win.high)
+  g.plt <- ggplot(data=g.sub,aes(x=POS,y=-log(x=PVAL,base=10))) + 
+     geom_point(shape=21,color="black", size=1,
+                            fill="grey",alpha=0.80) + 
+            ylab(expression(paste("-log"[10],"(p-value)"))) + theme_bw() + 
+            theme(panel.grid = element_blank(),
+                  axis.title.y=element_text(size=5),
+                  axis.text.y=element_text(size=4)) + 
+    geom_hline(yintercept = -log(p.thresh,base=10),color="firebrick3")  #+ 
+    	 # coord_cartesian(xlim=c(win.low,win.high,expand=FALSE)) 
+
+  
+  
+  full.poly.df <- readRDS(rds.dir%&%genename%&%"_full.poly.df.RDS")
+  sig.poly.df <- readRDS(rds.dir%&%genename%&%"_sig.poly.df.RDS")
+
+  full.poly.df <- filter(full.poly.df,poly.x>=win.low,poly.x<=win.high)
+  sig.poly.df <- filter(sig.poly.df,poly.x>=win.low,poly.x<=win.high)
+
+  #c.plt <- ggplot(data=full.poly.df, aes(x=poly.x/1e6,y=poly.y)) +
+  c.plt <- ggplot(data=full.poly.df, aes(x=poly.x,y=poly.y)) +
+
+	  geom_polygon(color="gray66",fill="gray74") + theme_bw() +
+	#coord_cartesian(xlim=c(win.low/1e6,win.high/1e6)) #+
+	  #coord_cartesian(xlim=c(win.low,win.high,expand=FALSE)) +
+
+	  #ggtitle("Locus: " %&% genename) +
+	  xlab("Position on Chromosome " %&% gsub("chr","",chrom) %&% "(Mb)") +
+	  ylab("Mapped Reads per Fragment") + 
+    geom_polygon(data=sig.poly.df,aes(x=poly.x,y=poly.y),
+							color="dodgerblue3",fill="dodgerblue4") +
+							geom_hline(yintercept=0,color="gray66",size=0.85)
+  
+   plt <- tracks( `Capture-C`=c.plt,
+          `eQTL`=e.plt,
+            `GWAS`=g.plt,
+            #`Genes`=gene_plt,
+            heights=c(1,1,1),title=genename,
+           label.text.cex=0.6,main.height=2) +
+      scale_x_sequnit("Mb") + 
+      theme(axis.text.x=element_text(size=5))  
+  return(plt)
+}
+
+plt <- track_plot("CAMK1D")
+ggsave(plt,filename="/Users/jtorres/Google\ Drive/Science/presentations/Gordon2017/camk1d.png",width=12,height=6)
+
+
+```
+
