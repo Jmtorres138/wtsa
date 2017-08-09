@@ -1,0 +1,231 @@
+---
+title: "peakC Comparative analysis"
+author: "Jason Torres"
+date: "June 29, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+
+library("dplyr")
+library("data.table")
+library("ggplot2")
+library("ggbio")
+
+peakc.dir <- "/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/peakC/"
+source(peakc.dir %&% "util.R")
+source(peakc.dir %&% "combined_experiment_analysis.R")
+source(peakc.dir %&% "experiment_comparison.R")
+source(peakc.dir %&% "single_experiment_analysis.R")
+
+
+cbrg.dir <- "/Users/jtorres/FUSE2/promoter-driven/"
+cis.dir <- cbrg.dir %&% "CisTransNormalized/PromoterDriven_cis_analysis/Cis_analysis/"
+total.dir <- cbrg.dir %&% "CisTransNormalized/PromoterDriven_cis_analysis/Total_analysis/"
+rescomp.dir <- "/Users/jtorres/FUSE/projects/wtsa/promoter_driven/"
+oligo.df <- fread(cbrg.dir%&%"oligo-file.txt")
+
+```
+
+```{r}
+gwas.df <- fread(rescomp.dir %&% "gwas-index.bed")
+eqtl.df <- fread(rescomp.dir %&% "eQTL-index.bed")
+variant.df <- rbind(gwas.df,eqtl.df)
+names(variant.df) <- c("chrom","start","end","name")
+
+```
+
+
+```{r}
+#e1.df <- fread(cis.dir %&% "EndoB_A_ADCY5_cis_normalised.bdg")
+#e2.df <- fread(cis.dir %&% "EndoB_C_ADCY5_cis_normalised.bdg")
+#e3.df <- fread(cis.dir %&% "EndoB_D_ADCY5_cis_normalised.bdg")
+#b1.df <- fread(cis.dir %&% "Blymph_A_ADCY5_cis_normalised.bdg")
+#b2.df <- fread(cis.dir %&% "Blymph_B_ADCY5_cis_normalised.bdg")
+#b3.df <- fread(cis.dir %&% "Blymph_C_ADCY5_cis_normalised.bdg")
+
+#data.endo <- list(as.matrix(e1.df[,c(2,4)]),e2.df[,c(2,4)],e3.df[,c(2,4)])
+#data.lcl <- list(as.matrix(b1.df[,c(2,4)]),b2.df[,c(2,4)],b3.df[,c(2,4)])
+
+#diff.frag <- compare.data(x1=data.lcl[[1]], x2=data.endo[[1]],abs.cut.off = 100)
+
+
+```
+
+```{r}
+
+limit=500000
+cap.start <- 123167701
+cap.end <- 123168440
+cap.chrom <- "chr3"
+win.low <- cap.start - limit 
+win.high <- cap.end + limit 
+
+var.sub <- filter(variant.df,chrom==cap.chrom,start>=win.low,end<=win.high)
+
+treat.df <- fread(cis.dir %&% "ADCY5_cis_EndoB_mean.bdg")
+control.df <- fread(cis.dir %&% "ADCY5_cis_Blymph_mean.bdg")
+
+treat.df <- filter(treat.df,V1==cap.chrom,V2>=win.low,V3<=win.high)
+control.df <- filter(control.df,V1==cap.chrom,V2>=win.low,V3<=win.high)
+
+data.endo <- as.matrix(treat.df[,c(2,4)])
+data.lcl <- as.matrix(control.df[,c(2,4)])
+
+diff.frag <- compare.data(x1=data.lcl,
+                          x2=data.endo,
+                          abs.cut.off = 100)
+
+window <- 21
+x <- rem(data.lcl[,1], window)
+y.lcl <- running(data.lcl[,2], window)
+y.endo <- running(data.endo[,2], window)
+plot(x, y.endo, type='l', col="blue", lwd=3, xlab="chromosomal position", ylab="Capture-C signal")
+lines(x, y.lcl, col='green', lwd=3)
+sel <- x%in%diff.frag[,1]
+segments(x[sel], y.lcl[sel], x[sel], y.endo[sel], col='grey30')
+abline(v=var.sub$start,col="red")
+
+```
+
+
+```{r}
+save.dir <- "/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/cis_normalized/figures/"
+
+gene.vec <- c("ADCY5","DGKB","AP3S2","C15orf38-AP3S2","CAMK1D","MADD","STARD10","NKX6-3","WARS")
+
+save_peakc_diff_plots <- function(gene.vec,limit=500000,abscutoff=500){
+  for (g in gene.vec){
+    print(g)
+    savename <- save.dir %&% g %&% "_peakC-diff.png"
+    sub <- filter(oligo.df,V1==g)
+    cap.start <- sub$V3
+    cap.end <- sub$V4
+    cap.chrom <- "chr" %&% sub$V2
+    win.low <- cap.start - limit 
+    win.high <- cap.end + limit 
+    
+    var.sub <- filter(variant.df,chrom==cap.chrom,start>=win.low,end<=win.high)
+    
+    treat.df <- fread(cis.dir %&% g %&% "_cis_EndoB_mean.bdg")
+    control.df <- fread(cis.dir %&% g %&% "_cis_Blymph_mean.bdg")
+    
+    treat.df <- filter(treat.df,V1==cap.chrom,V2>=win.low,V3<=win.high)
+    control.df <- filter(control.df,V1==cap.chrom,V2>=win.low,V3<=win.high)
+    
+    data.endo <- as.matrix(treat.df[,c(2,4)])
+    data.lcl <- as.matrix(control.df[,c(2,4)])
+    
+    diff.frag <- compare.data(x1=data.lcl,
+                              x2=data.endo,
+                              cut.off=0.950,
+                              abs.cut.off = abscutoff)
+    if (dim(diff.frag)[1]>0){
+      sig.df <- diff.frag ; names(sig.df) <- c("V2","col")
+      sig.df <- dplyr::inner_join(sig.df,treat.df); names(sig.df) <- c("start","col","chrom","end","signal")
+      #var.sub2 <- var.sub[,1:3]; var.sub2 <- !d
+      for (i in 1:dim(var.sub)[1]){
+        c <- var.sub[i,]$chrom; st <- var.sub[i,]$start; en <- var.sub[i,]$end;
+        if(dim(filter(sig.df,chrom==c,start<=st,end>=en,col==2))[1]>0){
+          print(var.sub[i,])
+        }
+      }
+    } 
+    
+    window <- 21
+    x <- rem(data.lcl[,1], window)
+    y.lcl <- running(data.lcl[,2], window)
+    y.endo <- running(data.endo[,2], window)
+    
+    png(savename)
+    plot(x, y.endo, type='l', col="blue", lwd=3, xlab="chromosomal position", ylab="Capture-C signal",
+         main=g)
+    lines(x, y.lcl, col='green', lwd=3)
+    sel <- x%in%diff.frag[,1]
+    segments(x[sel], y.lcl[sel], x[sel], y.endo[sel], col='grey30')
+    abline(v=var.sub$start,col="red")
+    dev.off()
+  }
+}
+
+save_peakc_diff_plots(gene.vec,abscutoff=20)
+
+```
+
+
+
+
+> save_peakc_diff_plots(gene.vec,abscutoff=10)
+[1] "ADCY5"
+Joining, by = "V2"
+  chrom     start       end                         name
+1  chr3 123065778 123065778 rs11708067_T2D_FG_HOMAB_2hrG
+  chrom     start       end             name
+2  chr3 123065778 123065778 rs11708067_ADCY5
+[1] "DGKB"
+Joining, by = "V2"
+[1] "AP3S2"
+Joining, by = "V2"
+[1] "C15orf38-AP3S2"
+Joining, by = "V2"
+[1] "CAMK1D"
+Joining, by = "V2"
+  chrom    start      end           name
+1 chr10 12307894 12307894 rs11257655_T2D
+  chrom    start      end              name
+2 chr10 12309268 12309268 rs11257658_CAMK1D
+[1] "MADD"
+Joining, by = "V2"
+  chrom    start      end                  name
+1 chr11 47293799 47293799 rs10501320_FG_FproIns
+[1] "STARD10"
+Joining, by = "V2"
+[1] "NKX6-3"
+Joining, by = "V2"
+  chrom    start      end                                  name
+1  chr8 41509259 41509259 rs12549902_Corrected_insulin_response
+  chrom    start      end             name
+2  chr8 41509915 41509915 rs4736819_NKX6-3
+[1] "WARS"
+Joining, by = "V2"
+  chrom     start       end         name
+1 chr14 100839261 100839261 rs3783347_FG
+  chrom     start       end           name
+2 chr14 100832282 100832282 rs2146105_WARS
+
+
+
+> save_peakc_diff_plots(gene.vec,abscutoff=100)
+[1] "ADCY5"
+Joining, by = "V2"
+[1] "DGKB"
+Joining, by = "V2"
+[1] "AP3S2"
+[1] "C15orf38-AP3S2"
+Joining, by = "V2"
+[1] "CAMK1D"
+Joining, by = "V2"
+[1] "MADD"
+Joining, by = "V2"
+  chrom    start      end                  name
+1 chr11 47293799 47293799 rs10501320_FG_FproIns
+[1] "STARD10"
+Joining, by = "V2"
+[1] "NKX6-3"
+Joining, by = "V2"
+  chrom    start      end                                  name
+1  chr8 41509259 41509259 rs12549902_Corrected_insulin_response
+  chrom    start      end             name
+2  chr8 41509915 41509915 rs4736819_NKX6-3
+[1] "WARS"
+Joining, by = "V2"
+  chrom     start       end         name
+1 chr14 100839261 100839261 rs3783347_FG

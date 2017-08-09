@@ -1,0 +1,237 @@
+---
+title: "cis-trans-summary"
+author: "Jason Torres"
+date: "July 26, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+
+library("data.table")
+library("dplyr")
+library("ggplot2")
+
+
+serv.dir <- "/Users/jtorres/FUSE2/"
+input.dir <- serv.dir %&% "promoter-driven/CisTransNormalized/PromoterDriven_cis_analysis/Cis_Trans_Summaries/"
+work.dir <- "/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/cis_normalized/"
+
+
+```
+
+
+
+# Analysis 
+
+```{r}
+
+df <- fread(input.dir %&% "summary-df.txt")
+df$Sample <- gsub("D","B",df$Sample)
+
+df1 <- dplyr::select(df,one_of("Cell","Sample","Gene","Cis"))
+names(df1)[4] <- "Count"
+df1$Group <- rep("Cis",dim(df1)[1])
+df2 <- dplyr::select(df,one_of("Cell","Sample","Gene","Trans"))
+names(df2)[4] <- "Count"
+df2$Group <- rep("Trans",dim(df2)[1])
+df <- rbind(df1,df2)
+
+fill <- "#4271AE"
+line <- "black"
+
+
+plt0 <- ggplot(data=df, aes(Cell,Count/1000)) + geom_boxplot(aes(fill=Cell,color=Cell),
+                                                             alpha=0.7) + 
+  #facet_grid(. ~ Group) + 
+  scale_y_continuous(name = "Number of unique interactions\n(in thousands)",
+                     breaks = seq(0,80000/1000,5000/1000),
+                     limits=c(0,80000/1000)) + 
+  theme_bw() +
+  scale_fill_manual(values=c("green","#4271AE")) + 
+  scale_color_manual(values=c("green4","#1F3552")) + 
+
+  ggtitle("Boxplot of total mapped interactions") #+ 
+  #geom_jitter(alpha=0.1) 
+
+plt0
+
+
+plt1 <- ggplot(data=df, aes(Cell,Count/1000)) + geom_boxplot(aes(fill=Cell,color=Cell),
+                                                             alpha=0.7) + 
+  facet_grid(. ~ Group) + 
+  scale_y_continuous(name = "Number of unique interactions\n(in thousands)",
+                     breaks = seq(0,80000/1000,5000/1000),
+                     limits=c(0,80000/1000)) + 
+  theme_bw() +
+  scale_fill_manual(values=c("green","#4271AE")) + 
+  scale_color_manual(values=c("green4","#1F3552")) + 
+
+  ggtitle("Boxplot of mapped cis and trans interactions") #+ 
+  #geom_jitter(alpha=0.1) 
+
+plt1
+  
+ec <- mean(filter(df,Cell=="EndoB",Group=="Cis")$Count)
+bc <- mean(filter(df,Cell=="Blymph",Group=="Cis")$Count)
+et <- mean(filter(df,Cell=="EndoB",Group=="Trans")$Count)
+bt <- mean(filter(df,Cell=="Blymph",Group=="Trans")$Count)
+
+print("Cis summary")
+print("EndoB: " %&% ec %&% "     Blymph: " %&% bc)
+print("Fraction: " %&% (bc/ec))
+
+print("Trans summary")
+print("EndoB: " %&% et %&% "     Blymph: " %&% bt)
+print("Fraction: " %&% (bt/et))
+
+```
+
+
+# Per Sample 
+
+```{r}
+
+
+fill <- "#4271AE"
+line <- "#1F3552"
+
+plt2 <- ggplot(data=filter(df,Group=="Cis"), aes(Sample,Count/1000)) + geom_boxplot(aes(fill=Cell,color=Cell),
+                                                            alpha=0.95) + 
+  facet_grid(. ~ Cell) + 
+  scale_y_continuous(name = "Number of unique interactions\n(in thousands)",
+                     breaks = seq(0,80000/1000,5000/1000),
+                     limits=c(0,80000/1000)) + 
+  theme_bw() +
+  scale_fill_manual(values=c("green","#4271AE")) + 
+  scale_color_manual(values=c("green4","#1F3552")) + 
+
+  ggtitle("Boxplot of mapped cis") + 
+  geom_jitter(alpha=0.1)
+
+plt2
+
+fill <- "green3"
+
+plt3 <- ggplot(data=filter(df,Group=="Trans"), aes(Sample,Count/1000)) + geom_boxplot(aes(fill=Cell,color=Cell),
+                                                             alpha=0.95) + 
+  facet_grid(. ~ Cell) + 
+  scale_y_continuous(name = "Number of unique interactions\n(in thousands)",
+                     breaks = seq(0,80000/1000,5000/1000),
+                     limits=c(0,80000/1000)) + 
+  theme_bw() +
+  scale_fill_manual(values=c("green","#4271AE")) + 
+  scale_color_manual(values=c("green4","#1F3552")) + 
+
+  ggtitle("Boxplot of mapped trans") + 
+  geom_jitter(alpha=0.1)
+
+plt3 
+
+ggsave(plt1,filename=work.dir%&%"cis-trans-boxplot.png",height=5,width=5)
+ggsave(plt2,filename=work.dir%&%"cis-sample-boxplot.png",height=5,width=5)
+ggsave(plt2,filename=work.dir%&%"trans-sample-boxplot.png",height=5,width=5)
+
+
+print("Totals")
+print("LCL")
+summary(filter(df,Cell=="Blymph",Sample=="A")$Count)
+summary(filter(df,Cell=="Blymph",Sample=="B")$Count)
+summary(filter(df,Cell=="Blymph",Sample=="C")$Count)
+
+print("EndoB")
+summary(filter(df,Cell=="EndoB",Sample=="A")$Count)
+summary(filter(df,Cell=="EndoB",Sample=="B")$Count)
+summary(filter(df,Cell=="EndoB",Sample=="C")$Count)
+
+print("Cis")
+print("LCL")
+summary(filter(df,Cell=="Blymph",Sample=="A",Group=="Cis")$Count)
+summary(filter(df,Cell=="Blymph",Sample=="B",Group=="Cis")$Count)
+summary(filter(df,Cell=="Blymph",Sample=="C",Group=="Cis")$Count)
+print("EndoB")
+summary(filter(df,Cell=="EndoB",Sample=="A",Group=="Cis")$Count)
+summary(filter(df,Cell=="EndoB",Sample=="B",Group=="Cis")$Count)
+summary(filter(df,Cell=="EndoB",Sample=="C",Group=="Cis")$Count)
+
+print("Trans")
+print("LCL")
+summary(filter(df,Cell=="Blymph",Sample=="A",Group=="Trans")$Count)
+summary(filter(df,Cell=="Blymph",Sample=="B",Group=="Trans")$Count)
+summary(filter(df,Cell=="Blymph",Sample=="C",Group=="Trans")$Count)
+print("EndoB")
+summary(filter(df,Cell=="EndoB",Sample=="A",Group=="Trans")$Count)
+summary(filter(df,Cell=="EndoB",Sample=="B",Group=="Trans")$Count)
+summary(filter(df,Cell=="EndoB",Sample=="C",Group=="Trans")$Count)
+
+```
+
+
+# Per Locus 
+
+```{r}
+
+genecap_plot <- function(gene){
+  plt <- ggplot(data=filter(df,Gene==gene), aes(Cell,Count/1000)) + geom_boxplot(aes(fill=Cell,color=Cell),
+                                                             alpha=0.7) + 
+  facet_grid(. ~ Group) + 
+  scale_y_continuous(name = "Number of unique interactions\n(in thousands)",
+                     breaks = seq(0,80000/1000,5000/1000),
+                     limits=c(0,80000/1000)) + 
+  theme_bw() +
+  scale_fill_manual(values=c("green","#4271AE")) + 
+  scale_color_manual(values=c("green4","#1F3552")) + 
+
+  ggtitle("Boxplot of mapped cis and trans interactions\nGene: "%&%gene) #+ 
+  #geom_jitter(alpha=0.1) 
+
+  plt
+}
+
+gene.vec <- unique(df$Gene)
+genes1 <- gene.vec[1:15]
+genes2 <- gene.vec[15:27]
+
+
+genescap_plot <- function(gene.vec,group){
+  plt <- ggplot(data=filter(df,Gene %in% gene.vec,Group==group), 
+                aes(Cell,Count/1000)) + 
+    geom_boxplot(aes(fill=Cell,color=Cell),alpha=0.1) + 
+    #facet_grid(. ~ Group+Gene) + 
+    facet_wrap(~ Group+Gene,ncol=5) +
+    scale_y_continuous(name = "Number of unique interactions\n(in thousands)",
+                       breaks = seq(0,80000/1000,5000/1000),
+                       limits=c(0,80000/1000)) + 
+    theme_bw() +
+    scale_fill_manual(values=c("green","#4271AE")) + 
+    scale_color_manual(values=c("green4","#1F3552")) + 
+  
+    ggtitle("Boxplot of mapped interactions per capture") + 
+    geom_jitter() 
+  
+  plt 
+}
+
+plt4 <- genescap_plot(genes1,group="Cis")
+plt5 <- genescap_plot(genes2,group="Cis")
+plt6 <- genescap_plot(genes1,group="Trans")
+plt7 <- genescap_plot(genes2,group="Trans")
+plt4
+plt5
+plt6
+plt7
+ggsave(plt4,filename=work.dir%&%"cis-genes-boxplot-p1.png",height=15,width=10)
+ggsave(plt5,filename=work.dir%&%"cis-genes-boxplot-p2.png",height=15,width=10)
+ggsave(plt6,filename=work.dir%&%"trans-genes-boxplot-p1.png",height=15,width=10)
+ggsave(plt7,filename=work.dir%&%"trans-genes-boxplot-p2.png",height=15,width=10)
+
+```
+
