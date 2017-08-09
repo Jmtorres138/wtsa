@@ -11,7 +11,7 @@ stat_dir = "/t1-data/user/hugheslab/jtorres/analysis/wtsa/promoter_driven/statis
 
 
 def run_job(win, fdr):
-	command = ["Rscript", "--vanilla", stat_dir+"01_run_peakC_modeled.R", str(win), str(fdr)]
+	command = ["Rscript", "--vanilla", stat_dir+"01_peakC_modeled.R", str(win), str(fdr)]
 	com = " ".join(command)
 	print com
 	sp.check_call(com,shell=True)
