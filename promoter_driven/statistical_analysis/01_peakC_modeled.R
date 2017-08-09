@@ -76,7 +76,7 @@ add_frag_cols <- function(df){
 }
 
 read_r_capfile <- function(genename){
-  print("Reading R Capure-C file from Telenius pipeline: " %&% genename)
+  print("\nReading R Capure-C file from Telenius pipeline: " %&% genename)
   chrom <- find_chrom(genename)
   fname <- genename %&% rsuffix #"_Processed_R_analysis.txt"
   rdir <- rfiles.dir
