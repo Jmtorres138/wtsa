@@ -2,16 +2,16 @@
 # Jason Matthew Torres
 '''
 Python script for submitting multiple peakC runs 
-Usage: python JTrun_peakC.py 
+Usage: python 01_run_peakC_modeled.py 
 '''
 
 import subprocess as sp 
 
-peakc_dir = "/home/wellgen/jtorres/projects/promoter-driven/peakC_interactions/"
+stat_dir = "/t1-data/user/hugheslab/jtorres/analysis/wtsa/promoter_driven/statistical_analysis/"
 
 
 def run_job(win, fdr):
-	command = ["Rscript", "--vanilla", peakc_dir+"run_peakC.R", str(win), str(fdr)]
+	command = ["Rscript", "--vanilla", stat_dir+"01_run_peakC_modeled.R", str(win), str(fdr)]
 	com = " ".join(command)
 	print com
 	sp.check_call(com,shell=True)
