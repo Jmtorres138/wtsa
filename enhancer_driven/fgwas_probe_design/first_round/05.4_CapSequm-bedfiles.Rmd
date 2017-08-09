@@ -30,10 +30,68 @@ df <- fread(txt.dir%&%"first-round-variants.txt")
 CHROM <- "chr" %&%  df$CHR
 POS0 <- df$POS - 1
 POS1 <- df$POS
-NAME <- df$Locus %&% ":" %&% df$SEGNUMBER %&% ":" %&% df$Type
+NAME <- df$Locus %&% "," %&% df$SEGNUMBER %&% "," %&% df$Type %&% "," %&% CHROM %&% ":" %&% POS1 
 bed.df <- data.frame(CHROM,POS0,POS1,NAME,stringsAsFactors = FALSE)
 write.table(x=bed.df,file = txt.dir %&% "first-round-variants.bed",
             sep="\t",quote=FALSE,col.names=FALSE,row.names=FALSE)
 
 ```
+
+
+
+# File to share 
+
+```{r}
+
+additional.df <- filter(df,!grepl(pattern="DF",x=SEGNUMBER))
+write.table(x=additional.df,file = txt.dir %&% "first-round-variants-additional.txt",
+            sep="\t",quote=FALSE,col.names=FALSE,row.names=FALSE)
+
+```
+
+
+# Manually Adjust Bed File Based on CapSequm Error Report 
+
+
+Ran CapSequm Stage 1 and downloaded Excel file of errors; manually pasted into txt file and scp to txt directory on server 
+
+Will now read in that info into a data frame and make manual adjustments to the bed file to allow erroneous variants to still be included in experiment  
+
+```{r}
+
+error.df <- fread(txt.dir%&%"CapC_first-round-errors.txt")
+
+small.df <- filter(error.df,grepl("small",Error.detected)) # Will offset by 50 bp 
+# PTGFRN,4DF,credible.variant,chr1:117532790 
+# ZMIZ1,88DF,credible.variant,chr10:80945964
+
+redun.df <- filter(error.df,grepl("redundant",Error.detected)) # Will need to assign to corresponding oligos after design step
+
+cut.df <- filter(error.df,grepl("cutsite",Error.detected)) # Will offset by 10 bp 
+# KLHL42,103DF,credible.variant,chr12:27964781 
+
+df2 <- bed.df
+
+index <- match("PTGFRN,4DF,credible.variant,chr1:117532790",df2$NAME)
+df2[index,]$POS0 <- df2[index,]$POS0 + 100 
+df2[index,]$POS1 <- df2[index,]$POS1 + 100 
+df2[index,]$NAME <- df2[index,]$NAME %&% ".offset100"
+
+index <- match("ZMIZ1,88DF,credible.variant,chr10:80945964",df2$NAME)
+df2[index,]$POS0 <- df2[index,]$POS0 + 100 
+df2[index,]$POS1 <- df2[index,]$POS1 + 100 
+df2[index,]$NAME <- df2[index,]$NAME %&% ".offset100"
+
+index <- match("KLHL42,103DF,credible.variant,chr12:27964781",df2$NAME)
+df2[index,]$POS0 <- df2[index,]$POS0 + 10 
+df2[index,]$POS1 <- df2[index,]$POS1 + 10 
+df2[index,]$NAME <- df2[index,]$NAME %&% ".offset10"
+
+
+write.table(x=df2,file = txt.dir %&% "first-round-variants_error-adjust.bed",
+            sep="\t",quote=FALSE,col.names=FALSE,row.names=FALSE)
+
+```
+
+
 

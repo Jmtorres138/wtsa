@@ -25,9 +25,10 @@ work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first
 rds.dir <- work.dir %&% "RDS/"
 txt.dir <- work.dir %&% "txt/"
 
-cred.df <- fread(prof.dir%&%"profile_fcredt2d.txt")
+cred.df <- fread(work.dir%&%"profile-snps/"%&%"profile_fcredt2d.txt")
 
 df <- readRDS(rds.dir%&%"first.round.withCon.df.RDS")
+
 
 ```
 
@@ -75,7 +76,7 @@ saveRDS(object=df,file = rds.dir%&%"first.round.full.df.RDS")
 write.table(x=df,file=txt.dir%&%"first-round-variants.txt",sep="\t",
             quote = FALSE,row.names=FALSE,col.names=TRUE)
 
-length(unique(df$SNPID)) # 358 unique SNPs in the final set 
+length(unique(df$SNPID)) # 318 unique SNPs in the final set 
 
 ```
 

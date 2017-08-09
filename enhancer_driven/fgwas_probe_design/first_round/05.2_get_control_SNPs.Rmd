@@ -24,7 +24,7 @@ serv.dir <- "/Users/jtorres/FUSE/"
 work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
 rds.dir <- work.dir %&% "RDS/"
 
-cred.df <- fread(prof.dir%&%"profile_fcredt2d.txt")
+cred.df <- fread(work.dir%&%"profile-snps/"%&%"profile_fcredt2d.txt")
 first.round.df <- readRDS(rds.dir%&%"first.round.df.RDS")
 names(first.round.df)[1] <- "Locus"
 

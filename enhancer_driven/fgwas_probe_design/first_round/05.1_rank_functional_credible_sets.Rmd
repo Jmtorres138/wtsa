@@ -36,9 +36,10 @@ phys.df <- fread(phys.dir%&%"dimas-wood.txt")
 dimas.genes <- filter(phys.df,Dimas2014!="IR" & Dimas2014!="UC")$Locus
 wood.genes <- filter(phys.df,!is.na(phys.df$Wood2017.GenomeWide))$Locus
 wood.genes2 <- filter(phys.df,!is.na(phys.df$Wood2017))$Locus
-phys.genes <- unique(c(dimas.genes,wood.genes,wood.genes2))
-phys.genes <- c(phys.genes,"HHEX","KCNQ1","CDKN2A","CDKN2B") # manual adjustment
-
+anubha.genes <- fread(phys.dir%&%"insulin_secretion_ExTexT2D_AMah.txt",header=F)$V1
+phys.genes <- unique(c(dimas.genes,wood.genes,wood.genes2,anubha.genes))
+phys.genes <- c(phys.genes,"HHEX","KCNQ1","CDKN2A","CDKN2B","C2CD4A","C2CD4B","ZBED-AS1") # manual adjustment
+phys.genes <- unique(phys.genes)
 ```
 
 
@@ -306,14 +307,14 @@ saveRDS(compare.df,file=rds.dir%&%"compare.df.RDS")
 ```{r}
 
 keep.segs <- c() 
-var.limit <- 300
+#var.limit <- 300
 var.count <- 0 
 
 keep.df <- c() 
 
 group1.df <- filter(compare.df,gcred.ind==TRUE)
 
-tier1.df <- filter(group1.df, num.snps <= 20, endo.atac==TRUE, irp >= 0.5, dimas.wood==TRUE, eqtls.ld20==TRUE)
+tier1.df <- filter(group1.df, num.snps <= 20, endo.atac==TRUE, irp >= 0.5, dimas.wood==TRUE, eqtls.ld20==TRUE) # GPSM1
 keep.segs <- c(keep.segs,tier1.df$SEGNUMBER)
 (var.count <- var.count + sum(tier1.df$num.snps))
 
@@ -347,6 +348,17 @@ keep.df <- rbind(tier1.df,tier2.df,tier3.df,
 tier <- c(rep("1",dim(tier1.df)[1]),rep("2",dim(tier2.df)[1]),rep("3",dim(tier3.df)[1]),
           rep("4",dim(tier4.df)[1]),rep("5",dim(tier5.df)[1]),rep("6",dim(tier6.df)[1]))
 keep.df <- cbind(keep.df,tier)
+
+
+# Manual changes based on Mark's feedback 
+manual.vec <- c("89DF","50DF") # HHEX and CDKAL1 
+manual.df <- filter(group1.df,SEGNUMBER %in% manual.vec)
+manual.df$tier <- rep("manual",2)
+remove.refGenes <- c("KCNJ11","RAI1","IGF2BP2")
+#keep.df <- filter(keep.df,refGene!="KCNJ11")
+keep.df <- filter(keep.df,!(refGene %in% remove.refGenes))
+keep.df <- rbind(keep.df,manual.df)
+
 saveRDS(keep.df,file=rds.dir%&%"round1.loci.df.RDS")
 
 ```
