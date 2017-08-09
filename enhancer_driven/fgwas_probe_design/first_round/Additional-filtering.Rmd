@@ -1,0 +1,57 @@
+---
+title: "Additional filtering and probe pruning"
+author: "Jason Torres"
+date: "June 21, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+
+library("data.table")
+library("dplyr")
+serv.dir <- "/Users/jtorres/FUSE/"
+
+
+cqm.dir <- "/Users/jtorres/Google Drive/Science/Projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/capsequm_output/"
+
+
+```
+
+
+Load data frames 
+
+```{r}
+
+snp.df <- fread(cqm.dir%&%"SNPs-of-interest_enhancer-drivenCapC.txt")
+hpp.df <- fread(cqm.dir %&%"high-quality-oligos_first-round_enhancer-drivenCapC.txt")
+hsp.df <- fread(cqm.dir %&% "high-quality-SINGLE-oligos_first-round_enhancer-drivenCapC.txt")
+hf.df <- fread(cqm.dir %&% "high-quality-fragments_first-round_enhancer-drivenCapC.txt")
+
+mf.df <- fread(cqm.dir %&% "medium-quality-fragments_first-round_enhancer-drivenCapC.txt")
+mpp.df <- fread(cqm.dir %&%"medium-quality-oligos_first-round_enhancer-drivenCapC.txt")
+
+
+```
+
+
+Read in DpnII file 
+Read 0-based "bed" file of DpnII (hg19) cut sites (from Jelena Telenius )
+
+```{r}
+dpn.file <- serv.dir %&% "reference/DpnII/hg19_DpnII-sites.bed.gz" #  0-based bed file 
+dpn.df <- fread("cat " %&% dpn.file %&% " | zmore")
+# adjust to 1-based scheme 
+dpn.df$V2 <- dpn.df$V2 + 1 
+dpn.df$V3 <- dpn.df$V3 + 1 
+```
+
+

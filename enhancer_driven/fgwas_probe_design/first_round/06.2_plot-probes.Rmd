@@ -1,0 +1,334 @@
+---
+title: "Plot Probes and Credible Sets"
+author: "Jason Torres"
+date: "June 9, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b) 
+library("data.table")
+library("dplyr")
+library("GenomicRanges")
+library(Homo.sapiens)
+library("ggbio")
+library("ggrepel")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
+rds.dir <- work.dir %&% "RDS/"
+
+cap.dir <- work.dir %&% "capsequm_output/"
+
+mig.df <- readRDS(cap.dir%&%"mig.df.RDS")
+paired.df <- readRDS(cap.dir%&%"high.quality.paired.probes.df.RDS")
+frag.df <- readRDS(cap.dir%&%"high.quality.frags.df.RDS")
+medhigh.paired.df <- readRDS(cap.dir%&%"medium.quality.paired.probes.df.RDS")
+med.frag.df <- readRDS(cap.dir%&%"medium.quality.frags.df.RDS")
+single.high.df <- readRDS(cap.dir%&%"high.quality.single.probes.df.RDS")
+roi.cov.df <- readRDS(cap.dir%&%"roi.df.RDS")
+
+```
+
+
+Build Probe Data frame 
+
+```{r}
+
+
+build_probe_df <- function(){
+  chrom <- c()
+  frag.start <- c()
+  frag.end <- c()
+  left.start <- c()
+  left.end <- c()
+  right.start <- c()
+  right.end <- c()
+  type <- c()
+  
+  for (i in 1:dim(frag.df)[1]){
+    chrom <- c(chrom,frag.df$chrom[i])
+    frag.start <- c(frag.start,frag.df$start[i])
+    frag.end <- c(frag.end,frag.df$end[i])
+    left.start <- c(left.start,frag.df$start[i])
+    left.end <- c(left.end,filter(paired.df,`bp start`==frag.df$start[i])$`bp end`)
+    right.start <- c(right.start,filter(paired.df,`bp end`==frag.df$end[i])$`bp start`)
+    right.end <- c(right.end,frag.df$end[i])  
+    type <- type <- c(type,"high.quality.paired")
+  }
+  
+  for (i in 1:dim(med.frag.df)[1]){
+    chrom <- c(chrom,med.frag.df$chrom[i])
+    frag.start <- c(frag.start,med.frag.df$start[i])
+    frag.end <- c(frag.end,med.frag.df$end[i])
+    left.start <- c(left.start,med.frag.df$start[i])
+    left.end <- c(left.end,filter(medhigh.paired.df,`bp start`==med.frag.df$start[i])$`bp end`)
+    right.start <- c(right.start,filter(medhigh.paired.df,`bp end`==med.frag.df$end[i])$`bp start`)
+    right.end <- c(right.end,med.frag.df$end[i])  
+    type <- type <- c(type,"medium.quality.paired")
+  }
+  
+  for (i in 1:dim(single.high.df)[1]){
+    chrom <- c(chrom,single.high.df$chr[i])
+    frag.start <- c(frag.start,NA)
+    frag.end <- c(frag.end,NA)
+    left.start <- c(left.start,single.high.df$`bp start`[i])
+    left.end <- c(left.end,single.high.df$`bp end`[i])
+    right.start <- c(right.start,single.high.df$`bp start`[i])
+    right.end <- c(right.end,single.high.df$`bp end`[i])
+    type <- type <- c(type,"high.quality.single")
+  }
+  
+  probe.df <- data.frame(chrom,frag.start,frag.end,left.start,left.end,right.start,right.end,type,
+                         stringsAsFactors = FALSE)
+  return(probe.df)
+}
+
+probe.df <- build_probe_df()
+
+```
+
+Read RDS files 
+
+```{r}
+
+credt2d.df <- readRDS(rds.dir%&%"credComb.1000less.df.RDS")
+credt2d.df$CHR <- "chr" %&% credt2d.df$CHR
+#atac.df <- readRDS(rds.dir%&%"atac.df.RDS")
+
+dpn.file <- serv.dir %&% "reference/DpnII/hg19_DpnII-sites.bed.gz" #  0-based bed file 
+dpn.df <- fread("cat " %&% dpn.file %&% " | zmore")
+# adjust to 1-based scheme 
+dpn.df$V2 <- dpn.df$V2 + 1 
+dpn.df$V3 <- dpn.df$V3 + 1 
+```
+
+
+Functions
+
+```{r}
+gread <- function(bed.df){
+  # names must be c(chr, start, end, id, score, strand), where available 
+   if(length(bed.df)==3){
+      gr <- with(bed.df, GRanges(chr, IRanges(start, end)))
+   } else if (length(bed.df)==4){
+      gr <- with(bed.df, GRanges(chr, IRanges(start, end), id=id))
+   } else if (length(bed.df)==5){
+      gr <- with(bed.df, GRanges(chr, IRanges(start, end), id=id, score=score))
+   } else if (length(bed.df)>=6){
+      bed.df$strand <- gsub(pattern="[^+-]+",replacement='*', bed.df$strand)
+      gr <- with(bed.df, GRanges(chr, IRanges(start, end), id=id, score=score, strand=strand))
+   }
+   return(gr)
+}
+
+get_overlaps <- function(a,b){
+  # a and b are genomic ranges
+  vec <- a %over% b
+  ##print(sum(vec) %&% " / " %&% length(vec))
+  return(vec)
+}
+```
+
+
+DpnII Plot 
+
+```{r}
+
+dpnII_plot <- function(segnum,fac=0.10){
+  df <- filter(credt2d.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn
+  span <- ifelse(span==0,1,span)
+  chrom <- df$CHR[1];mymin <- (mn-fac*span);mymax <- (mx+fac*span)
+  dpnsub <- filter(dpn.df,V1==chrom,V2>=mymin,V3<=mymax)
+  if (dim(dpnsub)[1]==0){
+    dpnsub <- data.frame(V1=chrom,V2=mymin,V3=mymax)
+    plt <-  ggplot(data=dpnsub)
+    plt <- plt + geom_vline(aes(xintercept=V2), size=0,color="white") + 
+      geom_vline(aes(xintercept=V3),size=0,color="white")
+  } else{
+    plt <-  ggplot(data=dpnsub)
+    plt <- plt + geom_vline(aes(xintercept=V2), size=0.1) + 
+      geom_vline(aes(xintercept=V3),size=0.1) 
+  }
+  plt <- plt + ylim(c(0,1)) + 
+    theme_bw() + theme(axis.text.y=element_blank(),
+                       axis.ticks = element_blank(),
+                       panel.grid = element_blank())  
+  
+  return(plt)
+}
+```
+
+
+
+```{r}
+
+fcredld_plot <- function(segnum,fac=10){
+  df <- filter(credt2d.df,SEGNUMBER==segnum) %>% arrange(desc(PPA))
+  mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn; loc <- df$refGene[1]
+  span <- ifelse(span==0,1,span)
+  chrom <- df$CHR[1];mymin <- (mn-fac*span);mymax <- (mx+fac*span)  
+  loc <- gsub("/","-",loc)
+  expan <- 1e6 
+  maxpos <- df$POS[1] # by PPA 
+
+  plt <- ggplot(data=df,aes(x=POS,y=PPA)) + 
+    geom_point(shape=21,color="black",size=2) + 
+    #scale_fill_continuous(low="yellow",
+    #                      high="firebrick1",limits=c(0,1),
+    #                      breaks=seq(0,1,0.2)) + 
+    scale_y_continuous(limits=c(0,1),breaks=seq(0,1,0.1)) + 
+    theme_bw() + 
+    theme(legend.position="none",
+          panel.grid.minor=element_blank(),
+                axis.title.y=element_text(size=5),
+                axis.text.y=element_text(size=4)) +
+    scale_y_continuous(breaks=seq(0,1,0.2),limits=c(0,1)) + 
+    coord_cartesian(ylim=c(0,1),expand=TRUE)
+  plt <- plt + geom_label_repel(data=arrange(df,desc(PPA))[1:1,],
+                                aes(x=POS,y=PPA,label=SNPID),size=3)
+  return(plt)
+}
+
+```
+
+
+```{r}
+
+prob_plot <- function(segnum,fac=0.1){
+  df <- filter(credt2d.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS)
+  mychrom <- df$CHR[1]; loc <- df$LOCUS[1]; span <- mx - mn
+  span <- ifelse(span==0,1,span)
+  mymin <- (mn-fac*span); mymax <- (mx+fac*span)
+  sub <- filter(probe.df,chrom==mychrom,left.start>=mymin,right.start<=mymax)
+  sub.sing <- filter(sub,type=="high.quality.single")
+  sub <- filter(sub,type!="high.quality.single")
+  if (dim(sub)[1]==0){
+    sub <- data.frame(a=NA,b=NA,c=NA,d=NA,e=NA,f=NA,g=NA,h=NA,i=NA,j=NA,k=NA,l=NA)
+    names(sub) <- names(probe.df)
+  }
+  #if (dim(sub)[1]>0){
+  plt1 <- ggplot(data=sub) + 
+    geom_rect(sub,  aes(fill=type,xmin=frag.start,xmax=frag.end), #fill="black",
+    #geom_rect(sub,  aes(xmin=frag.start,xmax=frag.end), fill="black",
+                                             ymin=0.4, ymax=0.6) + 
+    geom_rect(sub, fill="dodgerblue2", aes(xmin=left.start,xmax=left.end),
+                                         ymin=0.6, ymax=0.7) +
+    geom_rect(sub, fill="dodgerblue2", aes(xmin=right.start,xmax=right.end),
+                                         ymin=0.3, ymax=0.4) +
+    coord_cartesian(xlim=c(mymin,mymax)) + 
+    scale_fill_manual(values=c("high.quality.paired"="black","medium.quality.paired"="grey","high.quality.single"="grey")) + 
+    theme_bw() + 
+    theme(panel.grid = element_blank(),
+          legend.position="none")    
+  #}
+  #if (dim(sub.sing)[1]>0){
+  plt2 <- ggplot(sub.sing[,4:8]) + 
+    geom_rect(sub.sing[,4:8], fill="red2", aes(xmin=left.start,xmax=right.end,
+                                       ymin=0.6, ymax=0.7)) +
+    geom_rect(sub.sing[,4:8], fill="red2", aes(xmin=left.start,xmax=right.end,
+                                       ymin=0.3, ymax=0.4)) + 
+    coord_cartesian(xlim=c(mymin,mymax)) 
+
+  #}
+  if (dim(na.omit(sub))[1]>0 & dim(sub.sing)[1]>0){
+    #plt <- plt1 + plt2 
+    plt <- ggplot(data=sub) + 
+      geom_rect(sub,  aes(fill=type,xmin=frag.start,xmax=frag.end), #fill="black",
+      #geom_rect(sub,  aes(xmin=frag.start,xmax=frag.end), fill="black",
+                                               ymin=0.4, ymax=0.6) + 
+      geom_rect(sub, fill="dodgerblue2", aes(xmin=left.start,xmax=left.end),
+                                           ymin=0.6, ymax=0.7) +
+      geom_rect(sub, fill="dodgerblue2", aes(xmin=right.start,xmax=right.end),
+                                           ymin=0.3, ymax=0.4) +
+      coord_cartesian(xlim=c(mymin,mymax)) + 
+      scale_fill_manual(values=c("high.quality.paired"="black","medium.quality.paired"="grey","high.quality.single"="grey")) + 
+      theme_bw() + 
+      theme(panel.grid = element_blank(),
+            legend.position="none")   +  
+    #}
+    #if (dim(sub.sing)[1]>0){
+    #plt2 <- #ggplot(sub.sing[,4:8]) + 
+      geom_rect(sub.sing[,4:8], fill="red2", aes(xmin=left.start,xmax=right.end,
+                                         ymin=0.6, ymax=0.7)) +
+      geom_rect(sub.sing[,4:8], fill="red2", aes(xmin=left.start,xmax=right.end,
+                                         ymin=0.3, ymax=0.4)) + 
+      coord_cartesian(xlim=c(mymin,mymax)) 
+  } else if(dim(na.omit(sub))[1]>0){
+    plt <- plt1
+  } else if(dim(sub.sing)[1]>0){
+    plt <- plt2
+  } else{
+    plt <- plt1 # NA Plot 
+  }
+  #plt <- plt + coord_cartesian(xlim=c(mymin,mymax))
+  return(plt)
+}
+
+```
+
+
+# Track Plot function 
+
+```{r}
+
+track_plot <- function(segnum){
+  df <- filter(credt2d.df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS); span <- mx - mn
+  span <- ifelse(span==0,1,span)
+  fac <- ifelse(span==1,10000, 
+                ifelse(span>1&span<10000,1,
+                       ifelse(span>10000,0.1,0.1)))
+  mymin <- (mn-fac*span); mymax <- (mx+fac*span)
+  loc <- df$refGene[1]
+  chrom <- df$CHR[1]
+  dpn_plt <- dpnII_plot(segnum,fac)
+  fcredld_plt <- fcredld_plot(segnum,fac)
+  probe_plt <- prob_plot(segnum,fac)
+
+  tracks(
+          
+          `Functional Credible Set \n(LD)`=fcredld_plt,
+          `Oligos`=probe_plt,
+          `DpnII`=dpn_plt,
+          heights=c(1,0.5,0.5),title=loc %&% "\nInterval: " %&% 
+           round(span/1000,digits=2) %&%" kb",
+         label.text.cex=0.6,main.height=2) +
+    scale_x_sequnit("Mb") + 
+    theme(axis.text.x=element_text(size=5))     
+}
+
+```
+
+
+Save plots 
+
+
+```{r}
+
+save.dir <- work.dir %&% "probe_plots/"
+
+seg.vec <- as.character(unique(filter(roi.cov.df,Capture.Status!="PoorQuality",SEGNUMBER!="86DF")$SEGNUMBER)) #Have to remove CDC123 since only controls are 
+possible 
+seg.vec <- seg.vec[grepl("DF",seg.vec)]
+
+for (seg in seg.vec){
+  print(seg)
+  plt <- track_plot(seg)
+  ggsave(plot=plt,filename = save.dir%&%seg%&%".probe-plot.png",width=4,height=6)
+}
+
+
+```
+
+
