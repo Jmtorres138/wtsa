@@ -1,0 +1,222 @@
+---
+title: "05.1_PrioritizeLoci-T2D.Rmd"
+author: "Jason Torres"
+date: "February 17, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+
+"%&%" <- function(a,b) paste0(a,b) 
+library("data.table")
+library("dplyr")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
+```
+
+
+Read RDS files
+
+
+```{r}
+
+credt2d.df <- readRDS(rds.dir%&%"credt2d.df.RDS")
+
+```
+
+
+
+Build Dimas (Dimas et al. 2014, Diabetes) data frame 
+
+
+```{r}
+Locus <- c("GCK","MTNR1B","GCKR","IRS1","KLF14","PPARG","ARAP1 (CENTD2)","HNF1B (TCF2)","HCCA2","HNF1A",
+           "CHCHD9","NOTCH2","CDC123/CAMK1D","TP53INP1","WFS1","ZBED3","IGF2BP2","PRC1",
+           "HMGA2","JAZF1","KCNQ1-rs231362","ADAMTS9","KCNQ1-rs163184","BCL11A","KCNJ11",
+           "TSPAN8/LGR5","ZFAND6","DGKB","ADCY5","THADA","CDKAL1","CDKN2A/B","PROX1",
+           "HHEX/IDE","SLC30A8","TCF7L2") # Manually replaced "DGKB-TMEM195" with "DGKB"
+Dimas2014 <- c(rep("HG",2),rep("IR",4),"PI",rep("UC",20),rep("BC",9))
+dimas.df <- data.frame(Locus,Dimas2014,stringsAsFactors = FALSE)
+saveRDS(dimas.df,file=rds.dir%&%"dimas.df.RDS")
+
+```
+
+
+Prioritize loci where fGWAS with islet annotations improves resolution 
+
+
+```{r}
+
+cumm <- function(vec,thresh=0.50){
+  vec <- sort(vec,decreasing = TRUE)
+  index <- 0 
+  val <- 0
+  while(val <= 0.50){
+    index <- index + 1 
+    val <- val + vec[index]
+  }
+  return(index)
+}
+
+profile_locus_fgwas <- function(segnum,df){
+  df <- filter(df,SEGNUMBER==segnum)
+  mx <- max(df$POS); mn <- min(df$POS)
+  span <- mx - mn
+  chrom <- df$CHR[1]  
+  number <- dim(df)[1]
+  locus <- df$LOCUS[1]
+  number50 <- cumm(df$PPA,thresh=0.50)
+  number50.fgwas <- cumm(df$PPA.fgwas,thresh=0.50)
+  perc.dec50 <- (number50-number50.fgwas) / number50
+  number90 <- cumm(df$PPA,thresh=0.90)
+  number90.fgwas <- cumm(df$PPA.fgwas,thresh=0.90)
+  perc.dec90 <- (number90-number90.fgwas) / number90
+  out.df <- data.frame(segnum,locus,chrom,start=mn,end=mx,
+                       span,number,
+                       number50,number50.fgwas, perc.dec50,
+                       number90,number90.fgwas,perc.dec90,
+                  stringsAsFactors=FALSE)
+  return(out.df)
+}
+
+loc_summary_fgwas <- function(seg.vec,df){
+  out.df <- c()
+  pb <- txtProgressBar(min = 0, max = 96, initial = 0, style = 3)
+  for (i in seg.vec){
+    setTxtProgressBar(pb, i) 
+    temp <- profile_locus_fgwas(i,df)
+    out.df<-rbind(out.df,temp)
+  }
+  out.df <- arrange(out.df,desc(perc.dec50))
+  return(out.df)
+}
+
+ls.df <- loc_summary_fgwas(seg.vec=1:96, df=credt2d.df)
+#ls.df <- filter(ls.df,number50.fgwas<number50) %>% arrange(desc(prop.changed))
+
+
+```
+
+Fisher Exact tests for Dimas 
+
+```{r}  
+
+dimas_type <- function(locus){
+  sub<-filter(dimas.df,Locus==locus)
+  if (dim(sub)[1]>0){
+    type <- sub$Dimas2014
+  } else{
+    type <- NA
+  }
+  if (!is.na(type) & type=="NA"){
+    type=NA
+  }
+  return(type)
+}
+
+dimas_samp_test <- function(ranked.vec,q=0.25,dimastype){
+  set.seed(1)
+  type.vec <- as.character(sapply(ranked.vec,function(loc){
+    return(dimas_type(loc))
+  }))
+  type.vec[type.vec==dimastype]=1
+  type.vec[type.vec!=1]=0
+  type.vec[is.na(type.vec)]=0
+  type.vec <- as.integer(type.vec)
+  number <- floor(length(ranked.vec) * q)
+  obs <- sum(type.vec[1:number]==1)
+  samp.vec <- as.integer(sapply(1:10000,function(i){
+    samp <- sample(type.vec, size=number, replace=TRUE)
+    s <- sum(samp)
+    return(s)
+  }))
+  p <- (sum(samp.vec > obs) + 1) / length(samp.vec + 1)
+  print("Test for enrichment of Dimas Type: " %&% dimastype)
+  print("P-value: " %&% p)
+}
+
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.05,dimastype="HG") #P-value = 0.0808
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.10,dimastype="HG") #P-value = 0.0169
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.20,dimastype="HG") #P-value = 0.0071
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.50,dimastype="HG") #P-value = 0.0755
+
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.05,dimastype="BC") #P-value = 0.073
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.10,dimastype="BC") #P-value = 0.28
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.20,dimastype="BC") #P-value = 0.65
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.50,dimastype="BC") #P-value = 0.3094
+
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.05,dimastype="IR") #P-value = 0.1211
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.10,dimastype="IR") #P-value = 0.2488
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.20,dimastype="IR") #P-value = 0.4557
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.50,dimastype="IR") #P-value = 0.4496
+
+
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.05,dimastype="UC") #P-value = 0.5099
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.10,dimastype="UC") #P-value = 0.4517
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.20,dimastype="UC") #P-value = 0.1945
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.50,dimastype="UC") #P-value = 0.4049
+
+
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.05,dimastype="PI") #P-value = 0.0426
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.10,dimastype="PI") #P-value = 0.0899
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.20,dimastype="PI") #P-value = 0.1805
+dimas_samp_test(ranked.vec=ls.df$locus,q=0.50,dimastype="PI") #P-value = 0.0907
+
+
+```
+
+
+Rank by number of SNPs in Credible Set 
+
+
+```{r}
+
+nrank.df <- arrange(ls.df,number)
+
+
+```
+
+
+Determine Loci with 10 or fewer SNPs in credible set 
+
+```{r}
+
+few10 <- filter(nrank.df,number<=10) %>% dplyr::select(one_of("segnum",
+                                                            "locus"))
+
+few15 <- filter(nrank.df,number<=15) %>% dplyr::select(one_of("segnum",
+                                                            "locus"))
+
+few20 <- filter(nrank.df,number<=20) %>% dplyr::select(one_of("segnum",
+                                                            "locus"))
+few100 <- filter(nrank.df,number<=100) %>% dplyr::select(one_of("segnum",
+                                                            "locus"))
+
+```
+
+
+
+
+Visualization 
+
+
+```{r}
+
+source(serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/04.2_TrackPlot.R")
+
+track_plot(1)
+track_plot(93)
+track_plot(6)
+track_plot(7)
+track_plot(11,fac=0.50)
+track_plot(22)
+
+```
+

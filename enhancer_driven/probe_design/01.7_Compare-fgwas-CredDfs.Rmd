@@ -1,0 +1,366 @@
+---
+title: "01.7_Compare-fgwas-CredDfs.Rmd"
+author: "Jason Torres"
+date: "March 15, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Setup libraries and directories 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b) 
+library("dplyr")
+library("data.table")
+library("ggplot2")
+library("ggbio")
+library("gridExtra")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
+txt.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/txt/"
+save.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/compare_loci/"
+ifelse(dir.exists(save.dir),"Output Directory Already Exists",dir.create(save.dir))
+
+df1 <- fread("cat " %&% txt.dir %&%"fgwas-cred-diag-updated.txt.gz" %&% " | zmore")
+df2 <- fread("cat " %&% txt.dir %&%"fgwas-cred-metab-updated.txt.gz" %&% " | zmore")
+
+```
+
+
+Function to determine number of SNPs in 99% credible set 
+
+```{r}
+
+num99 <- function(dframe,cname){
+  index <- match(cname,names(dframe))
+  vec <- sort(dframe[,index],decreasing=TRUE)
+  count=0
+  sum=0
+  for (v in vec){
+    count <- count + 1
+    sum <- sum + v
+    if (sum >= 0.99){
+      break
+    }
+  }
+  return(count)
+}
+
+
+```
+
+
+Fill in NA's in DIAGRAM set 
+
+```{r}
+SEGNUMBER <- c(18,3,4,5,7,8,15)
+LOCUS <- c("C5orf67", "KCNQ1.second", "KCNQ1.third", "KCNQ1.fourth", "CDKN1C", "SLC22A18AS", "HNF4A.second")
+na.df <- data.frame(SEGNUMBER,LOCUS,stringsAsFactors = FALSE)
+df1_update <- function(){
+  out.df <- df1
+  for (i in 1:dim(df1)[1]){
+    seg <- df1$SEGNUMBER[i]
+    loc <- df1$LOCUS[i]
+    #print(paste0(i," : ", seg," : ",loc))
+    if (is.na(loc)){
+      loc <- filter(na.df,SEGNUMBER==seg)$LOCUS
+      if (length(loc)>0){
+        out.df[i,8] <- loc
+      }
+    }
+    if (seg == 21){
+      out.df[i,8] <- "DGKB.second"
+    }
+    if (seg == 11){
+      out.df[i,8] <- "CCND2.second"
+    }
+    if (seg == 27){
+      out.df[i,8] <- "CDKN2A/B.second"
+    }
+  }
+  return(out.df)
+}
+
+df1 <- df1_update()
+```
+
+
+
+
+
+Make LOCUS name key data frame 
+
+```{r}
+
+
+df1$LOCUS <- gsub(pattern="CDKN2A/B","CDKN2A/CDKN2B",df1$LOCUS)
+
+diag.loci <- unique(df1$LOCUS)
+metab.loci <- unique(df2$LOCUS)
+
+patt <- as.character(sapply(1:length(metab.loci),function(i){
+  loc <- metab.loci[i]
+  loc <- strsplit(loc,split=".",fixed=TRUE)[[1]][1]
+  return(loc)
+}))
+
+matches <- as.character(sapply(1:length(patt),function(i){
+  pat <- patt[i]
+  mat <- as.character(sapply(1:length(diag.loci),function(e){
+    loc <- diag.loci[e]
+    m <- grepl(pattern=pat,x=loc)
+    ifelse(m==TRUE,return(loc),return(NA))
+  }))
+  mat <- na.omit(mat)
+  ifelse(length(mat)>0,return(mat),return(NA))
+}))
+
+ref.df <- data.frame(metab.loci,matches,stringsAsFactors=FALSE)
+
+#gz1 <- gzfile(txt.dir%&%"fgwas-cred-diag.txt.gz", "w")
+#write.table(x=df1,gz1,sep="\t",quote=FALSE,row.names=F)
+#close(gz1)
+
+```
+
+
+Compare sizes of credible sets
+
+```{r}
+
+compare_loc_numbers <- function(l1,l2){
+  # l1 are l2 are the names for a given locus in the first and second data frames, respectively
+  # Example, "CENTD2" and "ARAP1 (CENTD2)"
+  d1 <- filter(df1,LOCUS==l1) 
+  d2 <- filter(df2,LOCUS==l2)
+  study <- c("DIAGRAM","Metabochip")
+  name <- c(l1,l2)
+  before.fgwas <- c(num99(d1,"PPA"),num99(d2,"PPA"))
+  after.fgwas <- c(num99(d1,"PPA.fgwas"),num99(d2,"PPA.fgwas"))
+  perc.decr <- (before.fgwas-after.fgwas)/before.fgwas
+  full.fgwas <- c(num99(d1,"PPA.fgwas.full"),num99(d2,"PPA.fgwas.full"))
+  out.df <- data.frame(study,name,before.fgwas,after.fgwas,perc.decr,full.fgwas)
+  return(out.df)
+}
+
+compare_loc_plots <- function(l1,l2){
+  # l1 are l2 are the names for a given locus in the first and second data frames, respectively
+  # Example, "CENTD2" and "ARAP1 (CENTD2)"
+  d1 <- filter(df1,LOCUS==l1) 
+  d2 <- filter(df2,LOCUS==l2)
+  plt1 <- ggplot(data=d1,aes(x=POS,y=PPA)) +
+    geom_point(shape=21,color="black",fill="gray") + theme_bw() + ylab("PPA")
+  plt2 <- ggplot(data=d1,aes(x=POS,y=PPA.fgwas,fill=(change>0))) + 
+    geom_point(shape=21,color="black") + 
+    scale_fill_manual(values=c("dodgerblue2","firebrick2")) + 
+    theme_bw() + theme(legend.position="none") + ylab("PPA")
+  plt3 <- ggplot(data=d1,aes(x=POS,y=PPA.fgwas.full)) +
+    geom_point(shape=23,color="black",fill="black") + theme_bw() + ylab("PPA")
+  #plot.diag <- tracks(`PPA`=plt1,
+   #                   `fgwas PPA \n(credible sets)`=plt2,
+   #                   `fgwas PPA \n(DIAGRAM gwas)`=plt3,main="DIAGRAM 1K Genomes") + scale_x_sequnit("Mb") + 
+    #scale_y_continuous(breaks=seq(0,1,0.2),limits = c(0,1))
+  plt4 <- ggplot(data=d2,aes(x=POS,y=PPA)) +
+    geom_point(shape=21,color="black",fill="gray") + theme_bw() + ylab("PPA")
+  plt5 <- ggplot(data=d2,aes(x=POS,y=PPA.fgwas,fill=(change>0))) +
+    geom_point(shape=21,color="black") + 
+    scale_fill_manual(values=c("dodgerblue2","firebrick2")) + 
+    theme_bw() + theme(legend.position="none") + ylab("PPA")
+  plt6 <- ggplot(data=d2,aes(x=POS,y=PPA.fgwas.full)) +
+    geom_point(shape=23,color="black",fill="black") + theme_bw() + ylab("PPA")
+  outplot <- tracks(`DIAGRAM PPA`=plt1,
+                      `fgwas PPA \n(credible sets)`=plt2,
+                      `fgwas PPA \n(DIAG. gwas)`=plt3,
+                      `Metabochip PPA`=plt4,
+                      `fgwas PPA \n(credible sets)`=plt5,
+                      `fgwas PPA \n(DIAG. gwas)`=plt6,
+                      heights=c(1,1,0.6,1,1,0.6),
+                      title="Credible Set Comparison\n" %&% l1 %&% " : " %&% l2,
+                      label.text.cex=0.6,main.height=2) + 
+    scale_x_sequnit("Mb") + 
+    scale_y_continuous(breaks=seq(0,1,0.2),limits = c(0,1)) 
+  return(outplot)
+}
+
+save_loc <- function(l1,l2){
+  # l1 is DIAGRAM credbile set locus name
+  # l2 is Metabochip credible set locus name 
+  plt <- compare_loc_plots(l1,l2)
+  ggsave(filename = save.dir %&% "metab_" %&% l2 %&% ".png",plot=plt,height=10,width = 6)
+}
+
+# save all plots 
+for (i in 1:dim(ref.df)[1]){
+  l2 <- ref.df$metab.loci[i]
+  l1 <- ref.df$matches[i]
+  print(c(i, l2, l1)) 
+  if (!is.na(l1)){
+    save_loc(l1,l2)
+  }
+}
+
+
+```
+
+
+# Compare credible set numbers 
+
+```{r}
+
+make_num_df <- function(){
+  out.df <- c()
+  for (i in 1:dim(ref.df)[1]){
+    l2 <- ref.df$metab.loci[i]
+    l1 <- ref.df$matches[i]
+    print(c(i, l2, l1)) 
+    if (!is.na(l1)){
+      sub <- compare_loc_numbers(l1,l2)
+      out.df <- rbind(out.df,sub)
+    }
+  }
+  out.df$study <- as.character(out.df$study)
+  out.df$name <- as.character(out.df$name)
+  return(out.df)
+}
+
+num.df <- make_num_df()
+
+dd <- filter(num.df,study=="DIAGRAM")
+dd <- dd[!duplicated(dd),]
+hist.diag <- ggplot(data=dd,aes(x=before.fgwas)) + 
+  geom_histogram(stat="bin")
+dm <- filter(num.df,study=="Metabochip")
+dm <- dm[!duplicated(dm),]
+hist.metab <- ggplot(data=dm,aes(x=before.fgwas)) + 
+  geom_histogram(stat="bin")
+
+summary(filter(num.df,study=="DIAGRAM")$before.fgwas)
+summary(filter(num.df,study=="Metabochip")$before.fgwas)
+
+summary(filter(num.df,study=="DIAGRAM")$after.fgwas)
+summary(filter(num.df,study=="Metabochip")$after.fgwas)
+
+summary(filter(num.df,study=="DIAGRAM")$perc.decr)
+summary(filter(num.df,study=="Metabochip")$perc.decr)
+
+png(save.dir %&% "Number_99_credset.qq.png")
+qqplot(dm$before.fgwas,dd$before.fgwas,xlab="Metabochip Count",ylab="DIAGRAM Count",main="Credible Sets")
+abline(b=1,a=0,col="red")
+dev.off()
+png(save.dir %&% "Number_99_FGWAScredset.qq.png")
+qqplot(dm$after.fgwas,dd$after.fgwas,xlab="Metabochip Count",ylab="DIAGRAM Count",main="Credible Sets\nfgwas")
+abline(b=1,a=0,col="red")
+dev.off()
+
+# Evaluate the PPA distributions 
+
+df1.sub <- filter(df1,LOCUS %in% na.omit(ref.df$matches))
+summary(df1.sub$PPA)
+summary(df2$PPA)
+
+summary(df1.sub$PPA.fgwas)
+summary(df2$PPA.fgwas)
+
+png(save.dir %&% "PPA_credset.qq.png")
+qqplot(df2$PPA,df1.sub$PPA,xlab="Metabochip PPA",ylab="DIAGRAM PPA",main="Credible Sets")
+abline(b=1,a=0,col="red")
+dev.off()
+
+png(save.dir %&% "PPA_FGWAScredset.qq.png")
+qqplot(df2$PPA.fgwas,df1.sub$PPA.fgwas,xlab="Metabochip PPA",ylab="DIAGRAM PPA",main="Credible Sets\nfgwas")
+abline(b=1,a=0,col="red")
+dev.off()
+
+```
+
+
+Compare fgwas annotation enrichments 
+
+```{r}
+fout.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/fgwas_output/"
+annot_process <- function(fname){
+  df <- fread(fname)
+  df$CI_lo <- gsub("<","",df$CI_lo); df$CI_lo <- gsub("fail",NA,df$CI_lo); df$CI_lo <- as.numeric(df$CI_lo)
+  df$CI_hi <- gsub(">","",df$CI_hi); df$CI_hi <- gsub("fail",NA,df$CI_hi); df$CI_hi <- as.numeric(df$CI_hi)
+  return(df)
+}
+d.param.df <- annot_process(fout.dir %&% "diagram_gwasmod.params")
+m.param.df <- annot_process(fout.dir %&% "metabochip_gwasmod.params")
+fgwas.full.dir <- serv.dir %&% "projects/t2d-integration/fgwas/diagram_1kG_gwas/fgwas_output/best/"
+param.df <- annot_process(fgwas.full.dir %&% "fgwas_diagram1KG_5annot.params")
+
+an_plot <- function(mydf,mytitl="",mylow=-10,myhigh=10){
+  mydf <- within(mydf,parameter<-factor(mydf$parameter,levels=rev(mydf$parameter)))
+  mydf <- filter(mydf,parameter!="pi_region")
+  plt <- ggplot(data=mydf,aes(x=parameter,y=estimate)) + 
+    #geom_col(col="black",aes(fill=(estimate>0))) + coord_flip() + 
+      geom_hline(yintercept=0,linetype=2) +
+    ylab("Log2FE") + xlab("Annotation") + 
+    geom_errorbar(aes(ymin=CI_lo,ymax=CI_hi),width=0.1) + 
+    geom_point(shape=21,size=1.5,col="black",aes(fill=(estimate>0)))  +
+    scale_fill_manual(values=c("steelblue1","firebrick1")) + 
+    theme_bw()  +  theme(legend.position = "none",
+                         panel.grid.minor=element_blank(),
+                         panel.grid.major=element_blank()) + 
+    coord_flip(ylim=c(mylow,myhigh)) + 
+    ggtitle(mytitl)
+  return(plt)
+}
+
+pltA <- an_plot(d.param.df,mytitl="DIAGRAM Credible Sets\njoint model", mylow=-10,myhigh=10)
+pltB <- an_plot(m.param.df,mytitl="Metabochip Credible Sets\njoint model",mylow=-200,myhigh=200)
+pltC <- an_plot(param.df,mytitl="DIAGRAM (1K Genomes)\njoint model")
+
+ggsave(filename=save.dir %&% "DIAGRAM-gwas" %&% ".fgwas_enrich.png",plot=pltC)
+ggsave(filename=save.dir %&% "DIAGRAM-cred" %&% ".fgwas_enrich.png",plot=pltA)
+ggsave(filename=save.dir %&% "Metabochip-cred" %&% ".fgwas_enrich.png",plot=pltB)
+
+```
+
+Compare fgwas annotation enrichments (limited to 100 of fewer SNPs in credible set)
+
+
+```{r}
+fout.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/fgwas_output/"
+annot_process <- function(fname){
+  df <- fread(fname)
+  df$CI_lo <- gsub("<","",df$CI_lo); df$CI_lo <- gsub("fail",NA,df$CI_lo); df$CI_lo <- as.numeric(df$CI_lo)
+  df$CI_hi <- gsub(">","",df$CI_hi); df$CI_hi <- gsub("fail",NA,df$CI_hi); df$CI_hi <- as.numeric(df$CI_hi)
+  return(df)
+}
+d.param.df <- annot_process(fout.dir %&% "diagram_gwasmod_var100.params")
+m.param.df <- annot_process(fout.dir %&% "metabochip_gwasmod_var100.params")
+fgwas.full.dir <- serv.dir %&% "projects/t2d-integration/fgwas/diagram_1kG_gwas/fgwas_output/best/"
+param.df <- annot_process(fgwas.full.dir %&% "fgwas_diagram1KG_5annot.params")
+
+an_plot <- function(mydf,mytitl="",mylow=-10,myhigh=10){
+  mydf <- within(mydf,parameter<-factor(mydf$parameter,levels=rev(mydf$parameter)))
+  mydf <- filter(mydf,parameter!="pi_region")
+  plt <- ggplot(data=mydf,aes(x=parameter,y=estimate)) + 
+    #geom_col(col="black",aes(fill=(estimate>0))) + coord_flip() + 
+      geom_hline(yintercept=0,linetype=2) +
+    ylab("Log2FE") + xlab("Annotation") + 
+    geom_errorbar(aes(ymin=CI_lo,ymax=CI_hi),width=0.1) + 
+    geom_point(shape=21,size=1.5,col="black",aes(fill=(estimate>0)))  +
+    scale_fill_manual(values=c("steelblue1","firebrick1")) + 
+    theme_bw()  +  theme(legend.position = "none",
+                         panel.grid.minor=element_blank(),
+                         panel.grid.major=element_blank()) + 
+    coord_flip(ylim=c(mylow,myhigh)) + 
+    ggtitle(mytitl)
+  return(plt)
+}
+
+pltA <- an_plot(d.param.df,mytitl="DIAGRAM Credible Sets\njoint model", mylow=-10,myhigh=10)
+pltB <- an_plot(m.param.df,mytitl="Metabochip Credible Sets\njoint model",mylow=-200,myhigh=200)
+
+ggsave(filename=save.dir %&% "DIAGRAM-cred" %&% "_var100.fgwas_enrich.png",plot=pltA)
+ggsave(filename=save.dir %&% "Metabochip-cred" %&% "_var100.fgwas_enrich.png",plot=pltB)
+
+```
+
+

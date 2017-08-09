@@ -1,0 +1,145 @@
+---
+title: "01.5_CompareCredDfs.Rmd"
+author: "Jason Torres"
+date: "March 15, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Setup libraries and directories 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b) 
+library("dplyr")
+library("data.table")
+library("ggplot2")
+library("ggbio")
+library("gridExtra")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
+txt.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/txt/"
+save.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/compare_loci/"
+ifelse(dir.exists(save.dir),"Output Directory Already Exists",dir.create(save.dir))
+
+df1 <- fread("cat " %&% txt.dir %&%"fgwas-cred-diag-updated.txt.gz" %&% " | zmore")
+df2 <- fread("cat " %&% txt.dir %&%"fgwas-cred-metab-updated.txt.gz" %&% " | zmore")
+df3 <- fread("cat " %&% txt.dir %&% "fgwas-cred-diamante17.txt" %&% " | zmore")
+
+```
+
+
+Function to determine number of SNPs in 99% credible set 
+
+```{r}
+
+num99 <- function(dframe,cname){
+  index <- match(cname,names(dframe))
+  vec <- sort(dframe[,index],decreasing=TRUE)
+  count=0
+  sum=0
+  for (v in vec){
+    count <- count + 1
+    sum <- sum + v
+    if (sum >= 0.99){
+      break
+    }
+  }
+  return(count)
+}
+
+
+```
+
+
+Combine cred sets into one data frame 
+D=Diagram, M=Metabochip, T=trans-ethnic 
+
+```{r}
+
+df1$SEGNUMBER <- as.character(sapply(1:length(df1$SEGNUMBER),function(i){
+  return(paste0(df1$SEGNUMBER[i],"D"))
+}))
+df2$SEGNUMBER <- as.character(sapply(1:length(df2$SEGNUMBER),function(i){
+  return(paste0(df2$SEGNUMBER[i],"M"))
+}))
+df3$SEGNUMBER <- as.character(sapply(1:length(df3$SEGNUMBER),function(i){
+  return(paste0(df3$SEGNUMBER[i],"T"))
+}))
+
+comb.df <- rbind(df1,df2)
+
+PPA.fgwas <- rep(NA,dim(df3)[1])
+change <- rep(NA,dim(df3)[1])
+PPA.fgwas.full <- rep(NA,dim(df3)[1])
+df3 <- data.frame(SNPID=df3$SNPID,CHR=df3$CHR,POS=df3$POS,
+                  SEGNUMBER=df3$SEGNUMBER,PPA=df3$PPA,
+             PPA.fgwas=PPA.fgwas,change,LOCUS=df3$LOCUS,
+             STUDY=df3$STUDY,PPA.fgwas.full,
+             stringsAsFactors = FALSE)
+comb.df <-rbind(comb.df,df3)
+
+# manually fill in NA's in DIAGRAM 
+
+SEGNUMBER <- c("18D","3D","4D","5D","7D","8D","15D")
+LOCUS <- c("C5orf67", "KCNQ1.second", "KCNQ1.third", "KCNQ1.fourth", "CDKN1C", "SLC22A18AS", "HNF4A.second")
+na.df <- data.frame(SEGNUMBER,LOCUS,stringsAsFactors = FALSE)
+comb_update <- function(){
+  out.df <- comb.df
+  for (i in 1:dim(comb.df)[1]){
+    seg <- comb.df$SEGNUMBER[i]
+    loc <- comb.df$LOCUS[i]
+    #print(paste0(i," : ", seg," : ",loc))
+    if (is.na(loc)){
+      loc <- filter(na.df,SEGNUMBER==seg)$LOCUS
+      if (length(loc)>0){
+        out.df[i,8] <- loc
+      }
+    }
+    if (seg == "21D"){
+      out.df[i,8] <- "DGKB.second"
+    }
+    if (seg == "11D"){
+      out.df[i,8] <- "CCND2.second"
+    }
+    if (seg == "27D"){
+      out.df[i,8] <- "CDKN2A/B.second"
+    }
+  }
+  return(out.df)
+}
+
+comb.df <- comb_update()
+
+
+
+saveRDS(comb.df,file=rds.dir%&%"credComb.df.RDS")
+```
+
+Evaluate quantiles per study 
+
+```{r}
+
+quantile(as.integer(table(filter(comb.df,STUDY=="DIAGRAM")$SEGNUMBER)),
+          probs=seq(0,1,0.10))
+
+quantile(as.integer(table(filter(comb.df,STUDY=="Metabochip")$SEGNUMBER)),
+          probs=seq(0,1,0.10))
+
+quantile(as.integer(table(filter(comb.df,STUDY=="DIAMANTE.Morris")$SEGNUMBER)),
+          probs=seq(0,1,0.10))
+```
+
+##DIAGRAM quantiles for number of variants in credible sets 
+0%    10%    20%    30%    40%    50%    60%    70%    80%    90%   100% 
+1.0    6.0   13.0   23.0   39.0   57.5   83.0  130.5  247.0  529.5 7636.0  
+
+##Metabochip quantiles for number of variants in credible sets 
+0%    10%    20%    30%    40%    50%    60%    70%    80%    90%   100% 
+1.0    5.8   11.2   17.0   24.4   27.0   50.8   79.6  431.6 1359.8 4799.0 
+
+
+
