@@ -161,14 +161,19 @@ plt <- ggplot(data=filter(tier.df,cred.num<=100),
 ```
 
 Save Plots 
+Save Top Tiers 
 
 ```{r}
 
+# For i=25, segnum="6D", use fac=10, manual adjustment 
+# For i=26, segnum="35M", use fac=20, manual adjustment 
 
 save_top <- function(){
-  for (i in 1:length(top.tier$segnum)){
   top.tier <- filter(sum.df,top.endo.atac==TRUE) %>% 
     arrange(desc(top.num.eqtls.ld20))
+  for (i in 1:length(top.tier$segnum)){
+#  for (i in 27:length(top.tier$segnum)){
+
     segnum <- top.tier$segnum[i]
     chr <- top.tier$chr[i]
     locus <- top.tier$locus[i]
@@ -177,7 +182,7 @@ save_top <- function(){
     locus <- gsub(")","",locus,fixed = TRUE)
     savename <- fig.dir %&% segnum %&% "_" %&% chr %&% "_" %&% locus %&% ".png"
     print(paste("index: ",i, " segnum: ",segnum))
-    plt <- viz_loc(segnum)
+    plt <- viz_loc(segnum,fac=0.20)
     ggsave(savename,plot=plt,width=5,height = 8)
   }
 }
@@ -186,5 +191,85 @@ save_top()
 
 ```
 
+Save Bottom Tiers 
+
+```{r}
+
+# For i=51, segnum="18D", use fac=16, manual adjustment 
+# For i=71, segnum="7T", use fac=50000, manual adjustment 
 
 
+save_bottom <- function(){
+  bot.tier <- filter(sum.df,top.endo.atac==FALSE) %>% 
+    arrange(desc(top.num.eqtls.ld20))
+#  for (i in 1:length(bot.tier$segnum)){
+  for (i in 72:length(bot.tier$segnum)){
+
+    segnum <- bot.tier$segnum[i]
+    chr <- bot.tier$chr[i]
+    locus <- bot.tier$locus[i]
+    locus <- gsub("/","-",locus); locus <- gsub(" ","-",locus)
+    locus <- gsub("(","",locus,fixed = TRUE)
+    locus <- gsub(")","",locus,fixed = TRUE)
+    savename <- fig.dir %&% segnum %&% "_" %&% chr %&% "_" %&% locus %&% ".png"
+    print(paste("index: ",i, " segnum: ",segnum))
+    plt <- viz_loc(segnum,fac=10)
+    ggsave(savename,plot=plt,width=5,height = 8)
+  }
+}
+
+save_bottom()
+
+
+
+```
+
+
+
+# Annotation stacked bar plots 
+
+```{r}
+annot.vec <- c("islet_state8","islet_state9","cds")
+test <- filter(ptzd.df,STUDY=="DIAGRAM")
+fgwas.df <- fread("cat " %&% serv.dir %&% 
+                    "projects/t2d-integration/fgwas/credsets_diagram_1KG/fgwas_input/" %&% 
+                    "fgwas_input27.txt.gz" %&%  " | zmore") %>% dplyr::select(one_of("SNPID",annot.vec))
+#fgwas.df$SEGNUMBER <- paste0(fgwas.df$SEGNUMBER,"D")
+test <- inner_join(test,fgwas.df,by="SNPID"); test <- test[!duplicated(test),]
+out.df <- c()
+for (i in 1:length(unique(test$SEGNUMBER))){
+  seg = unique(test$SEGNUMBER)[i]
+  loc = unique(test$LOCUS)[i] 
+  sub <- filter(test,SEGNUMBER==seg)
+  a1 <- sum(sub$islet_state8)
+  a2 <- sum(sub$islet_state9)
+  a3 <- sum(sub$cds)
+  a4 <- dim(sub)[1] - (a1+a2+a3)
+  myrow <- data.frame(seg,loc,a1,a2,a3,a4,stringsAsFactors = F)
+  out.df <- rbind(out.df,myrow)
+}
+
+out2.df <- c()
+for (i in 1:dim(out.df)[1]){
+  seg <- out.df$seg[i]; loc <- out.df$loc[i]
+  a1 <- out.df$a1[i]; a2 <- out.df$a2[i]
+  a3 <- out.df$a3[i]; a4 <- out.df$a4[i]
+  out2.df <- rbind(out2.df,data.frame(seg,loc,count=a1,annot="a1",stringsAsFactors = FALSE))
+  out2.df <- rbind(out2.df,data.frame(seg,loc,count=a2,annot="a2",stringsAsFactors = FALSE))
+  out2.df <- rbind(out2.df,data.frame(seg,loc,count=a3,annot="a3",stringsAsFactors = FALSE))
+  out2.df <- rbind(out2.df,data.frame(seg,loc,count=a4,annot="a4",stringsAsFactors = FALSE))
+}
+
+ggplot(data=out2.df,aes(x=reorder(seg,count),y=count,fill=annot)) + geom_bar(stat="identity") + coord_flip() + scale_fill_brewer(palette="Accent")
+
+```
+
+parameter CI_lo estimate CI_hi
+pi_region 0.0682322 0.0874277 0.109222
+islet_state8_ln 1.4097 2.2029 2.87315
+cds_ln 1.20363 2.48094 3.35561
+islet_state5_ln -3.43803 -1.60919 -0.575664
+islet_atac_ln 0.123574 0.933363 1.65657
+islet_state2_ln -3.21468 -1.65021 -0.677724
+
+drop-islet_state6+transcript+islet_state13+intron+exon+islet_state7+islet_state9+distance_tss.params
