@@ -1,0 +1,442 @@
+---
+title: "Summary-Report.Rmd"
+author: "Jason Torres"
+date: "May 2, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Set up directories and libraries 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b) 
+library("dplyr")
+library("data.table")
+library("ggplot2")
+library("ggbio")
+library("gridExtra")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+rds.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/rds/"
+txt.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/txt/"
+profile.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/profile-snps/"
+tier.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/probe_design/profile-loci/"
+```
+
+Functions 
+
+```{r}
+cumm_99 <- function(vec){
+  # vec is a arranged (descending) vector of PPAs 
+  # returns the indeces needed to get cummulative PPA of 0.99 
+  vec <- rev(sort(vec))
+  sum = 0 
+  out.vec <- c()
+  for (i in 1:length(vec)){
+    val <- vec[i]
+    sum <- sum+val
+    if (sum<=0.99){
+      out.vec<-append(out.vec,i)
+    }
+    if (sum>0.99 & sum <1.0){
+      out.vec<-append(out.vec,i)
+      break
+    }
+  }
+  return(out.vec)
+}
+```
+
+
+* Show single fgwas single enrichment results from png file generated from fgwas-single-annotations.Rmd
+* Show joint enrichment results from genome-wide analysis produced from 01.7 script
+* Show the same two plots for the DIAGRAM and Metabochip credible sets (same scripts as above) 
+
+Find out how many loci have credible sets with <= 100 variants 
+```{r}
+
+prof.df <- fread(profile.dir%&%"profile_credt2d.txt")
+
+length(unique(filter(prof.df,STUDY=="DIAGRAM")$SEGNUMBER)) # 62
+length(unique(filter(prof.df,STUDY=="Metabochip")$SEGNUMBER)) # 35
+
+```
+
+
+Manually update NA's in the profile data frame (prof.df/ptzd.df) 
+
+```{r}
+
+na.df <- filter(prof.df,is.na(prof.df$LOCUS)) %>% 
+  dplyr::select(one_of("CHR","SEGNUMBER","STUDY")) 
+na.df <- na.df[!duplicated(na.df),]
+#"18D" "3D"  "4D"  "5D"  "7D"  "8D"  "15D"
+LOCUS <- c("C5orf67", "KCNQ1.second", "KCNQ1.third", "KCNQ1.fourth", "CDKN1C", "SLC22A18AS", "HNF4A.second")
+na.df$LOCUS <- LOCUS
+
+# Update profile data frame 
+
+prof_update <- function(){
+  out.df <- prof.df
+  for (i in 1:dim(prof.df)[1]){
+    seg <- prof.df$SEGNUMBER[i]
+    loc <- prof.df$LOCUS[i]
+    if (is.na(loc)){
+      loc <- filter(na.df,SEGNUMBER==seg)$LOCUS
+      out.df[i,8] <- loc 
+    }
+    if (seg == "21D"){
+      out.df[i,8] <- "DGKB.second"
+    }
+    if (seg == "11D"){
+      out.df[i,8] <- "CCND2.second"
+    }
+  }
+  return(out.df)
+}
+
+prof.df <- prof_update()
+
+# Reduce to 99% credible variants after fgwas 
+reduce_99 <- function(){
+  out.df <- c()
+  segvec <- unique(prof.df$SEGNUMBER)
+  for (seg in segvec){
+    print(seg)
+    if (!grepl("T",seg)){
+      sub.df <- filter(prof.df,SEGNUMBER==seg) %>% arrange(desc(PPA.fgwas))
+      index <- cumm_99(sub.df$PPA.fgwas)
+      if (is.null(index)){
+        index<-1
+      }
+      sub.df <- sub.df[index,]
+      out.df <- rbind(out.df,sub.df)
+    } else{
+      sub.df <- filter(prof.df,SEGNUMBER==seg)
+      out.df <- rbind(out.df,sub.df)
+    }
+  }
+  return(out.df)
+}
+
+prof99.df <- reduce_99()
+
+```
+
+
+save files 
+
+```{r}
+
+fgwas.diag.dir <- serv.dir %&%
+  "projects/t2d-integration/fgwas/credsets_diagram_1KG/fgwas_input/"
+fgwas.metab.dir <- serv.dir %&%
+  "projects/t2d-integration/fgwas/credsets_metabochip/fgwas_input/"
+
+segs.diag <- gsub("D","",unique(filter(prof.df,STUDY=="DIAGRAM")$SEGNUMBER))
+segs.metab <- gsub("M","",unique(filter(prof.df,STUDY=="Metabochip")$SEGNUMBER))
+
+write.table(x=segs.diag,file=fgwas.diag.dir%&%"segs100.txt",quote=F,row.names=F,col.names=F,
+            sep="\t")
+write.table(x=segs.metab,file=fgwas.metab.dir%&%"segs100.txt",quote=F,row.names=F,col.names=F,
+            sep="\t")
+```
+
+
+
+
+
+Tier analysis 
+
+```{r}
+
+tier.df <- fread(tier.dir%&%"profile-t2d-loci.txt")
+
+# fill in tier.df 
+update_tier_df <- function(){
+  out.df <- tier.df
+  for (i in 1:dim(tier.df)[1]){
+    seg <- tier.df$segnum[i]
+    loc <- tier.df$locus[i]
+    if (is.na(loc)){
+      loc <- filter(na.df,SEGNUMBER==seg)$LOCUS
+      out.df[i,3] <- loc
+    }
+  }
+  return(out.df)
+}
+
+
+tier.df <- update_tier_df()
+
+tier1 <- unique(filter(tier.df,tier==1)$segnum)
+#"67D" "26D" "8M"  "1D"  "45M" "6T"  "80D" "49M"
+tier2 <- unique(filter(tier.df,tier==2)$segnum)
+#"28D" "5T"  "7M"  "20D" "27D"
+tier3 <- unique(filter(tier.df,tier==3)$segnum)
+#"36D" "2M"  "60D"
+tier4 <- unique(filter(tier.df,tier==4)$segnum)
+#"5M"  "68D" "20M"
+tier5 <- unique(filter(tier.df,tier==5)$segnum)
+#"4D"  "89D" "6D"  "35M" "44M" "7D"  "8T"  "13T"
+tier6 <- unique(filter(tier.df,tier==6)$segnum)
+#"45D" "33D" "66D" "40D" "13D" "82D" "56D" "14M" "16M" "10M" "47M"
+
+tier12 <- unique(filter(tier.df,tier==12)$segnum)
+#
+```
+
+
+#Strategize variants to capture 
+
+DIAMANTE 
+```{r}
+
+filter(prof.df,STUDY=="DIAMANTE.Morris")$LOCUS
+
+```
+
+DIAGRAM (tiered) 
+
+```{r}
+
+tierD.df <- filter(tier.df,grepl("D",segnum))
+(tierD1 <- (filter(tierD.df,tier==1)$locus))
+#"ADCY5"    "CDKN2A/B" "TCF7L2"   "ZBED3"
+(tierD2 <- (filter(tierD.df,tier==2)$locus))
+#"CDC123/CAMK1D" "DGKB"          "CDKN2A/B"  
+(tierD3 <- (filter(tierD.df,tier==3)$locus))
+# "ARAP1 (CENTD2)" "PROX1" 
+(tierD4 <- (filter(tierD.df,tier==4)$locus))
+#"PPARG"
+(tierD5 <- (filter(tierD.df,tier==5)$locus))
+# "KCNQ1.third"        "SLC30A8" "KCNQ1"   "CDKN1C" 
+(tierD6 <- (filter(tierD.df,tier==6)$locus))
+# [1] "C2CD4A"               "KCNJ11"               "BCL11A"               "KLHDC5"              
+#[5] "GIPR"                 "SLC35D3/NHEG1/IL20RA" "LAMA1"
+(tierD7 <- (filter(tierD.df,tier==7)$locus))
+#"BCAR1"
+(tierD8 <- (filter(tierD.df,tier==8)$locus))
+# "TLE1"
+(tierD9 <- (filter(tierD.df,tier==9)$locus))
+# [1] "HSD17B12"                    "HMG20A"                      "IGF2BP2"                    
+# [4] "DGKB"                        "RBMS1"                       "PLEKHA1/ARMS2"              
+# [7] "ABO"                         "LTBP3/EHBP1L1/KCNK7/MAP3K11" "UBE2E2"                     
+#[10] "ANK1" 
+(tierD10 <- (filter(tierD.df,tier==10)$locus))
+# "HLA-DQA1" "MTNR1B"   "ACSL1"    "PRC1"     "KLF14"   
+(tierD11 <- (filter(tierD.df,tier==11)$locus))
+# [1] "WFS1"         "APOE"         "ZMIZ1"        "CCND2"        "CMIP"         "HNF1B (TCF2)" "JAZF1"  # [8] "CDKAL1"       "KCNQ1.fourth"             "SPRY2"        "C5orf67"             "SLC22A18AS"             "HNF4A.second"  
+(tierD12 <- (filter(tierD.df,tier==12)$locus))
+# [1] "KCNQ1.second"             "HHEX/IDE"     "CCND2"        "GLP2R"        "HSF1"         "HNF1A (TCF1)" "FTO"   #[8] "ANKRD55"      "NOTCH2"       "ADAMTS9"      "IRS1"  
+```
+
+
+
+
+# Annotation stacked bar plots 
+
+```{r}
+#save.dir <- 
+
+annot.vec <- c("islet_state8","cds","islet_state5","islet_atac","islet_state2")
+
+stack_plot <- function(study="DIAGRAM",reduce=FALSE){
+  if (reduce==TRUE){
+    df <- filter(prof99.df,STUDY==study)
+  } else{
+    df <- filter(prof.df,STUDY==study)
+  }
+  if (study=="DIAGRAM"){
+   fpath <- "projects/t2d-integration/fgwas/credsets_diagram_1KG/fgwas_input/" %&% 
+            "fgwas_input27.txt.gz" 
+  } else if (study=="Metabochip"){
+   fpath <- "projects/t2d-integration/fgwas/credsets_metabochip/fgwas_input/" %&% 
+            "fgwas-metabo_input27.txt.gz"     
+  }
+  fgwas.df <- fread("cat " %&% serv.dir %&% fpath
+                       %&%  " | zmore") %>% dplyr::select(one_of("SNPID",annot.vec))
+  df <- inner_join(df,fgwas.df,by="SNPID"); df <- df[!duplicated(df),]
+  out.df <- c()
+  for (seg in unique(df$SEGNUMBER)){
+    #seg = unique(df$SEGNUMBER)[i]
+    loc = unique(filter(df,SEGNUMBER==seg)$LOCUS)
+    print(loc)
+    sub <- filter(df,SEGNUMBER==seg)
+    a1 <- sum(sub$islet_state8)
+    a2 <- sum(sub$cds)
+    a3 <- sum(sub$islet_state5)
+    a4 <- sum(sub$islet_atac)
+    a5 <- sum(sub$islet_state2)
+    a6 <- dim(sub)[1] - (a1+a2+a3+a4+a5)
+    if (a6 < 0){
+      a6 <- 0 
+    }
+    myrow <- data.frame(seg,loc,a1,a2,a3,a4,a5,a6,stringsAsFactors = F)
+    out.df <- rbind(out.df,myrow)
+  }
+  
+  out2.df <- c()
+  for (i in 1:dim(out.df)[1]){
+    seg <- out.df$seg[i]; loc <- out.df$loc[i]
+    a1 <- out.df$a1[i]; a2 <- out.df$a2[i]
+    a3 <- out.df$a3[i]; a4 <- out.df$a4[i]
+    a5 <- out.df$a5[i]; a6 <- out.df$a6[i]
+    out2.df <- rbind(out2.df,data.frame(seg,loc,count=a1,annot="islet_state8",stringsAsFactors = FALSE))
+    out2.df <- rbind(out2.df,data.frame(seg,loc,count=a2,annot="cds",stringsAsFactors = FALSE))
+    out2.df <- rbind(out2.df,data.frame(seg,loc,count=a3,annot="islet_state5",stringsAsFactors = FALSE))
+    out2.df <- rbind(out2.df,data.frame(seg,loc,count=a4,annot="islet_atac",stringsAsFactors = FALSE))
+    out2.df <- rbind(out2.df,data.frame(seg,loc,count=a5,annot="islet_state2",stringsAsFactors = FALSE))
+    out2.df <- rbind(out2.df,data.frame(seg,loc,count=a6,annot="other",stringsAsFactors = FALSE))
+  }
+  out2.df$annot <- factor(out2.df$annot,levels=c("cds","islet_state8","islet_atac",
+                                                 "islet_state5","islet_state2", "other"))
+  
+  ggplot(data=out2.df,aes(x=reorder(loc,count),y=count,fill=annot)) + 
+    geom_bar(stat="identity",color="black",size=0.35) + 
+    scale_y_continuous(breaks=seq(0,105,5)) + xlab("") + 
+    ylab("SNP Count") + 
+    coord_flip() + scale_fill_brewer(palette="Spectral")
+}
+library(RColorBrewer)
+
+plt1 <- stack_plot(study="DIAGRAM",reduce=FALSE)
+plt2 <- stack_plot(study="DIAGRAM",reduce=TRUE)
+plt3 <- stack_plot(study="Metabochip",reduce=FALSE)
+plt4 <- stack_plot(study="Metabochip",reduce=TRUE)
+
+```
+
+
+SNP set vs proportion islet regulatory plot 
+
+```{r}
+
+library("ggrepel")
+
+point_plot <- function(study="DIAGRAM",reduce=FALSE){
+  if (reduce==TRUE){
+    df <- filter(prof99.df,STUDY==study)
+  } else{
+    df <- filter(prof.df,STUDY==study)
+  }
+  if (study=="DIAGRAM"){
+   fpath <- "projects/t2d-integration/fgwas/credsets_diagram_1KG/fgwas_input/" %&% 
+            "fgwas_input27.txt.gz" 
+  } else if (study=="Metabochip"){
+   fpath <- "projects/t2d-integration/fgwas/credsets_metabochip/fgwas_input/" %&% 
+            "fgwas-metabo_input27.txt.gz"     
+  }
+  fgwas.df <- fread("cat " %&% serv.dir %&% fpath
+                       %&%  " | zmore") %>% dplyr::select(one_of("SNPID",annot.vec))
+  df <- inner_join(df,fgwas.df,by="SNPID"); df <- df[!duplicated(df),]
+  out.df <- c()
+  for (seg in unique(df$SEGNUMBER)){
+    #seg = unique(df$SEGNUMBER)[i]
+    loc = unique(filter(df,SEGNUMBER==seg)$LOCUS)
+    print(loc)
+    sub <- filter(df,SEGNUMBER==seg)
+    a1 <- sum(sub$islet_state8)
+    a2 <- sum(sub$cds)
+    a3 <- sum(sub$islet_state5)
+    a4 <- sum(sub$islet_atac)
+    a5 <- sum(sub$islet_state2)
+    a6 <- dim(sub)[1] - (a1+a2+a3+a4+a5)
+    if (a6 < 0){
+      a6 <- 0 
+    }
+    count <- dim(sub)[1]
+    myrow <- data.frame(seg,loc,a1,a2,a3,a4,a5,a6,count,stringsAsFactors = F)
+    prop.islet.reg <- (myrow$a1+myrow$a2)/sum(myrow[1,3:8])
+    myrow$prop.islet.reg <- prop.islet.reg
+    out.df <- rbind(out.df,myrow)
+  }
+  
+  ggplot(data=out.df,aes(x=count,y=prop.islet.reg)) + 
+    geom_point(shape=21,color="black",fill="dodgerblue4") + 
+    geom_label_repel(data=filter(out.df,prop.islet.reg>0.10),
+                    aes(label=loc),size=2,fill="grey",alpha=0.8) + 
+    scale_y_continuous(breaks=seq(0,1,0.05),limits=c(0,1)) + 
+    scale_x_continuous(breaks=seq(0,100,5),limits=c(0,100)) + 
+    ylab("Proportion Islet Strong Enhancer / ATAC") +
+    xlab("SNP Count") + theme_bw() + 
+    theme(panel.grid.minor=element_blank()) 
+}
+
+pplt1 <- point_plot(study="DIAGRAM",reduce=FALSE)
+pplt2 <- point_plot(study="DIAGRAM",reduce=TRUE)
+
+
+```
+
+Proportion Stacked Bar plots 
+
+```{r}
+
+stack_plot_ppa <- function(study="DIAGRAM",reduce=FALSE){
+  if (reduce==TRUE){
+    df <- filter(prof99.df,STUDY==study)
+  } else{
+    df <- filter(prof.df,STUDY==study)
+  }
+  if (study=="DIAGRAM"){
+   fpath <- "projects/t2d-integration/fgwas/credsets_diagram_1KG/fgwas_input/" %&% 
+            "fgwas_input27.txt.gz" 
+  } else if (study=="Metabochip"){
+   fpath <- "projects/t2d-integration/fgwas/credsets_metabochip/fgwas_input/" %&% 
+            "fgwas-metabo_input27.txt.gz"     
+  }
+  fgwas.df <- fread("cat " %&% serv.dir %&% fpath
+                       %&%  " | zmore") %>% dplyr::select(one_of("SNPID",annot.vec))
+  df <- inner_join(df,fgwas.df,by="SNPID"); df <- df[!duplicated(df),]
+  out.df <- c()
+  for (seg in unique(df$SEGNUMBER)){
+    #seg = unique(df$SEGNUMBER)[i]
+    loc = unique(filter(df,SEGNUMBER==seg)$LOCUS)
+    print(loc)
+    sub <- filter(df,SEGNUMBER==seg)
+    a1 <- sum(sub$islet_state8)
+    a2 <- sum(sub$cds)
+    a3 <- sum(sub$islet_state5)
+    a4 <- sum(sub$islet_atac)
+    a5 <- sum(sub$islet_state2)
+    a6 <- dim(sub)[1] - (a1+a2+a3+a4+a5)
+    if (a6 < 0){
+      a6 <- 0 
+    }
+    myrow <- data.frame(seg,loc,a1,a2,a3,a4,a5,a6,stringsAsFactors = F)
+    out.df <- rbind(out.df,myrow)
+  }
+  
+  out2.df <- c()
+  for (i in 1:dim(out.df)[1]){
+    seg <- out.df$seg[i]; loc <- out.df$loc[i]
+    a1 <- out.df$a1[i]; a2 <- out.df$a2[i]
+    a3 <- out.df$a3[i]; a4 <- out.df$a4[i]
+    a5 <- out.df$a5[i]; a6 <- out.df$a6[i]
+    out2.df <- rbind(out2.df,data.frame(seg,loc,count=a1,annot="islet_state8",stringsAsFactors = FALSE))
+    out2.df <- rbind(out2.df,data.frame(seg,loc,count=a2,annot="cds",stringsAsFactors = FALSE))
+    out2.df <- rbind(out2.df,data.frame(seg,loc,count=a3,annot="islet_state5",stringsAsFactors = FALSE))
+    out2.df <- rbind(out2.df,data.frame(seg,loc,count=a4,annot="islet_atac",stringsAsFactors = FALSE))
+    out2.df <- rbind(out2.df,data.frame(seg,loc,count=a5,annot="islet_state2",stringsAsFactors = FALSE))
+    out2.df <- rbind(out2.df,data.frame(seg,loc,count=a6,annot="other",stringsAsFactors = FALSE))
+  }
+  out2.df$annot <- factor(out2.df$annot,levels=c("cds","islet_state8","islet_atac",
+                                                 "islet_state5","islet_state2", "other"))
+  
+  ggplot(data=out2.df,aes(x=reorder(loc,count),y=count,fill=annot)) + 
+    geom_bar(stat="identity",color="black",size=0.35) + 
+    scale_y_continuous(breaks=seq(0,105,5)) + xlab("") + 
+    ylab("SNP Count") + 
+    coord_flip() + scale_fill_brewer(palette="Spectral")
+}
+
+
+
+```
+
+

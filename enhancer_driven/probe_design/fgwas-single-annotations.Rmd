@@ -1,0 +1,160 @@
+---
+title: "fgwas-single-annotations.Rmd"
+author: "Jason Torres"
+date: "April 19, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b) 
+library("dplyr")
+library("data.table")
+library("ggplot2")
+library("ggbio")
+library("gridExtra")
+
+serv.dir <- "/Users/jtorres/FUSE/"
+
+```
+
+
+```{r}
+
+
+
+
+```
+
+
+
+Functions 
+
+```{r}
+annot_process <- function(fname){
+  # fname is name of .params file outputted from fgwas
+  df <- fread(fname)
+  df$CI_lo <- gsub("<","",df$CI_lo); df$CI_lo <- gsub("fail",NA,df$CI_lo); df$CI_lo <- as.numeric(df$CI_lo)
+  df$CI_hi <- gsub(">","",df$CI_hi); df$CI_hi <- gsub("fail",NA,df$CI_hi); df$CI_hi <- as.numeric(df$CI_hi)
+  return(df)
+}
+
+build_full_df <- function(){
+  out.df <- c()
+  for (f in file.vec){
+    fname <- fgwas.dir %&% f
+    stack.df <- annot_process(fname)
+    out.df <- rbind(out.df,stack.df)
+  }
+  out.df <- filter(out.df,parameter!="pi_region") %>% arrange(desc(estimate))
+  return(out.df)
+}
+
+filter_zero_overlaps <- function(){
+  df <- build_full_df()
+  df <- filter(df,!(CI_lo < 0 & CI_hi > 0))
+  return(df)
+}
+
+
+an_plot <- function(mydf,mylow=-10,myhigh=10,title=""){
+  # mydf is data frame generated from annot_process function
+  mydf <- within(mydf,parameter<-factor(mydf$parameter,levels=rev(mydf$parameter)))
+  plt <- ggplot(data=mydf,aes(x=parameter,y=estimate)) + ylab("Log2FE") + xlab("Annotation") + 
+      geom_hline(yintercept=0,linetype=2) +
+    geom_errorbar(aes(ymin=CI_lo,ymax=CI_hi),width=0.1) + 
+    geom_point(shape=21,size=1.5,col="black",aes(fill=(estimate>0)))  +
+    scale_fill_manual(values=c("steelblue1","firebrick1")) + 
+    theme_bw()  +  theme(legend.position = "none",
+                         panel.grid.minor=element_blank(),
+                         panel.grid.major=element_blank()) + 
+    coord_flip(ylim=c(mylow,myhigh)) + ggtitle(title)
+  return(plt)
+}
+
+an_plot_v2 <- function(mydf,mylow=-10,myhigh=10,title=""){
+  # mydf is data frame generated from annot_process function
+  mydf <- within(mydf,name<-factor(mydf$name,levels=rev(mydf$name)))
+  plt <- ggplot(data=mydf,aes(x=name,y=estimate)) + ylab("Log2FE") + xlab("Annotation") + 
+      geom_hline(yintercept=0,linetype=2) +
+    geom_errorbar(aes(ymin=CI_lo,ymax=CI_hi),width=0.1) + 
+    geom_point(shape=21,size=1.5,col="black",aes(fill=(estimate>0)))  +
+    scale_fill_manual(values=c("steelblue1","firebrick1")) + 
+    theme_bw()  +  theme(legend.position = "none",
+                         panel.grid.minor=element_blank(),
+                         panel.grid.major=element_blank()) + 
+    coord_flip(ylim=c(mylow,myhigh)) + ggtitle(title)
+  return(plt)
+}
+
+
+```
+
+
+DIAGRAM fgwas (GENOME-WIDE)
+
+```{r}
+
+#fgwas.dir <- serv.dir %&% "projects/t2d-integration/fgwas/diagram_1kG_gwas/fgwas_output/"
+fgwas.dir <- serv.dir %&% "projects/t2d-integration/fgwas/diagram_hrc/fgwas_output/"
+file.vec <- list.files(fgwas.dir)
+file.vec <- file.vec[grepl(".params",file.vec,fixed=TRUE)]
+file.vec <- file.vec[!grepl("+",file.vec,fixed=TRUE)]
+file.vec <- file.vec[!grepl("drop",file.vec,fixed=TRUE)]
+file.vec <- file.vec[!grepl("j",file.vec,fixed=TRUE)]
+sep.df <- filter_zero_overlaps()
+sep.df <- dplyr::filter(sep.df,!(parameter %in% c("intron_ln","exon_ln","islet_state7_ln","islet_state13_ln","transcript_ln","islet_state6_ln") ))
+sep.df$names <- c("Islet Strong Enhancer","Islet ATAC", "Islet Weak Enhancer",
+                  "Coding","Islet Active Promoter","5' UTR","Islet Weak Promoter",
+                  "Islet Stretch Enhancer", "Promoter", "Distance to TSS",
+                  "Heterochromatin", "Low Methylation",
+                  "Polycomb Repressed")
+plt <- an_plot_v2(sep.df,title="DIAGRAM (HRC Imputed)\nfgwas single annotations")
+#ggsave(filename="/Users/jtorres/FUSE/projects/wtsa/enhancer_driven/probe_design/compare_loci/fgwas_single_DIAGRAM.png",
+#       plot=plt)
+ggsave(filename="/Users/jtorres/FUSE/projects/wtsa/enhancer_driven/probe_design/compare_loci/fgwas_single_DIAGRAM_hrc.png",
+       plot=plt)
+sep.df <- dplyr::filter(sep.df,!(parameter %in% c("intron_ln","exon_ln","islet_state7_ln","islet_state13_ln","transcript_ln") ))
+
+
+
+```
+
+DIAGRAM fgwas (Credible Sets)
+
+```{r}
+
+fgwas.dir <- serv.dir %&% "projects/t2d-integration/fgwas/credsets_diagram_1KG/fgwas_output/"
+file.vec <- list.files(fgwas.dir)
+file.vec <- file.vec[grepl(".params",file.vec,fixed=TRUE)]
+file.vec <- file.vec[!grepl("+",file.vec,fixed=TRUE)]
+file.vec <- file.vec[!grepl("drop",file.vec,fixed=TRUE)]
+file.vec <- file.vec[!grepl("j",file.vec,fixed=TRUE)]
+sep.df <- filter_zero_overlaps()
+plt <- an_plot(sep.df,title="DIAGRAM Credible Sets\nfgwas single annotations")
+ggsave(filename="/Users/jtorres/FUSE/projects/wtsa/enhancer_driven/probe_design/compare_loci/fgwas_single_DIAGRAM_credsets.png",
+       plot=plt)
+
+```
+
+MetaboChip fgwas (Credible Sets)
+
+```{r}
+
+fgwas.dir <- serv.dir %&% "projects/t2d-integration/fgwas/credsets_metabochip/fgwas_output/"
+file.vec <- list.files(fgwas.dir)
+file.vec <- file.vec[grepl(".params",file.vec,fixed=TRUE)]
+file.vec <- file.vec[!grepl("+",file.vec,fixed=TRUE)]
+file.vec <- file.vec[!grepl("drop",file.vec,fixed=TRUE)]
+file.vec <- file.vec[!grepl("j",file.vec,fixed=TRUE)]
+sep.df <- filter_zero_overlaps()
+plt <- an_plot(sep.df,title="Metabochip Credible Sets\nfgwas single annotations")
+ggsave(filename="/Users/jtorres/FUSE/projects/wtsa/enhancer_driven/probe_design/compare_loci/fgwas_single_Metabochip_credsets.png",
+       plot=plt)
+
+```
+
+
