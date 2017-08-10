@@ -37,6 +37,7 @@ if (length(args)!=2) {
   my.cutoff <- args[2]
 }
 
+print(my.win); print(my.cutoff)
 
 # Functions 
 
