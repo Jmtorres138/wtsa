@@ -128,15 +128,6 @@ find_viewpoint <- function(genename){
   return(vp)
 }
 
-sig_interactions <- function(data){
-  #print("Looking up viewpoint for experiment probe")
-  #print("Making input list for peakC...")
-  #print("Running peakC to find significant Capture-C interactions...")
-  sig.fragments <- combined.analyseC(data=data, type="data", num.exp = n.exp, vp.pos = vp,
-                                     window = (as.integer(my.win) + 1), plot = FALSE,y.max=400, alpha=my.fdr,alt=FALSE) 
-}
-
-
 
 # Build result file 
 
