@@ -34,7 +34,7 @@ if (length(args)!=2) {
 } else if (length(args)==2) {
   # default output file
   my.win <- args[1]
-  my.fdr <- args[2]
+  my.cutoff <- args[2]
 }
 
 
