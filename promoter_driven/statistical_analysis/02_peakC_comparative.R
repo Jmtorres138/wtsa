@@ -30,7 +30,7 @@ args = commandArgs(trailingOnly=TRUE)
 #my.win <- 11; my.cutoff <- 100
 
 if (length(args)!=2) {
-  stop("Two arguments must be supplied: window and FDR", call.=FALSE)
+  stop("Two arguments must be supplied: window and absolute cutoff", call.=FALSE)
 } else if (length(args)==2) {
   # default output file
   my.win <- args[1]
