@@ -158,9 +158,9 @@ build_result_file <- function(n.exp=3, sample.vec=c("conD_1_norm","conD_2_norm",
       stack.df <- filter(df,chr==("chr"%&%chrom),start %in% sig.fragments) %>% 
         dplyr::select(one_of("chr","start","end","conD_mean","DIF_conD_minus_conT_mean"))
       names(stack.df)[c(2,3)] <- c("frag.start","frag.end")
-      promoter <- rep(gene,dim(stack.df)[1])
-      stack.df <- cbind(promoter,stack.df)
-      stack.df$promoter <- as.character(stack.df$promoter)
+      capture <- rep(gene,dim(stack.df)[1])
+      stack.df <- cbind(capture,stack.df)
+      stack.df$capture <- as.character(stack.df$capture)
       out.df <- rbind(out.df,stack.df)
     }
   }
