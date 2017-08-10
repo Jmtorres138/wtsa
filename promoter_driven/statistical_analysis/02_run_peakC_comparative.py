@@ -18,7 +18,7 @@ def run_job(win, cutoff):
 
 def main():
 	cutoff_list = ["100"]#,"0.20"]#,"0.05","0.10","0.20"]
-	for c in cufoff_list:
+	for c in cutoff_list:
 		for w in range(11,12):
 			run_job(w,c)
 
