@@ -150,7 +150,7 @@ build_result_file <- function(){
       out.df <- rbind(out.df,stack.df)
     }
   }
-  write.table(out.df,file=out.dir%&%"peakC-modeled_fdr"%&%my.fdr%&%"_win"%&%my.win%&%".txt",
+  write.table(out.df,file=out.dir%&%"peakC-comparative_abscutoff-"%&%my.cutoff%&%"_win"%&%my.win%&%".txt",
               sep="\t",quote=FALSE,row.names=FALSE)
   return(out.df)
 }
