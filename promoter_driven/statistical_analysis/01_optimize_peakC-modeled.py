@@ -62,18 +62,19 @@ def enrich(fname,fdr,win):
 
 	pval =  (sum([x>=observed for x in iter_list])+1) / float(1000+1)
 	print ("Pvalue: %f" % pval)
-	return pval
+	return [observed,pval]
 
 def main():
 	if os.path.exists(out_file)==False:
 		fout = open(out_file,'w')
-		fout.write("\t".join(["fdr","window","p.val"])+"\n")
+		fout.write("\t".join(["fdr","window","gwas.count","p.val"])+"\n")
 	else:
 		fout = open(out_file,'a')
 	fdr = fname.split("fdr")[1].split("_win")[0]
 	win = fname.split("win")[1].split(".txt")[0]
-	pval = enrich(fname,fdr,win)
-	fout.write("\t".join([fdr,win,str(pval)])+"\n")
+	gcount = enrich(fname,fdr,win)[0]
+	pval = enrich(fname,fdr,win)[1]
+	fout.write("\t".join([fdr,win,str(gcount),str(pval)])+"\n")
 	fout.close()
 
 

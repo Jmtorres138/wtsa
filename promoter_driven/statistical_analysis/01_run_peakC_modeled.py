@@ -11,8 +11,8 @@ stat_dir = "/t1-data/user/hugheslab/jtorres/analysis/wtsa/promoter_driven/statis
 out_dir = stat_dir +"output_files/"
 ref_dir = "/t1-data/user/hugheslab/jtorres/analysis/wtsa/promoter_driven/reference_files/"
 
-gwas_bed = ref_dir + "genetic_credible-sets_independent_ppa01.bed"
-write_file = out_dir + "enrich_peakC-modeled_gwasPPA-01.txt"
+gwas_bed = ref_dir + "Islets_Active_enhancers.chromatinStates.bed" #"genetic_credible-sets_independent_ppa10.bed" #
+write_file = out_dir + "enrich_peakC-modeled_islet-enhancers.txt" #"enrich_peakC-modeled_gwasPPA-10.txt"
 
 def run_job(win, fdr):
 	output_file = out_dir+"peakC-modeled_fdr"+str(fdr)+"_win"+str(win)+".txt"
