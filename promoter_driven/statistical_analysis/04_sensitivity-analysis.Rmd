@@ -1,0 +1,104 @@
+---
+title: "Sensitivity analysis"
+author: "Jason Torres"
+date: "August 18, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("dplyr")
+library("data.table")
+library("ggplot2")
+library("gridExtra")
+library("GenomicRanges")
+
+serv.dir <- "/Users/jtorres/FUSE2/"
+stat.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/statistical_analysis/"
+ref.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/reference_files/"
+out.dir <- stat.dir %&% "output_files/"
+
+eqtl.df <- as.data.frame(fread(ref.dir %&% "eQTL-index.bed"))
+eqtl.df$V2 <- (eqtl.df$V3 - 1 )  
+
+res.dir <- serv.dir %&% "promoter-driven/Stat_Package_CB4/Processed_gfc/R_files/"
+#LARP6_Processed_R_analysis.txt
+#LARP6_Processed_DESeq_analysis.txt 
+
+```
+
+
+```{r}
+
+genename <- "ADCY5"
+get_subtract <- function(genename){
+  e.df <- filter(eqtl.df,grepl(genename,eqtl.df$V4))
+  e.gr <- GRanges(seqnames=e.df$V1,IRanges(e.df$V2,e.df$V3))
+  temp.df <- fread(res.dir %&% genename %&% "_Processed_R_analysis.txt")
+  names(temp.df) <- c("id","Processed_gffsForCisOnly.EndoB_A",	
+                      "Processed_gffsForCisOnly.EndoB_C",	"Processed_gffsForCisOnly.EndoB_D",
+                      "Processed_gffsForCisOnly.Blymph_A",
+                      "Processed_gffsForCisOnly.Blymph_B",
+                      "Processed_gffsForCisOnly.Blymph_C",
+                      "conD_1_norm",	"conD_2_norm",	"conD_3_norm",	"conT_1_norm",
+                      "conT_2_norm",	"conT_3_norm",	"conD_mean",	"conT_mean",
+                      "DIF_conT_minus_conD_mean",	"DIF_conD_minus_conT_mean",	"conD_SD",
+                      "conT_SD",	"conD_CV",	"conT_CV",	"conD_signoise",	"conT_signoise")
+  chromo <- sapply(temp.df$id, function(str){
+    strsplit(x=str,split=":")[[1]][1]})
+  start <- sapply(temp.df$id, function(str){ 
+    as.integer(strsplit(strsplit(x=str,split="-")[[1]][1],split=":")[[1]][2])})
+  end <- sapply(temp.df$id,function(str){
+    as.integer(strsplit(x=str,split="-")[[1]][2])})
+  gr <- GRanges(seqnames=chromo,IRanges(start,end))
+
+}
+
+
+build_summary <- function(){
+
+  eqtl <- c() 
+  for (i in 1:dim(eqtl.df)[1]){
+    print(eqtl.df[i,])
+  }
+  
+}
+
+
+e.df <- eqtl.df[1,]
+e.gr <- GRanges(seqnames=e.df$V1,IRanges(e.df$V2,e.df$V2))
+
+fname <- out.dir %&% "peakC-modeled_fdr0.01_win42.txt"
+df <- fread(fname)
+gr <- GRanges(seqnames=df$chr,IRanges(df$frag.start,df$frag.end))
+
+
+
+
+
+
+any((e.gr %over% gr)==TRUE)
+
+
+#gr[1:3][gr[1:3] %over% gr]
+
+
+```
+
+
+
+
+
+
+
+
+
+
