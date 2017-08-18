@@ -1,0 +1,117 @@
+---
+title: "Evaluate parameters"
+author: "Jason Torres"
+date: "August 18, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("dplyr")
+library("data.table")
+library("ggplot2")
+library("gridExtra")
+
+serv.dir <- "/Users/jtorres/FUSE2/"
+stat.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/statistical_analysis/"
+out.dir <- stat.dir %&% "output_files/"
+
+```
+
+
+# Evaluate function 
+
+```{r}
+
+fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-01.txt"
+
+eval_plot <- function(fname,FDR=0.01,type="GWAS"){
+  df <- fread(fname)
+  df <- filter(df,fdr==FDR) %>% arrange(window)
+  thresh = -log(0.05,base=10)
+  max.win <- arrange(df,p.val)$window[1]
+  pltA <- ggplot(df,aes(x=window,y=-log(p.val,base=10))) + 
+    geom_line(color="dodgerblue3") + 
+    geom_point(size=2,shape=21,color="dodgerblue4",fill="dodgerblue3") + 
+    geom_hline(yintercept=thresh,size=2) + 
+    scale_x_continuous(breaks=seq(0,100,5)) +
+    theme_bw() + 
+    ggtitle("peakC window optimization by" %&% type %&% " enrichment\nFDR: " %&% FDR %&% "    Max: " %&% max.win)
+  pltA
+  return(pltA)
+}
+
+eval_plot_comp <- function(fname,win=11,type="GWAS"){
+  df <- fread(fname)
+  names(df) <- c("abscutoff","window","gwas.count","p.val")
+  df <- filter(df,window==win,abscutoff<=1000) %>% arrange(abscutoff)
+  thresh = -log(0.05,base=10)
+  max.cutoff <- arrange(df,p.val)$abscutoff[1]
+  pltA <- ggplot(df,aes(x=abscutoff,y=-log(p.val,base=10))) + 
+    geom_line(color="dodgerblue3") + 
+    geom_point(size=2,shape=21,color="dodgerblue4",fill="dodgerblue3") + 
+    geom_hline(yintercept=thresh,size=2) + 
+    scale_x_continuous(breaks=seq(0,1000,50)) +
+    theme_bw() + 
+    ggtitle("peakC cutoff optimization by " %&% type %&% " enrichment\nWindow: " %&% win %&% "    Max: " %&% max.cutoff)
+  pltA
+  return(pltA)
+}
+
+#eval_plot(fname,FDR=0.01)
+
+```
+
+
+Evalutate 
+
+```{r}
+
+fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-01.txt"
+plt01A <- eval_plot(fname,FDR=0.01)
+plt01B <- eval_plot(fname,FDR=0.05)
+grid.arrange(arrangeGrob(plt01A,plt01B))
+
+
+fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-05.txt"
+plt05A <- eval_plot(fname,FDR=0.01)
+plt05B <- eval_plot(fname,FDR=0.05)
+grid.arrange(arrangeGrob(plt05A,plt05B))
+
+fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-10.txt"
+plt10A <- eval_plot(fname,FDR=0.01)
+plt10B <- eval_plot(fname,FDR=0.05)
+grid.arrange(arrangeGrob(plt10A,plt10B))
+
+fname <- out.dir %&% "enrich_peakC-modeled_islet-enhancers.txt"
+pltIA <- eval_plot(fname,FDR=0.01,type="islet enhancer")
+pltIB <- eval_plot(fname,FDR=0.05,type="islet enhancer")
+grid.arrange(arrangeGrob(pltIA,pltIB))
+
+```
+
+
+
+```{r}
+
+fname <- out.dir %&% "enrich_peakC-comparative_gwasPPA-10.txt"
+plt01A <- eval_plot_comp(fname,win=11)
+plt01B <- eval_plot_comp(fname,win=40)
+plt01C <- eval_plot_comp(fname,win=42)
+grid.arrange(arrangeGrob(plt01A,plt01B,plt01C))
+
+fname <- out.dir %&% "enrich_peakC-comparative_islet-enhancers.txt"
+pltIA <- eval_plot_comp(fname,win=11,type="islet enhancer")
+pltIB <- eval_plot_comp(fname,win=40,type="islet enhancer")
+pltIC <- eval_plot_comp(fname,win=42,type="islet enhancer")
+grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
+
+```
+
