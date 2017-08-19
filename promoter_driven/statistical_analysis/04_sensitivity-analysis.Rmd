@@ -162,6 +162,14 @@ sens.df <- build_sensitivity_summary()
 write.table(x=sens.df,file=stat.dir %&% "sensitivity-table.txt",
             sep="\t",row.names=FALSE,quote=FALSE)
 
+vec <- c()
+for (i in 1:dim(sens.df)[1]){
+  print(i)
+  vec <- append(vec,any(sens.df[i,13:16]==TRUE))
+}
+
+dim(sens.df[vec,])[1] / dim(sens.df)[1] # sensitivity 36% 
+
 
 #genename <- "ADCY5"
 #e.df <- filter(eqtl.df,grepl(genename,eqtl.df$V4))
