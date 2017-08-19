@@ -25,24 +25,22 @@ serv.dir <- "/Users/jtorres/FUSE2/"
 stat.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/statistical_analysis/"
 ref.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/reference_files/"
 out.dir <- stat.dir %&% "output_files/"
-
-eqtl.df <- as.data.frame(fread(ref.dir %&% "eQTL-index.bed"))
-eqtl.df$V2 <- (eqtl.df$V3 - 1 )  
-
 res.dir <- serv.dir %&% "promoter-driven/Stat_Package_CB4/Processed_gfc/R_files/"
-#LARP6_Processed_R_analysis.txt
-#LARP6_Processed_DESeq_analysis.txt 
+
 
 ```
 
 
+Extract Functions 
+
 ```{r}
 
-genename <- "ADCY5"
-get_subtract <- function(genename){
-  e.df <- filter(eqtl.df,grepl(genename,eqtl.df$V4))
-  e.gr <- GRanges(seqnames=e.df$V1,IRanges(e.df$V2,e.df$V3))
-  temp.df <- fread(res.dir %&% genename %&% "_Processed_R_analysis.txt")
+
+
+get_subtract <- function(genename,e.gr){
+  #e.df <- filter(eqtl.df,grepl(genename,eqtl.df$V4))
+  #e.gr <- GRanges(seqnames=e.df$V1,IRanges(e.df$V2,e.df$V3))
+  temp.df <- suppressWarnings(fread(res.dir %&% genename %&% "_Processed_R_analysis.txt"))
   names(temp.df) <- c("id","Processed_gffsForCisOnly.EndoB_A",	
                       "Processed_gffsForCisOnly.EndoB_C",	"Processed_gffsForCisOnly.EndoB_D",
                       "Processed_gffsForCisOnly.Blymph_A",
@@ -59,41 +57,122 @@ get_subtract <- function(genename){
   end <- sapply(temp.df$id,function(str){
     as.integer(strsplit(x=str,split="-")[[1]][2])})
   gr <- GRanges(seqnames=chromo,IRanges(start,end))
-
+  out.gr <- gr[gr %over% e.gr]
+  keep.chromo <- as.character(seqnames(out.gr))
+  keep.start <- start(ranges(out.gr))
+  keep.end <- end(ranges(out.gr))
+  keep.id <- keep.chromo %&% ":" %&% keep.start %&% "-" %&% keep.end
+  out.df <- filter(temp.df,id==keep.id) %>% 
+    select(one_of("id","conD_mean","conT_mean","DIF_conD_minus_conT_mean"))
+  return(out.df)
 }
 
-
-build_summary <- function(){
-
-  eqtl <- c() 
-  for (i in 1:dim(eqtl.df)[1]){
-    print(eqtl.df[i,])
-  }
-  
+get_deseq <- function(genename,e.gr){
+  temp.df <- suppressWarnings(fread(res.dir %&% genename %&% "_Processed_DESeq_analysis.txt"))
+  names(temp.df) <- c("id","baseMean","log2FoldChange","lfcSE","stat",
+                      "pvalue","padj","logpvalue","logpadj")
+  chromo <- sapply(temp.df$id, function(str){
+    strsplit(x=str,split=":")[[1]][1]})
+  start <- sapply(temp.df$id, function(str){ 
+    as.integer(strsplit(strsplit(x=str,split="-")[[1]][1],split=":")[[1]][2])})
+  end <- sapply(temp.df$id,function(str){
+    as.integer(strsplit(x=str,split="-")[[1]][2])})
+  gr <- GRanges(seqnames=chromo,IRanges(start,end))
+  out.gr <- gr[gr %over% e.gr]
+  keep.chromo <- as.character(seqnames(out.gr))
+  keep.start <- start(ranges(out.gr))
+  keep.end <- end(ranges(out.gr))
+  keep.id <- keep.chromo %&% ":" %&% keep.start %&% "-" %&% keep.end
+  out.df <- filter(temp.df,id==keep.id) %>% 
+    select(one_of("id","log2FoldChange","pvalue","padj","logpadj"))
+  names(out.df) <- c("id","deseq.l2fc","deseq.pval","deseq.padj","deseq.logpadj")
+  return(out.df)
 }
 
+get_peakC_mod <- function(e.gr,win,fdr.thresh){
+  fname <- out.dir %&% "peakC-modeled_fdr"%&%fdr.thresh%&%"_win"%&%win%&%".txt"
+  temp.df <- fread(fname)
+  gr <- GRanges(seqnames=temp.df$chr,mcols=temp.df$capture,
+                IRanges(start=temp.df$frag.start,end=temp.df$frag.end)) 
+  out.gr <- gr[gr %over% e.gr]
+  keep.chromo <- as.character(seqnames(out.gr))
+  keep.start <- start(ranges(out.gr))
+  keep.end <- end(ranges(out.gr))
+  keep.id <- keep.chromo %&% ":" %&% keep.start %&% "-" %&% keep.end
+  #keep.id <- ifelse(keep.id==":-",FALSE,keep.id)
+  keep.id <- ifelse(keep.id==":-",FALSE,TRUE)
+  return(keep.id)
+}
 
-e.df <- eqtl.df[1,]
-e.gr <- GRanges(seqnames=e.df$V1,IRanges(e.df$V2,e.df$V2))
-
-fname <- out.dir %&% "peakC-modeled_fdr0.01_win42.txt"
-df <- fread(fname)
-gr <- GRanges(seqnames=df$chr,IRanges(df$frag.start,df$frag.end))
-
-
-
-
-
-
-any((e.gr %over% gr)==TRUE)
-
-
-#gr[1:3][gr[1:3] %over% gr]
-
+get_peakC_comp <- function(e.gr,win,abscutoff){
+  fname <- out.dir %&% "peakC-comparative_abscutoff-"%&%abscutoff%&%"_win"%&%win%&%".txt"
+  temp.df <- fread(fname)
+  gr <- GRanges(seqnames=temp.df$chr,mcols=temp.df$capture,
+                IRanges(start=temp.df$frag.start,end=temp.df$frag.end)) 
+  out.gr <- gr[gr %over% e.gr]
+  keep.chromo <- as.character(seqnames(out.gr))
+  keep.start <- start(ranges(out.gr))
+  keep.end <- end(ranges(out.gr))
+  keep.id <- keep.chromo %&% ":" %&% keep.start %&% "-" %&% keep.end
+  #keep.id <- ifelse(keep.id==":-",FALSE,keep.id)
+  keep.id <- ifelse(keep.id==":-",FALSE,TRUE)
+  return(keep.id)
+}
 
 ```
 
 
+# Sensitivity analysis 
+
+```{r}
+
+
+build_sensitivity_summary <- function(){
+  eqtl.df <- as.data.frame(fread(ref.dir %&% "eQTL-index.bed"))
+  eqtl.df <- eqtl.df[!duplicated(eqtl.df),]
+  eqtl.df$V2 <- (eqtl.df$V3 - 1 ) 
+  eqtl.df$V2 <- as.integer(eqtl.df$V2)
+  out.df <- c() 
+  pb <- txtProgressBar(min=0,max=dim(eqtl.df)[1],style=3)
+  for (i in 1:dim(eqtl.df)[1]){
+    setTxtProgressBar(pb,i)
+    sub.df <- eqtl.df[i,]
+    e.gr <- GRanges(seqnames=sub.df$V1,
+                    IRanges(sub.df$V2,sub.df$V3),
+                    mcols=sub.df$V4)
+    gene <- strsplit(x=sub.df$V4,split="_")[[1]][2]
+    df1 <- get_subtract(gene,e.gr)
+    df2 <- get_deseq(gene,e.gr)
+    df2$deseq.sig <- (df2$deseq.padj > -log(0.05,base=exp(1)))
+    df <- inner_join(df1,df2,by="id")
+    df$peakCmod.win11.fdr05 <- get_peakC_mod(e.gr,11,0.05)
+    df$peakCmod.win42.fdr05 <- get_peakC_mod(e.gr,42,0.05)
+    df$peakCcomp.win11.cutoff170 <- get_peakC_comp(e.gr,11,170)
+    df$peakCcomp.win42.cutoff170 <- get_peakC_comp(e.gr,42,170)
+    names(sub.df) <- c("chrom","pos0","pos","eqtl")
+    df <- cbind(select(sub.df,one_of("chrom","pos","eqtl")),df)
+    names(df)[grepl("id",names(df))] <- "frag.id"
+    out.df <- rbind(out.df,df)
+  }
+  return(out.df)
+}
+
+sens.df <- build_sensitivity_summary()
+
+write.table(x=sens.df,file=stat.dir %&% "sensitivity-table.txt",
+            sep="\t",row.names=FALSE,quote=FALSE)
+
+
+#genename <- "ADCY5"
+#e.df <- filter(eqtl.df,grepl(genename,eqtl.df$V4))
+#e.gr <- GRanges(seqnames=e.df$V1,IRanges(e.df$V2,e.df$V3))
+
+#get_subtract("ADCY5",e.gr)
+#get_deseq("ADCY5",e.gr)
+#get_peakC_mod(e.gr,40,0.05)
+#get_peakC_comp(e.gr,40,170)
+
+```
 
 
 
