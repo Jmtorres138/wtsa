@@ -1,125 +1,163 @@
 #!/usr/bin/python -O
 # Jason Matthew Torres
 '''
-Python wrapper for evaluating eQTL genotype information in endoB and LCL samples
-Usage: python 05_assess-genotypes.py
+Python wrapper for evaluating eQTL genotype information in endoB and LCL samples, run on CBRG
+Usage: python 05.2_assess-heterozygosity.py
 '''
 
 import sys, os, gzip
 import subprocess as sp
 
-
-vcftools="/apps/well/vcftools/0.1.14-gcc4.7.2/bin/vcftools"
-
-eqtl_dir = "/well/got2d/jason/reference/islet/eqtls/inspire/"
-eqtl_res_dir = eqtl_dir + "nominal_pass/output/"
-eqtlvcf_dir = eqtl_dir+"vcf/" # inspire.vcf.gz
-# /apps/well/vcftools/0.1.14-gcc4.7.2/bin/vcftools --gzvcf inspire.vcf.gz --snp  rs3107975 --recode --out test
-root_dir = "/well/got2d/jason/projects/wtsa/promoter_driven/"
+proc_dir = "/t1-data/user/hugheslab/jtorres/promoter-driven/Processed/"
+root_dir = "/t1-data/user/hugheslab/jtorres/analysis/wtsa/promoter_driven/"
 stat_dir= root_dir + "statistical_analysis/"
 ref_dir= root_dir + "reference_files/"
+bamtemp_dir = stat_dir + "bam_files/"
+job_dir = stat_dir+"jobs/"
 
-job_dir = stat_dir + "jobs/"
-log_dir = stat_dir + "logs/"
+def get_sample_list():
+	samp_list = os.listdir("/t1-data/user/hugheslab/jtorres/promoter-driven/Processed/")
+	samp_list.sort()
+	return(samp_list)
 
-def write_snp_file():
-	fin = open(ref_dir + "eqtl-index.bed",'r')
-	fout = open(ref_dir + "eqtl-index.snps",'w')
-	fin.readline()
+def get_cap_dic():
+	dic = {}
+	fin = open(ref_dir+"eqtl-index.bed",'r')
 	for line in fin:
 		l = line.strip().split()
-		name = l[-1]
-		rsid = name.split("_")[0]
-		fout.write(rsid+"\n")
+		chrom,pos,name = l[0],l[2],l[3]
+		gene = name.split("_")[1]
+		dic[name] = [gene,chrom+":"+pos+"-"+pos]
 	fin.close()
-	fout.close()
+	return(dic)
 
-def run_job():
-	command_list = [vcftools, "--gzvcf",eqtlvcf_dir+"inspire.vcf.gz", "--snps",
-					ref_dir+"eqtl-index.snps","--recode","--out", stat_dir+"genotypes/eqtl-inspire.vcf"]
-	command = " ".join(command_list)
+
+def run_job_view(capture_gene, sample, region):
+	path_to_bamfile = proc_dir+sample+"/F6_greenGraphs_combined_"+sample+"_CB4/COMBINED_CB4_"+capture_gene+".bam"
+	out_file_prefix = bamtemp_dir + sample + "_" + capture_gene
+	#bed_file = ref_dir + "eqtl-index.bed"
+	command_list1 = ["samtools", "sort", path_to_bamfile, "-o", out_file_prefix + ".bam"]
+	command_list2 = ["samtools", "index", out_file_prefix + ".bam"]
+	command_list3 = ["samtools", "view", out_file_prefix + ".bam", region,
+					 "-b", "-o", out_file_prefix + "_chrom.bam"]#"_eqtl.bam"]
+	#command_list3 = ["samtools", "view", "-L", out_file_prefix + ".bam", "-L", bed_file,
+	#				 "-b", "-o", out_file_prefix + "_chrom.bam"]
+	command_list4 = ["samtools", "sort", out_file_prefix + "_chrom.bam",
+					 "-o", out_file_prefix + "_chrom_sorted.bam"]
+	command_list5 = ["samtools", "index", out_file_prefix + "_chrom_sorted.bam"]
+	command1 = " ".join(command_list1)
+	command2 = " ".join(command_list2)
+	command3 = " ".join(command_list3)
+	command4 = " ".join(command_list4)
+	command5 = " ".join(command_list5)
 
 	script = '''
-#$ -N vcf_subset
-#$ -pe shmem 1
-#$ -P mccarthy.prjc
-#$ -q short.qc
-#$ -e %svcf_subset.error
-#$ -o %svcf_subset.out
-#$ -V
+#!/bin/bash -l
+#$ -cwd
+#$ -M jtorres
+#$ -m eas
+#$ -j n
+#$ -N job_%s_%s
+#$ -e %s.error
+#$ -o %s.out
 
-module load python/2.7.11
+%s
+%s
+%s
+%s
 %s
 
-	''' % (log_dir,log_dir,command)
+	''' % (sample, capture_gene, job_dir+sample+"_"+capture_gene, job_dir+sample+"_"+capture_gene,command1, command2, command3,command4,command5)
 	print ("Writing job script")
-	fout = open(job_dir+"vcf_subset_job.sh",'w')
+	fout = open(job_dir+sample+"_"+capture_gene+"_job.sh",'w')
 	fout.write(script)
 	fout.close()
-	call = "qsub " + job_dir+"vcf_subset_job.sh"
+	call = "qsub " + job_dir+sample+"_"+capture_gene+"_job.sh"
 	sp.check_call(call,shell=True)
 
-def write_snp_info_file():
-	fin = open(stat_dir+"genotypes/eqtl-inspire.vcf.recode.vcf",'r')
-	fin.readline()
-	fout = open(stat_dir+"genotypes/eqtl-alleles.txt",'w')
-	fout.write("\t".join(["CHROM","POS","ID","REF","ALT"])+"\n")
-	for line in fin:
-		l = line.strip().split()
-		write_list = [l[0],l[1],l[2],l[3],l[4]]
-		print write_list
-		fout.write("\t".join(write_list)+"\n")
-	fin.close()
+
+def run_job_mpileup(capture_gene,samp_list,name,pos):
+	out_file_prefix = bamtemp_dir + name
+
+	file_list = []
+	for samp in samp_list:
+		file_list.append(bamtemp_dir+samp+"_"+capture_gene+"_chrom_sorted.bam")
+
+
+	#EndoB_D_TCF7L2_eqtl_sorted.bam
+	command_list1 = ["samtools", "mpileup"] + file_list + ["-o", out_file_prefix +"_temp"]
+	command_list2 = ["grep", pos, out_file_prefix +"_temp"  ,">", out_file_prefix +".mpileup"]
+	command_list3 = ["echo","hello"]#"rm *_temp* *.bam*"]
+	command1 = " ".join(command_list1)
+	command2 = " ".join(command_list2)
+	command3 = " ".join(command_list3)
+
+	script = '''
+#!/bin/bash -l
+#$ -cwd
+#$ -M jtorres
+#$ -m eas
+#$ -j n
+#$ -N job_mp_%s
+#$ -e %s.error
+#$ -o %s.out
+
+%s
+%s
+%s
+
+	''' % (capture_gene,job_dir+capture_gene,job_dir+capture_gene,command1,command2,command3)
+	print ("Writing job script")
+	fout = open(job_dir+"mpileup_"+capture_gene+"_job.sh",'w')
+	fout.write(script)
 	fout.close()
+	call = "qsub " + job_dir+"mpileup_"+capture_gene+"_job.sh"
+	sp.check_call(call,shell=True)
 
-def build_summary_file():
-	fin = open(stat_dir+"genotypes/"+"eqtl-alleles.txt",'r')
-	fin.readline()
-	a_dic = {}
-	for line in fin:
-		l = line.strip().split()
-		rsid = l[2]
-		a_dic[rsid] = l
-	fin.close()
-	print a_dic
-	snp_list = a_dic.keys()
-	print snp_list
-	e_dic = {}
-	for snp in snp_list:
-		e_dic[snp] = []
-	print e_dic
-	fin = gzip.open(eqtl_res_dir+"nominal.all.chunks.txt.gz",'rb')
-	#fin = gzip.open(eqtl_res_dir+"eqtls_fdr05.txt.gz",'rb')
 
-	count = 0
-	for line in fin:
-		count += 1
-		sys.stdout.write("\r%d"%count)
-		sys.stdout.flush()
-		l = line.strip().split()
-		rsid = l[1]
+def siv():
+	samp_list =  get_sample_list()
+	cap_dic = get_cap_dic()
+
+	sys.stdout.write("Sorting, indexing, viewing...\n")
+	for eqtl in cap_dic.keys():
+		e_list = cap_dic[eqtl]
+		gene,reg =  e_list[0], e_list[1].split(":")[0]
+		for samp in samp_list:
+			print [gene,samp,reg]
+			run_job_view(gene,samp,reg)
+
+def dif():
+	file_list = os.listdir(bamtemp_dir)
+	sys.stdout.write("Deleting intermediate files...\n")
+	remove_list = [x for x in file_list if "chrom" not in x]
+	for f in remove_list:
 		try:
-			e_dic[rsid].append(l)
+			os.remove(bamtemp_dir+f)
 		except:
 			pass
-	fin.close()
-	print e_dic
-	fout = open(stat_dir+"genotypes/"+"eqtl-summary-temp.txt",'w')
-	head_list = ["CHROM","POS","ID","REF","ALT", "Gene", "rsid", "Distance", "P","Slope"]#,"Q"]
-	fout.write("\t".join(head_list)+"\n")
-	for snp in snp_list:
-		ll = e_dic[snp]
-		for i in range(0,len(ll)):
-			write_list = a_dic[snp] + e_dic[snp][i]
-			fout.write("\t".join(write_list)+"\n")
-	fout.close()
 
+def rpf():
+	samp_list =  get_sample_list()
+	cap_dic = get_cap_dic()
+	sys.stdout.write("Running mpileup function...\n")
+	for eqtl in cap_dic.keys():
+		e_list = cap_dic[eqtl]
+		gene,reg =  e_list[0], e_list[1]
+		pos = reg.split(":")[1].split("-")[1]
+		print pos
+		run_job_mpileup(gene,samp_list,eqtl,pos)
 
 
 def main():
-	#write_snp_file()
-	#run_job()
-	#write_snp_info_file()
-	build_summary_file()
+	samp_list =  get_sample_list()
+	cap_dic = get_cap_dic()
+	#siv()
+	#dif()
+	#rpf()
+	#os.system("cat " + bamtemp_dir + "*.mpileup > " + bamtemp_dir+"eqtls.mpileup")
+	os.system("rm " + bamtemp_dir + "*.bam*" + " rs*" + " *temp")
+
+
 
 if (__name__=="__main__"): main()
