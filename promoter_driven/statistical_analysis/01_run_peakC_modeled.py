@@ -11,8 +11,8 @@ stat_dir = "/t1-data/user/hugheslab/jtorres/analysis/wtsa/promoter_driven/statis
 out_dir = stat_dir +"output_files/"
 ref_dir = "/t1-data/user/hugheslab/jtorres/analysis/wtsa/promoter_driven/reference_files/"
 
-gwas_bed = ref_dir + "Islets_Active_enhancers.chromatinStates.bed" #"genetic_credible-sets_independent_ppa10.bed" #
-write_file = out_dir + "enrich_peakC-modeled_islet-enhancers.txt" #"enrich_peakC-modeled_gwasPPA-10.txt"
+gwas_bed = ref_dir + "genetic_credible-sets_independent_ppa10.bed" # "Islets_Active_enhancers.chromatinStates.bed" #
+write_file = out_dir + "enrich_peakC-modeled_gwasPPA-10_full.txt" # "enrich_peakC-modeled_islet-enhancers.txt" #
 
 def run_job(win, fdr):
 	output_file = out_dir+"peakC-modeled_fdr"+str(fdr)+"_win"+str(win)+".txt"
@@ -46,7 +46,7 @@ module add bedtools
 
 
 def main():
-	fdr_list = ["0.01","0.05"]#,"0.10","0.20"]
+	fdr_list = ["0.01","0.05","0.10","0.20"]
 	for f in fdr_list:
 		for w in range(1,100):
 			run_job(w,f)
