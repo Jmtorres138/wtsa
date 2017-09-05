@@ -1,0 +1,479 @@
+---
+title: "peakC_plots"
+author: "Jason Torres"
+date: "September 5, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+# Setup 
+```{r}
+"%&%" <- function(a,b) paste0(a,b) 
+library("dplyr")
+library("data.table")
+library("ggbio")
+library("ggrepel")
+library("GenomicRanges")
+library("Homo.sapiens")
+
+serv.dir <- "/Users/jtorres/FUSE2/"
+stat.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/statistical_analysis/"
+res.dir <- stat.dir %&% "output_files/"
+data.dir <- serv.dir %&% "promoter-driven/"
+rfiles.dir <- data.dir %&% "Stat_Package_CB4/Processed_gfc/R_files/"
+rsuffix <- "_Processed_R_analysis.txt"
+ref.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/reference_files/"
+plot.dir <- stat.dir %&% "plots/"
+
+```
+
+
+# Process functions 
+```{r}
+
+probe.file <- data.dir %&% "oligo-file.txt"
+probe.df <- fread(probe.file)
+names(probe.df) <- c("Gene","Chr","Ex.Start","Ex.End","Chrom","Start","End","V8","V9")
+
+find_chrom <- function(genename){
+  p.df <- filter(probe.df,Gene==genename)
+  chrom <- p.df$Chr
+  return(chrom)
+}
+
+find_viewpoint <- function(genename){
+	p.df <- filter(probe.df,Gene==genename)
+	vp <- round(abs(mean(c(p.df$End,p.df$Start))))
+	return(vp)
+}
+
+split_frag <- function(s){
+  # example s = "chr10:100074092-100074477"
+  vec <- strsplit(s,split=":")[[1]]
+  c <- vec[1]
+  vec2 <- strsplit(vec[2],split="-")[[1]]
+  start <- as.integer(vec2[1])
+  stop <- as.integer(vec2[2])
+  return(list(c,start,stop))
+}
+
+add_frag_cols <- function(df){
+  frag.vec <- df$fragment
+  chr <- c()
+  start <- c()
+  end <- c()
+  for (i in 1:length(frag.vec)){
+    f <- frag.vec[i]
+    l <- split_frag(f)
+    c <- l[[1]]
+    s <- l[[2]]
+    e <- l[[3]]
+    chr <- append(chr,c)
+    start <- append(start,s)
+    end <- append(end,e)
+  }
+  out.df <- cbind(chr,start,end,df)
+  return(out.df)
+}
+
+read_r_capfile <- function(genename){
+  print("\nReading R Capure-C file from Telenius pipeline: " %&% genename)
+  chrom <- find_chrom(genename)
+  fname <- genename %&% rsuffix #"_Processed_R_analysis.txt"
+  rdir <- rfiles.dir
+  head <- readLines(rdir%&%fname,n=1)
+  head <- strsplit(x=head,split="\t")[[1]]
+  head <- c("fragment",head)
+  df <- fread(rdir %&% fname)
+  names(df) <- head
+  print("Subsetting to chromosome: " %&% chrom)
+  pat <- chrom %&% ":"
+  df <- filter(df,grepl(pat,df$fragment))
+  print("Appending fragment information columns...")
+  out.df <- add_frag_cols(df)
+  print("Sorting data frame")
+  out.df <- arrange(out.df,start)
+  out.df$chr <- as.character(out.df$chr)
+  return(out.df)
+}
+
+
+process_index_snpdf <- function(){
+	print("Processing data frame of index SNPs that guided experimental design")
+	t1 <- fread(ref.dir %&% "eQTL-index.bed")
+	t1$Type <- rep("eQTL",dim(t1)[1])
+  t2 <- fread(ref.dir %&% "gwas-index.bed")
+	t2$Type <- rep("GWAS",dim(t2)[1])
+	t2.sub <- c()
+	for (i in 1:dim(t2)[1]){
+	  chromo <- t2$V1[i]; pos <- t2$V2[i]
+	  check.df <- filter(t1,V1==chromo,V2==pos)
+	  if (dim(check.df)[1]==0){
+	    t2.sub <- rbind(t2.sub,t2[i,])
+	  }
+	}
+
+	snp.df <- rbind(t1,t2.sub)
+	names(snp.df) <- c("CHR","START","END","ANNOT","Type")
+	RSID <- c()
+	for (i in 1:dim(snp.df)[1]){
+		s <- snp.df$ANNOT[i]
+		rs <- strsplit(s,"_")[[1]][1]
+		RSID <- append(RSID,rs)
+	}
+	out.df <- cbind(snp.df,RSID)
+	return(out.df)
+}
+
+
+t <- suppressWarnings(read_r_capfile("ADCY5"))
+
+```
+
+
+# Plot functions 
+
+```{r}
+
+make_poly_df <- function(df){
+	poly.x <- c()
+	poly.y <- c()
+	for (i in 1:dim(df)[1]){
+		x1 <- df$start[i]
+		x2 <- df$end[i]
+		y <- df$conD_mean[i]
+		poly.x <- append(poly.x,c(x1,x1,x2,x2))
+		poly.y <- append(poly.y,c(0,y,y,0))
+	}
+	poly.df <- as.data.frame(cbind(poly.x,poly.y))
+	return(poly.df)
+}
+
+
+check_sigfrags_snps <- function(df,chrom,sig.fragments){
+	# This function is mostly for plotting
+	frag.start <- c()
+	frag.end <- c()
+	snp <- c()
+	snp.pos <- c()
+	sig.df <- filter(df,start %in% sig.fragments)
+	index.df <- process_index_snpdf()
+	index.df <- select(index.df,one_of("CHR","START","RSID"))
+	index.df <- index.df[!duplicated(index.df$RSID),]
+	snp.y <- rep(0,dim(index.df)[1])
+	index.df <- cbind(index.df,snp.y)
+	index.df <- filter(index.df,CHR==("chr"%&%chrom))
+	if (dim(index.df)[1] > 0){
+		for (i in 1:dim(index.df)[1]){
+			pos <- index.df$START[i]
+			sname <- index.df$RSID[i]
+			for (e in 1:dim(sig.df)[1]){
+				start <- sig.df$start[e]
+				end <- sig.df$end[e]
+				if (pos >= start & pos <= end){
+					frag.start <- append(frag.start,start)
+					frag.end <- append(frag.end,end)
+					snp <- append(snp,sname)
+					snp.pos <- append(snp.pos,pos)
+				}
+			}
+		}
+		if (length(snp)>0){
+			#snp.y <- rep(0,length(snp))
+			out.df <- as.data.frame(cbind(frag.start,frag.end,snp,snp.pos))
+			out.df$snp.pos <- as.integer(as.character(out.df$snp.pos))
+			#out.df$snp.y <- as.integer(as.character(out.df$snp.y))
+			num <- length(unique(out.df$snp.pos))
+			print("There are " %&% num %&% " index SNPs that map to significantly interacting fragments")
+			out.df$frag.start <- as.integer(as.character(out.df$frag.start))
+			out.df$frag.end <- as.integer(as.character(out.df$frag.end))
+			return(out.df)
+		} else{
+			print("No index SNPS map to significant fragments")
+			return(NULL)
+		}
+	} else{
+		print("No index SNPs are on the chromosome")
+		return(NULL)
+	}
+}
+
+
+make_sig_poly_df <- function(sig.df){
+	poly.x <- c()
+	poly.y <- c()
+	for (i in 1:dim(df)[1]){
+		x1 <- sig.df$frag.start[i]
+		x2 <- sig.df$frag.end[i]
+		y <- sig.df$conD_mean[i]
+		poly.x <- append(poly.x,c(x1,x1,x2,x2))
+		poly.y <- append(poly.y,c(0,y,y,0))
+	}
+	poly.df <- as.data.frame(cbind(poly.x,poly.y))
+	return(poly.df)
+}
+
+get_sig_frag_info <- function(fname){
+  #fname <- res.dir %&% "peakC-modeled_fdr0.05_win42.txt"
+  sig.df <- fread(fname) 
+  sig.frags <- sig.df$frag.start
+  sig.poly.df <- make_sig_poly_df(sig.df)
+  return(list(sig.frags,sig.poly.df))
+}
+
+
+check_sigfrags_snps <- function(df,chrom,sig.fragments){
+	# This function is mostly for plotting
+	frag.start <- c()
+	frag.end <- c()
+	snp <- c()
+	snp.pos <- c()
+	sig.df <- filter(df,start %in% sig.fragments)
+	index.df <- process_index_snpdf()
+	index.df <- dplyr::select(index.df,one_of("CHR","START","RSID"))
+	index.df <- index.df[!duplicated(index.df$RSID),]
+	snp.y <- rep(0,dim(index.df)[1])
+	index.df <- cbind(index.df,snp.y)
+	index.df <- filter(index.df,CHR==("chr"%&%chrom))
+	if (dim(index.df)[1] > 0){
+		for (i in 1:dim(index.df)[1]){
+			pos <- index.df$START[i]
+			sname <- index.df$RSID[i]
+			for (e in 1:dim(sig.df)[1]){
+				start <- sig.df$start[e]
+				end <- sig.df$end[e]
+				if (pos >= start & pos <= end){
+					frag.start <- append(frag.start,start)
+					frag.end <- append(frag.end,end)
+					snp <- append(snp,sname)
+					snp.pos <- append(snp.pos,pos)
+				}
+			}
+		}
+		if (length(snp)>0){
+			#snp.y <- rep(0,length(snp))
+			out.df <- as.data.frame(cbind(frag.start,frag.end,snp,snp.pos))
+			out.df$snp.pos <- as.integer(as.character(out.df$snp.pos))
+			#out.df$snp.y <- as.integer(as.character(out.df$snp.y))
+			num <- length(unique(out.df$snp.pos))
+			print("There are " %&% num %&% " index SNPs that map to significantly interacting fragments")
+			out.df$frag.start <- as.integer(as.character(out.df$frag.start))
+			out.df$frag.end <- as.integer(as.character(out.df$frag.end))
+			return(out.df)
+		} else{
+			print("No index SNPS map to significant fragments")
+			return(NULL)
+		}
+	} else{
+		print("No index SNPs are on the chromosome")
+		return(NULL)
+	}
+}
+
+get_contiguous_sigfrags <- function(overlap.frag, df, sig.fragments){
+	# This function is mostly for plotting
+	# overlap.frag is two element vector c(start,end)
+	vec <- c()
+	vec <- append(vec,overlap.frag[1])
+	sig.df <- filter(df,start %in% sig.fragments) %>% arrange(start)
+	#print("Checking upstream...")
+	index <- match(overlap.frag[1],df$start)
+	status <- TRUE
+	count <- 0
+	while(status==TRUE){
+		index <- index - 1
+		up.pos <- df$start[index]
+		if (up.pos %in% sig.df$start){
+			vec <- append(vec,up.pos)
+			count <- count + 1
+			#print("Upstream match count: " %&% count)
+		} else{
+			status <- FALSE
+		}
+	}
+	#print("Checking downstream...")
+	index <- match(overlap.frag[1],df$start)
+	status <- TRUE
+	count <- 0
+	while(status==TRUE){
+		index <- index + 1
+		down.pos <- df$start[index]
+		if (down.pos %in% sig.df$start){
+			vec <- append(vec,down.pos)
+			count <- count + 1
+			#print("Downstream match count: " %&% count)
+		} else{
+			status <- FALSE
+		}
+	}
+	print("Total fragments in contiguous interaction: " %&% length(vec))
+	vec <- sort(vec)
+	return(vec)
+}
+
+get_contiguous_sigfrags_df <- function(overlap, df, sig.fragments){
+	# This function is mostly for plotting
+	out.df <- c()
+	for (i in 1:dim(overlap)[1]){
+		overlap.frag <- c(overlap$frag.start[i],overlap$frag.end[i])
+		FRAG.START <- get_contiguous_sigfrags(overlap.frag, df, sig.fragments)
+		I.NUMBER <- rep(i,length(FRAG.START))
+		stack.df <- as.data.frame(cbind(FRAG.START,I.NUMBER))
+		out.df <- rbind(out.df,stack.df)
+	}
+	return(out.df)
+}
+
+
+gene_plot <- function(chrom,mn,mx){
+  gr <- GRanges("chr"%&%chrom,IRanges(start=mn,end=mx))
+  aplt <- autoplot(Homo.sapiens, which = gr, label.color = "black",#
+                   color = "brown",
+                   #fill = "brown") + #,stat="reduce"
+                   fill = "brown") + 
+    #xlim(c(mn,mx)) + 
+    theme_alignment(grid = FALSE,border = FALSE) 
+  return(aplt)
+}
+
+plot_frag_over_cellmean <- function(genename,sig.poly.df,sig.fragments,savename,window=500e3){
+  # Note: df is fragments df from read_r_capfile function 
+  df <- suppressWarnings(read_r_capfile(genename))
+  chrom <- find_chrom(genename)
+  viewpoint <- find_viewpoint(genename)
+	xlow <- viewpoint - window
+	xhigh <- viewpoint + window
+	print("Making polygon data frame for fragments in region")
+	full.poly.df <- make_poly_df(df)
+	plt <- ggplot(data=full.poly.df, aes(x=poly.x,y=poly.y)) +
+		geom_polygon(color="gray66",fill="gray74") + theme_bw() +
+		coord_cartesian(xlim=c(xlow,xhigh)) +
+		ggtitle("Locus: " %&% genename) +
+		xlab("Position on Chromosome " %&% gsub("chr","",chrom) %&% " (Mb)") +
+		ylab("Mapped Reads per Fragment")
+  check.df <- filter(sig.poly.df,poly.x>=xlow-1e6,poly.x<=xhigh+1e6)
+	#if (dim(sig.poly.df)[1]>0){
+	if (dim(check.df)[1]>0){
+		plt <- plt + geom_polygon(data=sig.poly.df,aes(x=poly.x,y=poly.y),
+						color="midnightblue",fill="blue2") +
+						geom_hline(yintercept=0,color="gray66",size=0.8)
+		overlap <- check_sigfrags_snps(df,chrom,sig.fragments)
+		if (!is.null(overlap)){
+			contig.df <- get_contiguous_sigfrags_df(overlap,df,sig.fragments)
+			if (dim(contig.df)[1] > 0){
+				peak.df <- filter(df, start %in% contig.df$FRAG.START)
+				peak.poly.df <- make_poly_df(peak.df)
+				plt <- plt + geom_polygon(data=peak.poly.df,aes(x=poly.x,y=poly.y),
+							color="firebrick3",fill="firebrick1") +
+							geom_hline(yintercept=0,color="gray66",size=0.85)
+			}
+		}
+	}
+
+	index.df <- process_index_snpdf()
+	#index.df <- select(index.df,one_of("CHR","START","RSID"))
+	index.df <- index.df[!duplicated(index.df$RSID),]
+	index.df <- filter(index.df,CHR==("chr"%&%chrom),START>=xlow,START<=xhigh)
+	snp.y <- rep(0,dim(index.df)[1])
+	index.df <- cbind(index.df,snp.y)
+	#saveRDS(index.df, file=plot.dir %&% "dataframes_for_plots/" %&% genename %&% "_index.df.RDS")
+
+	if (dim(index.df)[1] > 0){
+		plt <- plt + geom_point(data=index.df, aes(x=START,y=snp.y),
+			shape=23,size=2,color="black",fill="ghostwhite") +
+			geom_label_repel(data=index.df,aes(x=START,y=snp.y,label=RSID,fill=Type)) + 
+		  scale_fill_brewer() + theme(legend.position="none")
+	}
+	track_plt <- tracks(`Capture-C`=plt,
+	                    `Genes`=gene_plot(chrom,xlow-1e6,xhigh+1e6),
+	                    heights=c(2,1),title=genename,
+	                    label.text.cex=0.6,main.height=2)  +
+	  scale_x_sequnit("Mb") + 
+    theme(axis.text.x=element_text(size=5))
+	
+	ggsave(plot=track_plt,filename=savename,width=8,height=8)
+	plt
+}
+
+
+```
+
+
+Model-based plots 
+
+```{r}
+
+gene.vec <- c("CAMK1D","POLR2A","RDH5","ADCY5","GCK","WARS","DGKB","STARD10")
+fname <- "/Users/jtorres/FUSE2/analysis/wtsa/promoter_driven/statistical_analysis/output_files/peakC-modeled_fdr0.05_win42.txt"
+sig.list <- get_sig_frag_info(fname)
+sig.fragments <- sig.list[[1]]
+sig.poly.df <- sig.list[[2]]
+
+pb <- txtProgressBar(min=0,max=length(gene.vec),style = 3)
+for (i in 1:length(gene.vec)){
+  setTxtProgressBar(pb,i)
+  genename <- gene.vec[i]
+  print(genename)
+  savename <- plot.dir%&%"peakC_"%&%genename%&%"_fdr05-win42.png"
+  plot_frag_over_cellmean(genename,sig.poly.df,sig.fragments,savename,window=500e3)
+}
+
+fname <- "/Users/jtorres/FUSE2/analysis/wtsa/promoter_driven/statistical_analysis/output_files/peakC-modeled_fdr0.05_win11.txt"
+sig.list <- get_sig_frag_info(fname)
+sig.fragments <- sig.list[[1]]
+sig.poly.df <- sig.list[[2]]
+
+pb <- txtProgressBar(min=0,max=length(gene.vec),style = 3)
+for (i in 1:length(gene.vec)){
+  setTxtProgressBar(pb,i)
+  genename <- gene.vec[i]
+  print(genename)
+  savename <- plot.dir%&%"peakC_"%&%genename%&%"_fdr05-win11.png"
+  plot_frag_over_cellmean(genename,sig.poly.df,sig.fragments,savename,window=500e3)
+}
+
+```
+
+
+Comparative 
+
+```{r}
+
+gene.vec <- c("CAMK1D","POLR2A","RDH5","ADCY5","GCK","WARS","DGKB","STARD10")
+
+fname <- "/Users/jtorres/FUSE2/analysis/wtsa/promoter_driven/statistical_analysis/output_files/peakC-comparative_abscutoff-170_win11.txt"
+sig.list <- get_sig_frag_info(fname)
+sig.fragments <- sig.list[[1]]
+sig.poly.df <- sig.list[[2]]
+
+pb <- txtProgressBar(min=0,max=length(gene.vec),style = 3)
+for (i in 1:length(gene.vec)){
+  setTxtProgressBar(pb,i)
+  genename <- gene.vec[i]
+  print(genename)
+  savename <- plot.dir%&%"peakC_"%&%genename%&%"_fdr05-win11-abscutoff170.png"
+  plot_frag_over_cellmean(genename,sig.poly.df,sig.fragments,savename,window=500e3)
+}
+
+fname <- "/Users/jtorres/FUSE2/analysis/wtsa/promoter_driven/statistical_analysis/output_files/peakC-comparative_abscutoff-170_win42.txt"
+sig.list <- get_sig_frag_info(fname)
+sig.fragments <- sig.list[[1]]
+sig.poly.df <- sig.list[[2]]
+
+pb <- txtProgressBar(min=0,max=length(gene.vec),style = 3)
+for (i in 1:length(gene.vec)){
+  setTxtProgressBar(pb,i)
+  genename <- gene.vec[i]
+  print(genename)
+  savename <- plot.dir%&%"peakC_"%&%genename%&%"_fdr05-win42-abscutoff170.png"
+  plot_frag_over_cellmean(genename,sig.poly.df,sig.fragments,savename,window=500e3)
+}
+
+```
+
+
