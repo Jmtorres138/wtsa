@@ -23,7 +23,7 @@ library("ggplot2")
 
 serv.dir <- "/Users/jtorres/FUSE2/"
 input.dir <- serv.dir %&% "promoter-driven/CisTransNormalized/PromoterDriven_cis_analysis/Cis_Trans_Summaries/"
-work.dir <- "/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/cis_normalized/"
+work.dir <- serv.dir %&% "promoter-driven/"#"/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/cis_normalized/"
 
 
 ```

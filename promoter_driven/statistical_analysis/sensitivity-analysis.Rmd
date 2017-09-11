@@ -21,7 +21,7 @@ library("ggplot2")
 library("gridExtra")
 library("GenomicRanges")
 
-serv.dir <- "/Users/jtorres/FUSE2/"
+serv.dir <- "/Users/jtorres/FUSE2/" # FUSE2
 stat.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/statistical_analysis/"
 ref.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/reference_files/"
 out.dir <- stat.dir %&% "output_files/"
@@ -62,7 +62,7 @@ get_subtract <- function(genename,e.gr){
   keep.start <- start(ranges(out.gr))
   keep.end <- end(ranges(out.gr))
   keep.id <- keep.chromo %&% ":" %&% keep.start %&% "-" %&% keep.end
-  out.df <- filter(temp.df,id==keep.id) %>% 
+  out.df <- filter(temp.df,id %in% keep.id) %>% # id == keep.id for single 
     select(one_of("id","conD_mean","conT_mean","DIF_conD_minus_conT_mean"))
   return(out.df)
 }
@@ -83,14 +83,22 @@ get_deseq <- function(genename,e.gr){
   keep.start <- start(ranges(out.gr))
   keep.end <- end(ranges(out.gr))
   keep.id <- keep.chromo %&% ":" %&% keep.start %&% "-" %&% keep.end
-  out.df <- filter(temp.df,id==keep.id) %>% 
+  out.df <- filter(temp.df,id %in% keep.id) %>% 
     select(one_of("id","log2FoldChange","pvalue","padj","logpadj"))
   names(out.df) <- c("id","deseq.l2fc","deseq.pval","deseq.padj","deseq.logpadj")
   return(out.df)
 }
 
 get_peakC_mod <- function(e.gr,win,fdr.thresh){
-  fname <- out.dir %&% "peakC-modeled_fdr"%&%fdr.thresh%&%"_win"%&%win%&%".txt"
+  fdr.char <- as.character(fdr.thresh)
+  if (fdr.thresh==0.10){
+    fdr.char <- "0.10"
+  }
+  if (fdr.thresh==0.20){
+    fdr.char <- "0.20"
+  }
+  fname <- out.dir %&% "peakC-modeled_fdr"%&%fdr.char%&%"_win"%&%win%&%".txt"
+  #print(fname)
   temp.df <- fread(fname)
   gr <- GRanges(seqnames=temp.df$chr,mcols=temp.df$capture,
                 IRanges(start=temp.df$frag.start,end=temp.df$frag.end)) 
@@ -162,33 +170,263 @@ sens.df <- build_sensitivity_summary()
 write.table(x=sens.df,file=stat.dir %&% "sensitivity-table.txt",
             sep="\t",row.names=FALSE,quote=FALSE)
 
-vec <- c()
-for (i in 1:dim(sens.df)[1]){
-  print(i)
-  vec <- append(vec,any(sens.df[i,13:16]==TRUE))
+
+get_sensitivity_significant <- function(sens.df){
+  sig.vec <- c()
+  for (i in 1:dim(sens.df)[1]){
+    print(i)
+    sig.vec <- append(sig.vec,any(sens.df[i,13:16]==TRUE))
+  }
+  sens <- dim(sens.df[vec,])[1] / dim(sens.df)[1] # sensitivity 36%   
+  print("Sensitivity: " %&% round(sens,3))
+  sens.sig.df <- select(sens.df[sig.vec,],
+                        one_of("chrom","pos","eqtl",
+                                "frag.id","conD_mean","conT_mean",
+                                "DIF_conD_minus_conT_mean",
+                                "deseq.sig","peakCmod.win11.fdr05",
+                                "peakCmod.win42.fdr05",
+                                "peakCcomp.win11.cutoff170",
+                                "peakCcomp.win42.cutoff170"))
+  return(sens.sig.df)
 }
 
-dim(sens.df[vec,])[1] / dim(sens.df)[1] # sensitivity 36% 
-
-
-#genename <- "ADCY5"
-#e.df <- filter(eqtl.df,grepl(genename,eqtl.df$V4))
-#e.gr <- GRanges(seqnames=e.df$V1,IRanges(e.df$V2,e.df$V3))
-
-#get_subtract("ADCY5",e.gr)
-#get_deseq("ADCY5",e.gr)
-#get_peakC_mod(e.gr,40,0.05)
-#get_peakC_comp(e.gr,40,170)
-
+sens.sig.df <- get_sensitivity_significant(sens.df)
+write.table(x=sens.sig.df,file=stat.dir %&% "sensitivity-sig-table.txt",
+            sep="\t",row.names=FALSE,quote=FALSE)
 ```
 
 # LD Analyses 
 
+FDR 05 
 ```{r}
+
+ld.dir <- "/Users/jtorres/FUSE/projects/wtsa/promoter_driven/" %&% "statistical_analysis/ld-proxies/"
+
+build_ld_proxy_df <- function(){
+  file.vec <- list.files(ld.dir)
+  ld.files <- file.vec[grep("ld-proxies",file.vec)]
+  out.df <- c()
+  pb <- txtProgressBar(min=0,max=length(ld.files),style=3)
+  for (i in 1:length(ld.files)){
+    setTxtProgressBar(pb,i)
+    f <- ld.files[i]
+    df <- fread(ld.dir %&% f)
+    out.df <- rbind(out.df,df)
+  }
+  return(out.df)
+}
+
+build_ld_proxy_gr <- function(ld.df){
+  df1 <- select(ld.df,one_of("CHR1","POS1")); df1 <- df1[!duplicated(df1),]
+  df2 <- select(ld.df,one_of("CHR2","POS2")); df2 <- df2[!duplicated(df2),]
+  names(df1) <- c("CHR","POS");   names(df2) <- c("CHR","POS")
+  df <- rbind(df1,df2); df <- df[!duplicated(df),]
+  df$CHR <- "chr" %&% df$CHR
+  gr <- GRanges(seqnames=df$CHR,IRanges(df$POS-1,df$POS))
+  return(gr)
+}
+
+build_sensitivity_summary_ld <- function(my.fdr=0.05){
+  eqtl.df <- as.data.frame(fread(ref.dir %&% "eqtl-index.bed"))
+  eqtl.df <- eqtl.df[!duplicated(eqtl.df),]
+
+  out.df <- c() 
+  pb <- txtProgressBar(min=0,max=dim(eqtl.df)[1],style=3)
+  for (i in 1:dim(eqtl.df)[1]){
+    #print(i)
+    setTxtProgressBar(pb,i)
+    sub.df <- eqtl.df[i,]
+    eqtl.name <- sub.df$V4
+    ld.df <- fread(ld.dir %&% eqtl.name %&% ".ld-proxies.txt")
+    if (dim(ld.df)[1]>0){
+      e.gr <- build_ld_proxy_gr(ld.df)
+    } else{
+      e.gr <- GRanges(seqnames=sub.df$V1,
+                      IRanges(sub.df$V2,sub.df$V3),
+                      mcols=sub.df$V4)      
+    }
+    gene <- strsplit(x=eqtl.name,split="_")[[1]][2]
+    df1 <- get_subtract(gene,e.gr)
+    df2 <- get_deseq(gene,e.gr)
+    df2$deseq.sig <- (df2$deseq.padj > -log(0.05,base=exp(1)))
+    df <- inner_join(df1,df2,by="id")
+
+    df$peakCmod.win11.fdr05 <- sapply(1:dim(df)[1],
+                                      function(i) {
+                                        temp <- df$id[i]
+                                        c <- strsplit(temp,":")[[1]][1]
+                                        s <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][1])
+                                        e <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][2])
+                                        temp.gr <- GRanges(seqnames=c,IRanges(s,e))
+                                        temp.e.gr <- e.gr[e.gr%over%temp.gr]
+                                        get_peakC_mod(temp.e.gr,11,my.fdr)}) 
+    df$peakCmod.win42.fdr05 <- sapply(1:dim(df)[1],
+                                      function(i) {
+                                        temp <- df$id[i]
+                                        c <- strsplit(temp,":")[[1]][1]
+                                        s <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][1])
+                                        e <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][2])
+                                        temp.gr <- GRanges(seqnames=c,IRanges(s,e))
+                                        temp.e.gr <- e.gr[e.gr%over%temp.gr]
+                                        get_peakC_mod(temp.e.gr,42,my.fdr)})
+    df$peakCcomp.win11.cutoff170 <- sapply(1:dim(df)[1],
+                                      function(i) {
+                                        temp <- df$id[i]
+                                        c <- strsplit(temp,":")[[1]][1]
+                                        s <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][1])
+                                        e <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][2])
+                                        temp.gr <- GRanges(seqnames=c,IRanges(s,e))
+                                        temp.e.gr <- e.gr[e.gr%over%temp.gr]
+                                        get_peakC_comp(temp.e.gr,11,170)})
+    df$peakCcomp.win42.cutoff170 <- sapply(1:dim(df)[1],
+                                      function(i) {
+                                        temp <- df$id[i]
+                                        c <- strsplit(temp,":")[[1]][1]
+                                        s <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][1])
+                                        e <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][2])
+                                        temp.gr <- GRanges(seqnames=c,IRanges(s,e))
+                                        temp.e.gr <- e.gr[e.gr%over%temp.gr]
+                                        get_peakC_comp(temp.e.gr,42,170)})
+    sub.df <- data.frame(V1=rep(sub.df$V1,dim(df)[1]),
+                         V2=rep(sub.df$V2,dim(df)[1]),
+                         V3=rep(sub.df$V3,dim(df)[1]),
+                         V4=rep(sub.df$V4,dim(df)[1]),
+                         stringsAsFactors=FALSE)
+    names(sub.df) <- c("chrom","pos0","pos","eqtl")
+    df <- cbind(select(sub.df,one_of("chrom","pos","eqtl")),df)
+    names(df)[grepl("id",names(df))] <- "frag.id"
+    out.df <- rbind(out.df,df)
+  }
+  if (my.fdr==0.10){
+    names(out.df)[grepl("fdr05",names(out.df))] <- c("peakCmod.win11.fdr10","peakCmod.win42.fdr10")
+  } else if (my.fdr==0.20){
+    names(out.df)[grepl("fdr05",names(out.df))] <- c("peakCmod.win11.fdr20","peakCmod.win42.fdr20")
+  } else{
+    print("FDR is at 0.05")
+  }
+  return(out.df)
+}
+
+get_sensitivity_significant_ld <- function(sens.ld.df,my.fdr=0.05){
+  fdrname <- ifelse(my.fdr==0.05,"05",
+                    ifelse(my.fdr==0.10,"10",
+                           ifelse(my.fdr==0.20,"20",NA)))
+  sig.vec <- c()
+  for (i in 1:dim(sens.ld.df)[1]){
+    print(i)
+    sig.vec <- append(sig.vec,any(na.omit(sens.ld.df[i,13:16])==TRUE))
+  }
+  sens.sig.df <- sens.ld.df[sig.vec,]
+  sigsens <- length(unique(sens.sig.df$eqtl)) / length(unique(sens.ld.df$eqtl))
+  print("Sensitivity: " %&% round(sigsens,3))
+  sens.sig.df <- select(sens.sig.df,
+                        one_of("chrom","pos","eqtl",
+                                "frag.id","conD_mean","conT_mean",
+                                "DIF_conD_minus_conT_mean",
+                                "deseq.sig","peakCmod.win11.fdr"%&%fdrname,
+                                "peakCmod.win42.fdr"%&%fdrname,
+                                "peakCcomp.win11.cutoff170",
+                                "peakCcomp.win42.cutoff170"))
+  return(sens.sig.df)
+}
+
+sensLD05.df <- build_sensitivity_summary_ld(my.fdr=0.05)
+sensLD05.sig.df <- get_sensitivity_significant_ld(sensLD05.df,my.fdr=0.05)
+write.table(x=sensLD05.sig.df,file=stat.dir %&% "sensitivity-sig-table_LD_FDR05-proxies.txt",
+            sep="\t",row.names=FALSE,quote=FALSE)
+
+sensLD10.df <- build_sensitivity_summary_ld(my.fdr=0.10)
+sensLD10.sig.df <- get_sensitivity_significant_ld(sensLD10.df,my.fdr=0.10)
+write.table(x=sensLD10.sig.df,file=stat.dir %&% "sensitivity-sig-table_LD_FDR10-proxies.txt",
+            sep="\t",row.names=FALSE,quote=FALSE)
+
+sensLD20.df <- build_sensitivity_summary_ld(my.fdr=0.20)
+sensLD20.sig.df <- get_sensitivity_significant_ld(sensLD20.df,my.fdr=0.20)
+write.table(x=sensLD20.sig.df,file=stat.dir %&% "sensitivity-sig-table_LD_FDR20-proxies.txt",
+            sep="\t",row.names=FALSE,quote=FALSE)
 
 ```
 
 
+#Additional analyses 
+
+```{r}
+
+library("annotables")
+
+geno.dir <- "/Users/jtorres/FUSE/projects/wtsa/promoter_driven/" %&% "statistical_analysis/genotypes/"
+eqtl.df <- fread("/Users/jtorres/FUSE/projects/wtsa/promoter_driven/reference_files/eqtl-index.bed")
+
+al.df <- fread(geno.dir%&%"eqtl-alleles.txt")
+eref.df <- fread(geno.dir%&%"eqtl-summary.txt")
+mpu.df <- fread(stat.dir%&%"bam_files/eqtls.mpileup")
+
+append_symbols_to_eref <- function(){
+  symbol <- c()
+  for (i in 1:dim(eref.df)[1]){
+    ensid <- strsplit(eref.df[i,]$Gene,split=".",fixed=TRUE)[[1]][1]
+    sym <- unique(filter(grch37,ensgene==ensid)$symbol)
+    if (length(sym)!=1){
+      print(sym)
+    }
+    symbol <- append(symbol,sym)
+  }
+  out.df <- cbind(symbol,eref.df)
+  out.df$chrom <- "chr" %&% out.df$CHROM
+  return(out.df)
+}
+
+build_mpu_endo_df <- function(){
+  mpu.endo.df <- select(mpu.df,one_of(c("V1","V2","V"%&%13:21)))
+  mpu.endo.df$eqtl <- sapply(1:dim(mpu.endo.df)[1],
+                             function(i){
+                               sub.df <- mpu.endo.df[i,]
+                               eqtl <- paste0(unique(filter(eqtl.df,V1==sub.df$V1,V3==sub.df$V2)$V4),
+                                              collapse=":")})
+  mpu.endo.df$ref <- sapply(1:dim(mpu.endo.df)[1],
+                             function(i){
+                               sub.df <- mpu.endo.df[i,]
+                               ref <- paste0(unique(filter(al.df,CHROM==gsub("chr","",sub.df$V1),
+                                                           POS==sub.df$V2)$REF),
+                                              collapse=":")})
+  mpu.endo.df$alt <- sapply(1:dim(mpu.endo.df)[1],
+                             function(i){
+                               sub.df <- mpu.endo.df[i,]
+                               ref <- paste0(unique(filter(al.df,CHROM==gsub("chr","",sub.df$V1),
+                                                           POS==sub.df$V2)$ALT),
+                                              collapse=":")})  
+  mpu.endo.df$gene <- sapply(1:dim(mpu.endo.df)[1],function(i){
+    gene <- strsplit(mpu.endo.df$eqtl[i],split="_")[[1]][2]
+    return(gene)
+  })
+  stack.df <- c()
+  for (i in 1:dim(mpu.endo.df)[1]){
+    temp <- mpu.endo.df[i,]
+    if (grepl(":",temp$gene)){
+      temp$gene <- strsplit(temp$gene,split=":")[[1]][1]
+    }
+    temp.df <- filter(eref.full.df,chrom==temp$V1,POS==temp$V2,symbol==temp$gene)
+    sub.df <- select(temp.df,one_of("REF","ALT","P","Slope"))
+    if (dim(sub.df)[1]==0){
+      sub.df[1,] <- rep(NA,4)
+    }
+    print(dim(sub.df))
+    stack.df <- rbind(stack.df,sub.df)
+  }
+  mpu.endo.df <- cbind(mpu.endo.df,stack.df)
+  return(mpu.endo.df)
+}
+
+
+eref.full.df <- append_symbols_to_eref()
+mpu.endo.df <- build_mpu_endo_df()
+
+
+
+s <- mpu.endo.df[1,]
+ss <- filter(eref.df,CHROM==gsub("chr","",s$V1),POS==s$V2)
+
+```
 
 
 
