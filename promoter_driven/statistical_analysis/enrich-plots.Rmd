@@ -1,0 +1,80 @@
+---
+title: "Untitled"
+author: "Jason Torres"
+date: "8/24/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("dplyr")
+library("data.table")
+library("ggplot2")
+library("gridExtra")
+library("GenomicRanges")
+
+serv.dir <- "/Users/jtorres/FUSE2/" # FUSE
+stat.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/statistical_analysis/" #"projects/wtsa/promoter_driven/statistical_analysis/"
+ref.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/reference_files/" # "projects/wtsa/promoter_driven/reference_files/"
+
+
+
+```
+
+
+```{r}
+
+#/Users/jtorres/FUSE2/analysis/wtsa/promoter_driven/statistical_analysis/enrichment-testsV3.txt 
+df <- fread(stat.dir %&% "enrichment-testsV3.txt")
+names(df)[1:2] <- c("test","feature")
+
+
+enrich_plot_v1 <- function(testname="peakC-modeled_fdr0.05_win42",plotname="test"){
+  plt <- ggplot(data=filter(df,test==testname),
+                  aes(x=feature,y=enrich.factor)) + 
+    geom_point(color="black",size=3, shape=21, 
+             aes(fill=-log(p.val,base=10))) +
+    scale_fill_continuous(low="dodgerblue4",
+                          high="firebrick2",
+                          name="-log10(P-value)") + 
+    ylab("Enrichment Factor") + xlab("Feature") + theme_bw() + 
+    scale_y_continuous(limits=c(0,30),breaks=seq(0,30,2)) + 
+    theme(axis.text.x=element_text(angle=0)) + ggtitle(plotname)
+  plt
+}
+  
+enrich_plot <- function(testname="peakC-modeled_fdr0.05_win42"){
+  plt <- ggplot(data=filter(df,test==testname),
+                  aes(x=feature,y=-log(p.val,base=10))) + 
+    geom_point(color="black",size=3, shape=21, 
+             aes(fill=observed.count)) +
+    scale_fill_continuous(low="dodgerblue4",
+                          high="firebrick2",
+                          name="Count") + 
+    ylab("-log10(P-value)") + xlab("Feature") + theme_bw() + 
+    scale_y_continuous(limits=c(0,4),breaks=seq(0,4,1)) + 
+    theme(axis.text.x=element_text(angle=0),
+          panel.grid.minor=element_blank()) + ggtitle(testname) +
+    geom_hline(yintercept=-log(0.05,base=10),linetype=2)
+  plt
+}
+  
+
+
+plt1 <- enrich_plot("peakC-modeled_fdr0.05_win11")
+plt2 <- enrich_plot("peakC-modeled_fdr0.05_win42")
+plt3 <- enrich_plot("peakC-comparative_abscutoff-170_win11")
+plt4 <- enrich_plot("peakC-comparative_abscutoff-170_win42")
+
+grid.arrange(plt1,plt2,plt3,plt4,nrow=4)
+  
+```
+
+
