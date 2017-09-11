@@ -97,12 +97,12 @@ module load python/2.7.11
 	sp.check_call(call,shell=True)
 
 def main():
-	#make_pos_files()
-	#posfiles = [x for x in os.listdir(ld_dir) if ".positions" in x]
-	#for f in posfiles:
-	#	fpath = ld_dir + f
-	#	print f
-	#	run_job(fpath)
+	make_pos_files()
+	posfiles = [x for x in os.listdir(ld_dir) if ".positions" in x]
+	for f in posfiles:
+		fpath = ld_dir + f
+		print f
+		run_job(fpath)
 	subset_ld_results()
 
 if (__name__=="__main__"): main()
