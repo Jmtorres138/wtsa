@@ -131,7 +131,7 @@ process_index_snpdf <- function(){
 }
 
 
-t <- suppressWarnings(read_r_capfile("ADCY5"))
+#t <- suppressWarnings(read_r_capfile("ADCY5"))
 
 ```
 
@@ -476,4 +476,19 @@ for (i in 1:length(gene.vec)){
 
 ```
 
+
+# STARD10 
+
+
+```{r}
+
+fname <- "/Users/jtorres/FUSE2/analysis/wtsa/promoter_driven/statistical_analysis/output_files/peakC-modeled_fdr0.20_win13.txt"
+sig.list <- get_sig_frag_info(fname)
+sig.fragments <- sig.list[[1]]
+sig.poly.df <- sig.list[[2]]
+genename<-"STARD10"
+savename <- plot.dir%&%"peakC_"%&%genename%&%"_fdr0.20-win13.png"
+plot_frag_over_cellmean(genename,sig.poly.df,sig.fragments,savename,window=500e3)
+
+```
 
