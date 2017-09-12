@@ -1,0 +1,473 @@
+---
+title: "Inspect_STARD10.Rmd"
+author: "Jason Torres"
+date: "September 11, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b) 
+library("dplyr")
+library("data.table")
+library("ggbio")
+library("ggrepel")
+library("GenomicRanges")
+library("Homo.sapiens")
+library("gridExtra")
+
+serv.dir <- "/Users/jtorres/FUSE2/"
+stat.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/statistical_analysis/"
+res.dir <- stat.dir %&% "output_files/"
+data.dir <- serv.dir %&% "promoter-driven/"
+rfiles.dir <- data.dir %&% "Stat_Package_CB4/Processed_gfc/R_files/"
+rsuffix <- "_Processed_R_analysis.txt"
+
+```
+
+
+# cis / trans counts 
+
+```{r}
+
+input.dir <- serv.dir %&% "promoter-driven/CisTransNormalized/PromoterDriven_cis_analysis/Cis_Trans_Summaries/"
+work.dir <- serv.dir %&% "promoter-driven/"
+df <- fread(input.dir %&% "summary-df.txt")
+df$Sample <- gsub("D","B",df$Sample)
+df1 <- dplyr::select(df,one_of("Cell","Sample","Gene","Cis"))
+names(df1)[4] <- "Count"
+df1$Group <- rep("Cis",dim(df1)[1])
+df2 <- dplyr::select(df,one_of("Cell","Sample","Gene","Trans"))
+names(df2)[4] <- "Count"
+df2$Group <- rep("Trans",dim(df2)[1])
+df <- rbind(df1,df2)
+stard10.counts.df <- filter(df,Gene=="STARD10",Group=="Cis",Cell=="EndoB")
+
+```
+
+
+# Process functions 
+
+```{r}
+
+probe.file <- data.dir %&% "oligo-file.txt"
+probe.df <- fread(probe.file)
+names(probe.df) <- c("Gene","Chr","Ex.Start","Ex.End","Chrom","Start","End","V8","V9")
+
+find_chrom <- function(genename){
+  p.df <- filter(probe.df,Gene==genename)
+  chrom <- p.df$Chr
+  return(chrom)
+}
+
+find_viewpoint <- function(genename){
+	p.df <- filter(probe.df,Gene==genename)
+	vp <- round(abs(mean(c(p.df$End,p.df$Start))))
+	return(vp)
+}
+
+split_frag <- function(s){
+  # example s = "chr10:100074092-100074477"
+  vec <- strsplit(s,split=":")[[1]]
+  c <- vec[1]
+  vec2 <- strsplit(vec[2],split="-")[[1]]
+  start <- as.integer(vec2[1])
+  stop <- as.integer(vec2[2])
+  return(list(c,start,stop))
+}
+
+add_frag_cols <- function(df){
+  frag.vec <- df$fragment
+  chr <- c()
+  start <- c()
+  end <- c()
+  for (i in 1:length(frag.vec)){
+    f <- frag.vec[i]
+    l <- split_frag(f)
+    c <- l[[1]]
+    s <- l[[2]]
+    e <- l[[3]]
+    chr <- append(chr,c)
+    start <- append(start,s)
+    end <- append(end,e)
+  }
+  out.df <- cbind(chr,start,end,df)
+  return(out.df)
+}
+
+read_r_capfile <- function(genename){
+  print("\nReading R Capure-C file from Telenius pipeline: " %&% genename)
+  chrom <- find_chrom(genename)
+  fname <- genename %&% rsuffix #"_Processed_R_analysis.txt"
+  rdir <- rfiles.dir
+  head <- readLines(rdir%&%fname,n=1)
+  head <- strsplit(x=head,split="\t")[[1]]
+  head <- c("fragment",head)
+  df <- fread(rdir %&% fname)
+  names(df) <- head
+  print("Subsetting to chromosome: " %&% chrom)
+  pat <- chrom %&% ":"
+  df <- filter(df,grepl(pat,df$fragment))
+  print("Appending fragment information columns...")
+  out.df <- add_frag_cols(df)
+  print("Sorting data frame")
+  out.df <- arrange(out.df,start)
+  out.df$chr <- as.character(out.df$chr)
+  return(out.df)
+}
+
+
+process_index_snpdf <- function(){
+	print("Processing data frame of index SNPs that guided experimental design")
+	t1 <- fread(ref.dir %&% "eQTL-index.bed")
+	t1$Type <- rep("eQTL",dim(t1)[1])
+  t2 <- fread(ref.dir %&% "gwas-index.bed")
+	t2$Type <- rep("GWAS",dim(t2)[1])
+	t2.sub <- c()
+	for (i in 1:dim(t2)[1]){
+	  chromo <- t2$V1[i]; pos <- t2$V2[i]
+	  check.df <- filter(t1,V1==chromo,V2==pos)
+	  if (dim(check.df)[1]==0){
+	    t2.sub <- rbind(t2.sub,t2[i,])
+	  }
+	}
+
+	snp.df <- rbind(t1,t2.sub)
+	names(snp.df) <- c("CHR","START","END","ANNOT","Type")
+	RSID <- c()
+	for (i in 1:dim(snp.df)[1]){
+		s <- snp.df$ANNOT[i]
+		rs <- strsplit(s,"_")[[1]][1]
+		RSID <- append(RSID,rs)
+	}
+	out.df <- cbind(snp.df,RSID)
+	return(out.df)
+}
+
+```
+
+
+# Evaluate Data frame 
+
+```{r}
+
+
+
+
+index.df <- process_index_snpdf()
+stard10.df <- suppressWarnings(read_r_capfile("STARD10"))
+snp.gr <- GRanges(seqnames="chr11",IRanges(72432985,72432985))
+cap.gr <- GRanges(seqnames=stard10.df$chr,IRanges(stard10.df$start,stard10.df$end))
+snp.frag <- cap.gr[cap.gr%over%snp.gr]
+
+rescomp.dir <- "/Users/jtorres/FUSE/"
+ld.df <- fread(rescomp.dir %&% "projects/wtsa/promoter_driven/statistical_analysis/ld-proxies/" %&% "rs11603334_STARD10.ld-proxies.txt")
+snps.gr <- GRanges(seqnames="chr"%&%ld.df$CHR2,IRanges(ld.df$POS2,ld.df$POS2))
+snps.gr <- append(snp.gr,snps.gr)
+snps.frags <- cap.gr[cap.gr%over%snps.gr]
+
+
+
+sub.df <- filter(stard10.df,chr==as.character(seqnames(snp.frag)),
+       start==start(snp.frag),end==end(snp.frag))
+
+
+sample <- rep(c("A","B","C"),2)
+cell <- c(rep("Endo",3),rep("LCL",3))
+count <- c(as.integer(dplyr::select(sub.df,contains("Endo"))[1,]),
+           as.integer(dplyr::select(sub.df,contains("Blymph"))[1,]))
+norm <- c(as.numeric(dplyr::select(sub.df,contains("_norm"))[1,]))
+eval.df <- data.frame(sample,cell,count,norm,stringsAsFactors = TRUE)
+plt1 <- ggplot(data=eval.df,aes(x=cell,y=count,fill=sample)) + 
+  #geom_boxplot(alpha=0.01) 
+  geom_jitter(shape=21,color="black",size=3,
+              position=position_jitter(0.2)) + theme_bw()
+plt2 <- ggplot(data=eval.df,aes(x=cell,y=norm,fill=sample)) + 
+  #geom_boxplot(alpha=0.01) + 
+  geom_jitter(shape=21,color="black",size=3,
+              position=position_jitter(0.2)) + theme_bw()
+grid.arrange(plt1,plt2,ncol=1)
+
+#norm_val = (obs count / number of interactions) * 100,000 interactions 
+stard10.counts.df
+filter(eval.df,cell=="Endo")
+
+```
+
+
+# Modeled functions 
+
+```{r}
+
+make_peakc_mat <- function(cap.df, viewpoint, sampname="conD_1_norm",window=1000e3){
+  df <- dplyr::select(cap.df,one_of("start",sampname))
+  mat <- as.matrix(df)
+  max.count <- max(mat[,2])
+  #viewpoint <- #mat[(mat[,2]==max.count),][1]
+  #print("Viewpoint: " %&% viewpoint)
+  max.pos <- viewpoint + window
+  min.pos <- viewpoint - window
+  sub.mat <- mat[(mat[,1]<=max.pos & mat[,1]>=min.pos),]
+  return(sub.mat)
+}
+
+
+make_expdata_list <- function(cap.df, view.point, window=1000e3, samp.vec){ #=c("condD_1_norm","condD_2_norm","condD_3_norm")){
+  capclist <- list()
+  i = 0
+  for (samp in samp.vec){
+    i = i+1
+    df <- as.data.frame(make_peakc_mat(cap.df, window=window, viewpoint=view.point,sampname=samp))
+    capclist[[i]] <- df
+  }
+  return(capclist)
+}
+
+find_viewpoint <- function(genename){
+  p.df <- filter(probe.df,Gene==genename)
+  vp <- round(abs(mean(c(p.df$End,p.df$Start))))
+  return(vp)
+}
+
+```
+
+
+# PeakC interactions 
+
+
+Alter peakC function 
+
+```{r}
+
+rank.product.p <- function( data, num.exp ){
+  ratios <- data[,2:(num.exp+1)]/data[,(2:(num.exp+1))+num.exp]
+  rp <- nrow(data)-apply(ratios,2,rank)+1
+  rp <- apply(rp,1,prod)
+  p <- righttailgamma(rp,num.exp,length(rp))
+  return(list(p,rp))
+}
+
+
+rank.product.p.alt <- function( data, num.exp ){
+  ratios <- data[,2:(num.exp+1)]/data[,(2:(num.exp+1))+num.exp]
+  diff.v <- data[,2:(num.exp+1)]-data[,(2:(num.exp+1))+num.exp]
+  rp1 <- nrow(data)-apply(ratios,2,rank)+1
+  rp2 <- nrow(data)-apply(diff.v,2,rank)+1
+  rp <- apply(rp1 + rp2, 2, rank)
+  rp <- apply(rp,1,prod)
+  p <- righttailgamma(rp,num.exp,length(rp))
+  return(list(p,rp))
+}
+
+combined.analyseC.v2 <- function( files, data, type = "", num.exp=0, vp.pos, genomic.window = 700e3, window = 21, alpha=0.01, alt=T, plot=F, y.min= 0, y.max=3000){
+  if(num.exp==0){
+    num.exp <- length(files)
+  }
+  if(type=="wig"){
+    data <- readMultipleWig( files= files, vp.pos=vp.pos, window=genomic.window)
+  }else if(type=="matrix"){
+    data <- readMultiple( files= files, vp.pos=vp.pos, window=genomic.window)
+  }else if(type=="multi"){
+    data <- readMultiColumnFile ( file = files, vp.pos = vp.pos, window = genomic.window, num.exp = num.exp)
+  }else if(type=="data"){
+    data <- data
+  }else{
+    stop("Provide data in the correct format")
+  }
+  db <- combine.experiments(data=data, num.exp=num.exp, vp.pos=vp.pos)
+  if(alt){
+    out.list <- rank.product.p.alt( data = db, num.exp = num.exp )
+    p.val <- out.list[[1]]
+    rp <- out.list[[2]]
+  }else{
+    out.list <- rank.product.p( data = db, num.exp = num.exp )
+    p.val <- out.list[[1]]
+    rp <- out.list[[2]]
+  }
+  #select the significant fragments
+  sign.fragments <- significant.fragments(p.value = p.val, pos = db[,1], window = window, sign = alpha)
+  #create a plot that highlights the significant fragments
+  if(plot){
+    plot.combined.data(db=db[,1:(num.exp+1)], window=window, sign.fragments = sign.fragments, y.min = y.min, y.max = y.max)
+  }
+  return(list(sign.fragments,cbind(db,rp,p.val)))
+}
+
+
+significant.fragments <- function( p.value, pos, window = 21, sign = 0.01 ){
+  p.combined <- combine.pvalue( p.value, window=window)
+  #correct the nominal p-value for multiple hypothesis testing
+  p.combined <- p.adjust(p.combined, method="fdr")
+  #determine the significant windows and select the fragments therein
+  index.start <- which(p.combined < sign)
+  index.end <- index.start + window - 1
+  index <- unique(multi.seq(index.start,index.end))
+  pos[index]
+}
+
+combine.pvalue <- function( p, window=21 ){
+  chi <- -2*runsum(log(p),window)
+  pchisq( chi, window*2, low=F)
+}
+
+runsum <- function(x,n=20){
+  cumsum(x)->sum.v
+  sum.v<-c(0,sum.v)
+  diff(sum.v,n)
+}
+
+#r <- -log(rp/(length(rp)+1)^3)
+#plot(r,dgamma(r,3))
+#hist(r,breaks=50)
+#plot(r,dgamma(r,3))
+```
+
+
+# Modeled anlaysis (Cis normalized) 
+
+```{r}
+
+peakc.dir <- "/Users/jtorres/Google Drive/Science/Projects/wtsa/software/peakC/"
+source(peakc.dir %&% "util.R")
+source(peakc.dir %&% "combined_experiment_analysis.R")
+source(peakc.dir %&% "experiment_comparison.R")
+source(peakc.dir %&% "single_experiment_analysis.R")
+
+gene <- "STARD10"
+chrom <- find_chrom(gene)
+vp <- find_viewpoint(gene)
+sample.vec <- c("conD_1_norm","conD_2_norm","conD_3_norm")
+n.exp <- 3
+my.win <- 11
+my.fdr <- 0.05
+
+d <- make_expdata_list(cap.df=stard10.df, view.point=vp, samp.vec=sample.vec, window=1000e3)
+
+out.list <- combined.analyseC.v2(data=d, type="data", num.exp = n.exp, vp.pos = vp,
+                                   window = (as.integer(my.win) + 1),
+                                   plot = FALSE,y.max=400, alpha=my.fdr,alt=FALSE)
+sig.fragments <- out.list[[1]]
+res.df <- out.list[[2]]
+names(res.df) <- c("start","conD_1_norm","conD_2_norm","conD_3_norm",
+                   "conD_1_norm_bk","conD_2_norm_bk","conD_3_norm_bk",
+                   "rp","p.val")
+res.df$q.val <- p.adjust(res.df$p.val)
+
+rp.plt <- ggplot(data=res.df,aes(x=rp,y=-log(p.val,base=10))) + 
+  geom_point(size=1,color="gray") + 
+  geom_point(data=filter(res.df,start==start(snp.frag)),
+             aes(x=rp,y=-log(p.val,base=10)),shape=21,size=2,fill="red") +
+  theme_bw()
+
+filter(res.df,start==start(snp.frag)) # output for fragment with SNP 
+filter(res.df,start%in%start(snps.frags)) # output for fragment(s) with SNP and ld proxies  
+
+#filter(res.df,start>=start(snp.frag)-1000,start<=start(snp.frag)+1000)
+
+
+```
+
+        start conD_1_norm conD_2_norm conD_3_norm conD_1_norm conD_2_norm conD_3_norm        rp
+1156 72432526    106.7084    125.1356    42.59669     89.8129    131.1905    111.6033 822948672
+         p.val
+1156 0.3459079
+
+
+# Total normalized comparison 
+
+
+```{r}
+
+df1 <- filter(df,Gene=="STARD10",Group=="Cis",Cell=="EndoB")
+df2 <- filter(df,Gene=="STARD10",Group=="Trans",Cell=="EndoB")
+tot.df <- data.frame(Cell=df1$Cell,Sample=df1$Sample,Gene=df1$Gene,Count=(df1$Count+df2$Count))
+tot.norm.df <- stard10.df
+tot.norm.df$conD_1_norm <- tot.norm.df$Processed_gffsForCisOnly.EndoB_A / filter(tot.df,Sample=="A")$Count * 100000
+tot.norm.df$conD_2_norm <- tot.norm.df$Processed_gffsForCisOnly.EndoB_C / filter(tot.df,Sample=="B")$Count * 100000
+tot.norm.df$conD_3_norm <- tot.norm.df$Processed_gffsForCisOnly.EndoB_D / filter(tot.df,Sample=="C")$Count * 100000
+
+gene <- "STARD10"
+chrom <- find_chrom(gene)
+vp <- find_viewpoint(gene)
+sample.vec <- c("conD_1_norm","conD_2_norm","conD_3_norm")
+n.exp <- 3
+my.win <- 11
+my.fdr <- 0.05
+d2 <- make_expdata_list(cap.df=tot.norm.df, view.point=vp, samp.vec=sample.vec, window=1000e3)
+
+out.list2 <- combined.analyseC.v2(data=d2, type="data", num.exp = n.exp, vp.pos = vp,
+                                   window = (as.integer(my.win) + 1),
+                                   plot = FALSE,y.max=400, alpha=my.fdr,alt=FALSE)
+sig.fragments2 <- out.list2[[1]]
+res.df2 <- out.list2[[2]]
+names(res.df2) <- c("start","conD_1_norm","conD_2_norm","conD_3_norm",
+                   "conD_1_norm_bk","conD_2_norm_bk","conD_3_norm_bk",
+                   "rp","p.val")
+res.df2$q.val <- p.adjust(res.df2$p.val)
+
+rp.plt2 <- ggplot(data=res.df2,aes(x=rp,y=-log(p.val,base=10))) + 
+  geom_point(size=1,color="gray") + 
+  geom_point(data=filter(res.df,start==start(snp.frag)),
+             aes(x=rp,y=-log(p.val,base=10)),shape=21,size=2,fill="red") +
+  theme_bw()
+
+filter(res.df2,start==start(snp.frag)) # output for fragment with SNP 
+filter(res.df2,start%in%start(snps.frags)) # output for fragment(s) with SNP and ld proxies  
+
+#filter(res.df,start>=start(snp.frag)-1000,start<=start(snp.frag)+1000)
+
+```
+
+
+Evaluate all sig interactions for SNP overlaps  
+
+```{r}
+
+file.vec <- list.files(res.dir)
+mod.vec <- file.vec[grepl("modeled",file.vec)]
+mod.vec <- mod.vec[!(grepl("enrich",mod.vec))]
+
+pb <- txtProgressBar(min=0,max=length(mod.vec),style=3)
+for (i in 1:length(mod.vec)){
+  setTxtProgressBar(pb,i)
+  f <- mod.vec[i]
+  fpath <- res.dir %&% f
+  temp.df <- fread(fpath)
+  temp.gr <- GRanges(seqnames=temp.df$chr,IRanges(temp.df$frag.start,temp.df$frag.end))
+  over.gr <- temp.gr[temp.gr%over%snps.gr]
+  if (length(over.gr)>0){
+    print(f)
+    print(over.gr)
+  }
+}
+
+frag <- GRanges(seqnames="chr11",IRanges(72432526, 72433176))
+snps.gr[snps.gr%over%frag]
+
+```
+
+
+File that had overlap between STARD10 SNP (and/or proxies LD>=0.8)
+
+"peakC-modeled_fdr0.20_win12.txt"
+"peakC-modeled_fdr0.20_win13.txt"
+"peakC-modeled_fdr0.20_win14.txt"
+"peakC-modeled_fdr0.20_win15.txt"
+"peakC-modeled_fdr0.20_win16.txt"
+
+All correspond to this fragment: chr11 [72432526, 72433176]   
+
+This fragment overlaps two SNPs, including the lead SNP 
+
+GRanges object with 2 ranges and 0 metadata columns:
+      seqnames               ranges strand
+         <Rle>            <IRanges>  <Rle>
+  [1]    chr11 [72432985, 72432985]      *
+  [2]    chr11 [72433098, 72433098]      *
