@@ -143,7 +143,8 @@ build_result_file <- function(n.exp=3, sample.vec=c("conD_1_norm","conD_2_norm",
     vp <- find_viewpoint(gene)
     data <- make_expdata_list(cap.df=df, view.point=vp, samp.vec=sample.vec, window=1000e3)
     sig.fragments <- combined.analyseC(data=data, type="data", num.exp = n.exp, vp.pos = vp,
-                                       window = (as.integer(my.win) + 1),
+#                                       window = (as.integer(my.win) + 1),
+                                       window = (as.integer(my.win)),
                                        plot = FALSE,y.max=400, alpha=my.fdr,alt=FALSE)
     if (length(sig.fragments)>0){
       stack.df <- filter(df,chr==("chr"%&%chrom),start %in% sig.fragments) %>%
