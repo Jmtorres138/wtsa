@@ -23,12 +23,11 @@ library("ggplot2")
 
 serv.dir <- "/Users/jtorres/FUSE2/"
 input.dir <- serv.dir %&% "promoter-driven/CisTransNormalized/PromoterDriven_cis_analysis/Cis_Trans_Summaries/"
-work.dir <- serv.dir %&% "promoter-driven/"#"/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/cis_normalized/"
-
-
+work.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/EDA/"
+#work.dir <- "/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/EDA/"
 ```
 
-
+Note: The Counts correspond to Reporter fragment counts 
 
 # Analysis 
 
@@ -96,6 +95,61 @@ print("Fraction: " %&% (bt/et))
 ```
 
 
+# Get mean cis/trans ratios across loci 
+
+
+```{r}
+
+build_ctr_df <- function(){
+  Gene <- c()
+  Sample <- c() 
+  Cell <- c()
+  CTRatio <- c() 
+  pb <- txtProgressBar(min=0,max=length(unique(df$Gene)),style=3)
+  for (i in 1:length(unique(df$Gene))){
+    setTxtProgressBar(pb,i)
+    gene <- unique(df$Gene)[i]
+    for (samp in c("A","B","C")){
+      for (cell in c("Blymph","EndoB")){
+        sub.df <- (filter(df,Sample==samp,Cell==cell,Gene==gene))
+        ctr <- filter(sub.df,Group=="Cis")$Count / filter(sub.df,Group=="Trans")$Count 
+        Gene <- append(Gene,gene);Sample<-append(Sample,samp)
+        Cell<-append(Cell,cell);CTRatio<-append(CTRatio,ctr)
+      }
+    }
+  }
+  out.df <- data.frame(Cell,Sample,Gene,CTRatio,stringsAsFactors = FALSE)
+  return(out.df)
+}
+ctr.df <- build_ctr_df()
+
+plt1B <- ggplot(data=ctr.df, aes(Sample,CTRatio)) + geom_boxplot(aes(fill=Cell,color=Cell),
+                                                             alpha=0.7) + 
+  facet_grid(. ~ Cell) + 
+  scale_y_continuous(name = "Ratio of Cis to Trans unique reporter fragments",
+                     breaks = seq(0,4,0.5),
+                     limits=c(0,4)) + 
+  theme_bw() +
+  scale_fill_manual(values=c("green","#4271AE")) + 
+  scale_color_manual(values=c("green4","#1F3552")) + 
+
+  ggtitle("Boxplot of cis to trans ratios per sample")# + 
+  #geom_jitter(alpha=0.1) 
+
+write.table(df,file=work.dir%&%"cis-trans-summary.txt",sep="\t",quote=FALSE,
+            row.names=FALSE)
+write.table(ctr.df,file=work.dir%&%"cis-trans-ratios.txt",sep="\t",quote=FALSE,
+            row.names=FALSE)
+
+mean(filter(ctr.df,Cell=="EndoB")$CTRatio) # 1.934138
+mean(filter(ctr.df,Cell=="Blymph")$CTRatio) # 1.177443
+1.934138/1.177443 # ~ ct ratio is ~64% higher in Endos 
+```
+
+
+
+
+
 # Per Sample 
 
 ```{r}
@@ -137,8 +191,9 @@ plt3 <- ggplot(data=filter(df,Group=="Trans"), aes(Sample,Count/1000)) + geom_bo
 plt3 
 
 ggsave(plt1,filename=work.dir%&%"cis-trans-boxplot.png",height=5,width=5)
+ggsave(plt1B,filename=work.dir%&%"ct-ratios-boxplot.png",height=5,width=5)
 ggsave(plt2,filename=work.dir%&%"cis-sample-boxplot.png",height=5,width=5)
-ggsave(plt2,filename=work.dir%&%"trans-sample-boxplot.png",height=5,width=5)
+ggsave(plt3,filename=work.dir%&%"trans-sample-boxplot.png",height=5,width=5)
 
 
 print("Totals")
