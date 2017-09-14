@@ -30,7 +30,7 @@ out.dir <- stat.dir %&% "output_files/"
 
 ```{r}
 
-fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-01.txt"
+#fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-01.txt"
 
 eval_plot <- function(fname,FDR=0.01,type="GWAS"){
   df <- fread(fname)
@@ -74,26 +74,34 @@ Evalutate
 
 ```{r}
 
-fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-01.txt"
-plt01A <- eval_plot(fname,FDR=0.01)
-plt01B <- eval_plot(fname,FDR=0.05)
-grid.arrange(arrangeGrob(plt01A,plt01B))
+#fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-01.txt"
+#plt01A <- eval_plot(fname,FDR=0.01)
+#plt01B <- eval_plot(fname,FDR=0.05)
+#grid.arrange(arrangeGrob(plt01A,plt01B))
 
 
-fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-05.txt"
-plt05A <- eval_plot(fname,FDR=0.01)
-plt05B <- eval_plot(fname,FDR=0.05)
-grid.arrange(arrangeGrob(plt05A,plt05B))
+#fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-05.txt"
+#plt05A <- eval_plot(fname,FDR=0.01)
+#plt05B <- eval_plot(fname,FDR=0.05)
+#grid.arrange(arrangeGrob(plt05A,plt05B))
 
-fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-10.txt"
-plt10A <- eval_plot(fname,FDR=0.01)
-plt10B <- eval_plot(fname,FDR=0.05)
-grid.arrange(arrangeGrob(plt10A,plt10B))
+fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-10_full.txt"
+plt10A <- eval_plot(fname,FDR=0.01,type="T2D Credible Sets")
+plt10B <- eval_plot(fname,FDR=0.05,type="T2D Credible Sets")
+plt10C <- eval_plot(fname,FDR=0.20,type="T2D Credible Sets")
+grid.arrange(arrangeGrob(plt10A,plt10B,plt10C))
 
 fname <- out.dir %&% "enrich_peakC-modeled_islet-enhancers.txt"
 pltIA <- eval_plot(fname,FDR=0.01,type="islet enhancer")
 pltIB <- eval_plot(fname,FDR=0.05,type="islet enhancer")
-grid.arrange(arrangeGrob(pltIA,pltIB))
+pltIC <- eval_plot(fname,FDR=0.20,type="islet enhancer")
+grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
+
+fname <- out.dir %&% "enrich_peakC-modeled_engage-fg-1000G.txt"
+pltIA <- eval_plot(fname,FDR=0.01,type="Fasting Glucose GWAS")
+pltIB <- eval_plot(fname,FDR=0.05,type="Fasting Glucose GWAS")
+pltIC <- eval_plot(fname,FDR=0.20,type="Fasting Glucose GWAS")
+grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
 
 ```
 
@@ -101,17 +109,26 @@ grid.arrange(arrangeGrob(pltIA,pltIB))
 
 ```{r}
 
-fname <- out.dir %&% "enrich_peakC-comparative_gwasPPA-10.txt"
+fname <- out.dir %&% "enrich_peakC-comparative_gwasPPA-10_full.txt"
 plt01A <- eval_plot_comp(fname,win=11)
-plt01B <- eval_plot_comp(fname,win=40)
-plt01C <- eval_plot_comp(fname,win=42)
+plt01B <- eval_plot_comp(fname,win=60)
+plt01C <- eval_plot_comp(fname,win=78)
 grid.arrange(arrangeGrob(plt01A,plt01B,plt01C))
 
 fname <- out.dir %&% "enrich_peakC-comparative_islet-enhancers.txt"
 pltIA <- eval_plot_comp(fname,win=11,type="islet enhancer")
-pltIB <- eval_plot_comp(fname,win=40,type="islet enhancer")
-pltIC <- eval_plot_comp(fname,win=42,type="islet enhancer")
+pltIB <- eval_plot_comp(fname,win=60,type="islet enhancer")
+pltIC <- eval_plot_comp(fname,win=78,type="islet enhancer")
+grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
+
+fname <- out.dir %&% "enrich_peakC-comparative_engage-fg-1000G.txt"
+pltIA <- eval_plot_comp(fname,win=11,type="Fasting Glucose GWAS")
+pltIB <- eval_plot_comp(fname,win=60,type="Fasting Glucose GWAS")
+pltIC <- eval_plot_comp(fname,win=78,type="Fasting Glucose GWAS")
 grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
 
 ```
+
+
+Based on visual inspection, FDR 5%, window size = 11 and 60, and abscutoff 10, 140 are worth evaluating 
 
