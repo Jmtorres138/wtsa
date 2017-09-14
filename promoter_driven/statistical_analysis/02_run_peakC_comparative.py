@@ -15,8 +15,8 @@ ref_dir = "/t1-data/user/hugheslab/jtorres/analysis/wtsa/promoter_driven/referen
 #gwas_bed = ref_dir + "genetic_credible-sets_independent_ppa10.bed" # "Islets_Active_enhancers.chromatinStates.bed" #
 #write_file = out_dir +  "enrich_peakC-comparative_gwasPPA-10.txt" # "enrich_peakC-comparative_islet-enhancers.txt"
 
-gwas_bed = ref_dir + "Islets_Active_enhancers.chromatinStates.bed" #
-write_file = out_dir +  "enrich_peakC-comparative_islet-enhancers.txt"
+gwas_bed = ref_dir + "genetic_credible-sets_independent_ppa10.bed" #"ENGAGE_FG_1000G_Bonferroni.bed" #"Islets_Active_enhancers.chromatinStates.bed" #
+write_file = out_dir + "enrich_peakC-comparative_gwasPPA-10_full.txt" #"enrich_peakC-comparative_engage-fg-1000G.txt" #"enrich_peakC-comparative_islet-enhancers.txt" #
 
 
 def run_job(win, cutoff):
@@ -75,8 +75,8 @@ module add bedtools
 
 
 def main():
-	for c in range(10,1001,10): #cutoff_list:
-		for w in [11,42,40]:
+	for c in range(10,501,10): #cutoff_list:
+		for w in [11,60,78]:
 			run_job(w,c)
 
 if (__name__=="__main__"): main()
