@@ -23,7 +23,7 @@ library("GenomicRanges")
 serv.dir <- "/Users/jtorres/FUSE2/" # FUSE
 stat.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/statistical_analysis/" #"projects/wtsa/promoter_driven/statistical_analysis/"
 ref.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/reference_files/" # "projects/wtsa/promoter_driven/reference_files/"
-
+plot.dir <- "/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/statistical_analysis/plots/"
 
 
 ```
@@ -31,8 +31,9 @@ ref.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/reference_files/" # "proj
 
 ```{r}
 
+
 #/Users/jtorres/FUSE2/analysis/wtsa/promoter_driven/statistical_analysis/enrichment-testsV3.txt
-df <- fread(stat.dir %&% "enrichment-testsV3.txt")
+df <- fread(stat.dir %&% "enrichment-tests.txt")
 names(df)[1:2] <- c("test","feature")
 
 
@@ -60,7 +61,7 @@ enrich_plot <- function(testname="peakC-modeled_fdr0.05_win42"){
                           name="Count") +
     ylab("-log10(P-value)") + xlab("Feature") + theme_bw() +
     scale_y_continuous(limits=c(0,4),breaks=seq(0,4,1)) +
-    theme(axis.text.x=element_text(angle=0),
+    theme(axis.text.x=element_text(angle=90),
           panel.grid.minor=element_blank()) + ggtitle(testname) +
     geom_hline(yintercept=-log(0.05,base=10),linetype=2)
   plt
@@ -69,9 +70,15 @@ enrich_plot <- function(testname="peakC-modeled_fdr0.05_win42"){
 
 
 plt1 <- enrich_plot("peakC-modeled_fdr0.05_win11")
-plt2 <- enrich_plot("peakC-modeled_fdr0.05_win42")
-plt3 <- enrich_plot("peakC-comparative_abscutoff-170_win11")
-plt4 <- enrich_plot("peakC-comparative_abscutoff-170_win42")
+plt2 <- enrich_plot("peakC-modeled_fdr0.05_win60") #
+plt3 <- enrich_plot("peakC-comparative_abscutoff-140_win11") #
+plt4 <- enrich_plot("peakC-comparative_abscutoff-140_win60")
+plt5 <- enrich_plot("peakC-comparative_abscutoff-10_win11")
+plt6 <- enrich_plot("peakC-comparative_abscutoff-10_win60")
+
+ggsave(plt2,filename=plot.dir %&% "plot-enrich_win60_fdr05.png",height=5,width=8)
+ggsave(plt3,filename=plot.dir %&% "plot-enrich_win11_abscutoff140.png",height=5,width=8)
+
 
 grid.arrange(plt1,plt2,plt3,plt4,nrow=4)
 

@@ -26,7 +26,7 @@ stat.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/statistical_analysis/"
 ref.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/reference_files/"
 out.dir <- stat.dir %&% "output_files/"
 res.dir <- serv.dir %&% "promoter-driven/Stat_Package_CB4/Processed_gfc/R_files/"
-
+eda.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/EDA/"
 
 ```
 
@@ -143,6 +143,7 @@ build_sensitivity_summary <- function(){
   out.df <- c() 
   pb <- txtProgressBar(min=0,max=dim(eqtl.df)[1],style=3)
   for (i in 1:dim(eqtl.df)[1]){
+    #print(i) 
     setTxtProgressBar(pb,i)
     sub.df <- eqtl.df[i,]
     e.gr <- GRanges(seqnames=sub.df$V1,
@@ -154,9 +155,11 @@ build_sensitivity_summary <- function(){
     df2$deseq.sig <- (df2$deseq.padj > -log(0.05,base=exp(1)))
     df <- inner_join(df1,df2,by="id")
     df$peakCmod.win11.fdr05 <- get_peakC_mod(e.gr,11,0.05)
-    df$peakCmod.win42.fdr05 <- get_peakC_mod(e.gr,42,0.05)
-    df$peakCcomp.win11.cutoff170 <- get_peakC_comp(e.gr,11,170)
-    df$peakCcomp.win42.cutoff170 <- get_peakC_comp(e.gr,42,170)
+    df$peakCmod.win60.fdr05 <- get_peakC_mod(e.gr,60,0.05)
+    df$peakCcomp.win11.cutoff140 <- any(get_peakC_comp(e.gr,11,140)==TRUE)
+    df$peakCcomp.win60.cutoff140 <- any(get_peakC_comp(e.gr,60,140)==TRUE)
+    df$peakCcomp.win11.cutoff10 <- any(get_peakC_comp(e.gr,11,10)==TRUE)
+    df$peakCcomp.win60.cutoff10 <- any(get_peakC_comp(e.gr,60,10)==TRUE)
     names(sub.df) <- c("chrom","pos0","pos","eqtl")
     df <- cbind(select(sub.df,one_of("chrom","pos","eqtl")),df)
     names(df)[grepl("id",names(df))] <- "frag.id"
@@ -167,7 +170,7 @@ build_sensitivity_summary <- function(){
 
 sens.df <- build_sensitivity_summary()
 
-write.table(x=sens.df,file=stat.dir %&% "sensitivity-table.txt",
+write.table(x=sens.df,file=stat.dir %&% "sensitivity-table-updated.txt",
             sep="\t",row.names=FALSE,quote=FALSE)
 
 
@@ -175,7 +178,9 @@ get_sensitivity_significant <- function(sens.df){
   sig.vec <- c()
   for (i in 1:dim(sens.df)[1]){
     print(i)
-    sig.vec <- append(sig.vec,any(sens.df[i,13:16]==TRUE))
+    sig.vec <- append(sig.vec,any(sens.df[i,13:18]==TRUE))
+    #sig.vec <- append(sig.vec,any(sens.df[i,13:16]==TRUE))
+
   }
   sens <- dim(sens.df[sig.vec,])[1] / dim(sens.df)[1] # sensitivity 36%   
   print("Sensitivity: " %&% round(sens,3))
@@ -184,14 +189,16 @@ get_sensitivity_significant <- function(sens.df){
                                 "frag.id","conD_mean","conT_mean",
                                 "DIF_conD_minus_conT_mean",
                                 "deseq.sig","peakCmod.win11.fdr05",
-                                "peakCmod.win42.fdr05",
-                                "peakCcomp.win11.cutoff170",
-                                "peakCcomp.win42.cutoff170"))
+                                "peakCmod.win60.fdr05",
+                                "peakCcomp.win11.cutoff140",
+                                "peakCcomp.win60.cutoff140",
+                                "peakCcomp.win11.cutoff10",
+                                "peakCcomp.win60.cutoff10"))
   return(sens.sig.df)
 }
 
 sens.sig.df <- get_sensitivity_significant(sens.df)
-write.table(x=sens.sig.df,file=stat.dir %&% "sensitivity-sig-table.txt",
+write.table(x=sens.sig.df,file=stat.dir %&% "sensitivity-sig-table-updated.txt",
             sep="\t",row.names=FALSE,quote=FALSE)
 ```
 
@@ -233,7 +240,7 @@ build_sensitivity_summary_ld <- function(my.fdr=0.05){
   out.df <- c() 
   pb <- txtProgressBar(min=0,max=dim(eqtl.df)[1],style=3)
   for (i in 1:dim(eqtl.df)[1]){
-    #print(i)
+    print(i)
     setTxtProgressBar(pb,i)
     sub.df <- eqtl.df[i,]
     eqtl.name <- sub.df$V4
@@ -251,7 +258,7 @@ build_sensitivity_summary_ld <- function(my.fdr=0.05){
     df2$deseq.sig <- (df2$deseq.padj > -log(0.05,base=exp(1)))
     df <- inner_join(df1,df2,by="id")
 
-    df$peakCmod.win11.fdr05 <- sapply(1:dim(df)[1],
+    df$peakCmod.win11.fdr05 <- sapply(sapply(1:dim(df)[1],
                                       function(i) {
                                         temp <- df$id[i]
                                         c <- strsplit(temp,":")[[1]][1]
@@ -259,8 +266,8 @@ build_sensitivity_summary_ld <- function(my.fdr=0.05){
                                         e <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][2])
                                         temp.gr <- GRanges(seqnames=c,IRanges(s,e))
                                         temp.e.gr <- e.gr[e.gr%over%temp.gr]
-                                        get_peakC_mod(temp.e.gr,11,my.fdr)}) 
-    df$peakCmod.win42.fdr05 <- sapply(1:dim(df)[1],
+                                        get_peakC_mod(temp.e.gr,11,my.fdr)}),function(l){any(l)==TRUE})
+    df$peakCmod.win60.fdr05 <- sapply(sapply(1:dim(df)[1],
                                       function(i) {
                                         temp <- df$id[i]
                                         c <- strsplit(temp,":")[[1]][1]
@@ -268,8 +275,8 @@ build_sensitivity_summary_ld <- function(my.fdr=0.05){
                                         e <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][2])
                                         temp.gr <- GRanges(seqnames=c,IRanges(s,e))
                                         temp.e.gr <- e.gr[e.gr%over%temp.gr]
-                                        get_peakC_mod(temp.e.gr,42,my.fdr)})
-    df$peakCcomp.win11.cutoff170 <- sapply(1:dim(df)[1],
+                                        get_peakC_mod(temp.e.gr,60,my.fdr)}),function(l){any(l)==TRUE})
+    df$peakCcomp.win11.cutoff140 <- sapply(sapply(1:dim(df)[1],
                                       function(i) {
                                         temp <- df$id[i]
                                         c <- strsplit(temp,":")[[1]][1]
@@ -277,8 +284,8 @@ build_sensitivity_summary_ld <- function(my.fdr=0.05){
                                         e <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][2])
                                         temp.gr <- GRanges(seqnames=c,IRanges(s,e))
                                         temp.e.gr <- e.gr[e.gr%over%temp.gr]
-                                        get_peakC_comp(temp.e.gr,11,170)})
-    df$peakCcomp.win42.cutoff170 <- sapply(1:dim(df)[1],
+                                        get_peakC_comp(temp.e.gr,11,140)}),function(l){any(l)==TRUE})
+    df$peakCcomp.win60.cutoff140 <- sapply(sapply(1:dim(df)[1],
                                       function(i) {
                                         temp <- df$id[i]
                                         c <- strsplit(temp,":")[[1]][1]
@@ -286,7 +293,25 @@ build_sensitivity_summary_ld <- function(my.fdr=0.05){
                                         e <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][2])
                                         temp.gr <- GRanges(seqnames=c,IRanges(s,e))
                                         temp.e.gr <- e.gr[e.gr%over%temp.gr]
-                                        get_peakC_comp(temp.e.gr,42,170)})
+                                        get_peakC_comp(temp.e.gr,60,140)}),function(l){any(l)==TRUE})
+    df$peakCcomp.win11.cutoff10 <- sapply(sapply(1:dim(df)[1],
+                                      function(i) {
+                                        temp <- df$id[i]
+                                        c <- strsplit(temp,":")[[1]][1]
+                                        s <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][1])
+                                        e <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][2])
+                                        temp.gr <- GRanges(seqnames=c,IRanges(s,e))
+                                        temp.e.gr <- e.gr[e.gr%over%temp.gr]
+                                        get_peakC_comp(temp.e.gr,11,10)}),function(l){any(l)==TRUE})
+    df$peakCcomp.win60.cutoff10 <- sapply(sapply(1:dim(df)[1],
+                                      function(i) {
+                                        temp <- df$id[i]
+                                        c <- strsplit(temp,":")[[1]][1]
+                                        s <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][1])
+                                        e <- as.integer(strsplit(strsplit(temp,":")[[1]][2],"-")[[1]][2])
+                                        temp.gr <- GRanges(seqnames=c,IRanges(s,e))
+                                        temp.e.gr <- e.gr[e.gr%over%temp.gr]
+                                        get_peakC_comp(temp.e.gr,60,10)}),function(l){any(l)==TRUE})[1:dim(df)[1]]
     sub.df <- data.frame(V1=rep(sub.df$V1,dim(df)[1]),
                          V2=rep(sub.df$V2,dim(df)[1]),
                          V3=rep(sub.df$V3,dim(df)[1]),
@@ -298,9 +323,9 @@ build_sensitivity_summary_ld <- function(my.fdr=0.05){
     out.df <- rbind(out.df,df)
   }
   if (my.fdr==0.10){
-    names(out.df)[grepl("fdr05",names(out.df))] <- c("peakCmod.win11.fdr10","peakCmod.win42.fdr10")
+    names(out.df)[grepl("fdr05",names(out.df))] <- c("peakCmod.win11.fdr10","peakCmod.win60.fdr10")
   } else if (my.fdr==0.20){
-    names(out.df)[grepl("fdr05",names(out.df))] <- c("peakCmod.win11.fdr20","peakCmod.win42.fdr20")
+    names(out.df)[grepl("fdr05",names(out.df))] <- c("peakCmod.win11.fdr20","peakCmod.win60.fdr20")
   } else{
     print("FDR is at 0.05")
   }
@@ -314,7 +339,9 @@ get_sensitivity_significant_ld <- function(sens.ld.df,my.fdr=0.05){
   sig.vec <- c()
   for (i in 1:dim(sens.ld.df)[1]){
     print(i)
+    #sig.vec <- append(sig.vec,any(na.omit(sens.ld.df[i,13:18])==TRUE))
     sig.vec <- append(sig.vec,any(na.omit(sens.ld.df[i,13:16])==TRUE))
+
   }
   sens.sig.df <- sens.ld.df[sig.vec,]
   sigsens <- length(unique(sens.sig.df$eqtl)) / length(unique(sens.ld.df$eqtl))
@@ -324,9 +351,11 @@ get_sensitivity_significant_ld <- function(sens.ld.df,my.fdr=0.05){
                                 "frag.id","conD_mean","conT_mean",
                                 "DIF_conD_minus_conT_mean",
                                 "deseq.sig","peakCmod.win11.fdr"%&%fdrname,
-                                "peakCmod.win42.fdr"%&%fdrname,
-                                "peakCcomp.win11.cutoff170",
-                                "peakCcomp.win42.cutoff170"))
+                                "peakCmod.win60.fdr"%&%fdrname,
+                                "peakCcomp.win11.cutoff140",
+                                "peakCcomp.win60.cutoff140",
+                               "peakCcomp.win11.cutoff10",
+                                "peakCcomp.win60.cutoff10"))
   return(sens.sig.df)
 }
 
@@ -349,7 +378,110 @@ length(unique(sensLD05.sig.df$eqtl))/length(unique(sensLD05.df$eqtl)) # 0.50 sen
 length(unique(sensLD10.sig.df$eqtl))/length(unique(sensLD10.df$eqtl)) # 0.50 sensitivity 
 length(unique(sensLD20.sig.df$eqtl))/length(unique(sensLD20.df$eqtl)) # 0.50 sensitivity 
 
+
+
 ```
+
+
+# Sensitivity range 
+
+
+```{r}
+
+w11.fdr05 <- sum(sens.df$peakCmod.win11.fdr05)/dim(sens.df)[1] # 0.09090909
+w60.fdr05 <- sum(sens.df$peakCmod.win60.fdr05)/dim(sens.df)[1] # 0.1363636
+w11.c140 <- sum(sens.df$peakCcomp.win11.cutoff140)/dim(sens.df)[1] # 0.2272727
+w60.c140 <- sum(sens.df$peakCcomp.win60.cutoff140)/dim(sens.df)[1] # 0.2727273
+w11.c10 <- sum(sens.df$peakCcomp.win11.cutoff10)/dim(sens.df)[1] # 0.3636364
+w60.c10 <- sum(sens.df$peakCcomp.win60.cutoff10)/dim(sens.df)[1] # 0.4545455
+
+# Combined without cutoff 10: 0.409
+# Combined without cutoff 10: 0.545 
+
+get_sens_ld <- function(name){ 
+  neqtls <- length(unique(sensLD05.df$eqtl))
+  log.vec <- c() 
+  for (e in unique(sensLD05.df$eqtl)){
+    #print(e)
+    log <- any((filter(sensLD05.df,eqtl==e) %>% select(one_of(name)))==TRUE)
+    log.vec <- append(log.vec,log)
+  }
+  sens <- sum(log.vec) / neqtls
+  print("Sensitivity for " %&% name %&% " : " %&% sens)
+}
+
+get_sens_ld("peakCmod.win11.fdr05") # 0.136363636363636
+get_sens_ld("peakCmod.win60.fdr05") # 0.181818181818182
+get_sens_ld("peakCcomp.win11.cutoff140") # 0.272727272727273
+get_sens_ld("peakCcomp.win60.cutoff140") # 0.272727272727273
+get_sens_ld("peakCcomp.win11.cutoff10") # 0.636363636363636
+get_sens_ld("peakCcomp.win60.cutoff10") # 0.727272727272727
+
+# Combined without cutoff 10: 0.5
+# Combined without cutoff 10: 0.818 
+
+remain <- unique(sens.df$eqtl)[!(unique(sens.df$eqtl) %in% unique(sensLD05.sig.df$eqtl))]
+#"rs10231021_DGKB"  "rs17168486_DGKB"  "rs7903146_TCF7L2" "rs8042275_LARP6" 
+
+
+```
+
+
+
+# Gene Count analysis 
+
+```{r}
+
+ct.df <- fread(eda.dir %&% "cis-trans-summary.txt")
+
+#Exclude cutoff 10 results 
+
+eqtl.vec <- unique(sens.df$eqtl)
+gene.vec <- sapply(i:length(eqtl.vec),function(i){
+  eqtl <- eqtl.vec[i]
+  s <- strsplit(eqtl,split="_")[[1]]
+  s[length(s)]
+}) 
+
+#eqtl.sig.vec <-  c("rs11257658_CAMK1D","rs59153558_HMG20A", "rs3807042_KCNK17","rs113748381_POLR2A","rs2933243_RDH5",
+#               "rs2146105_WARS","rs2910686_ERAP2","rs28642213_GPSM1","rs28679497_DNLZ",
+ #              "rs61386106_CARD9","rs4736819_NKX6-3")
+
+eqtl.sig.vec <- unique(filter(sensLD05.sig.df,peakCmod.win11.fdr05==TRUE | peakCmod.win60.fdr05==TRUE)$eqtl)
+gene.sig.vec <- sapply(i:length(eqtl.sig.vec),function(i){
+  eqtl <- eqtl.sig.vec[i]
+  s <- strsplit(eqtl,split="_")[[1]]
+  s[length(s)]
+})
+
+gene.nosig.vec <- gene.vec[!(gene.vec %in% gene.sig.vec)]
+
+sub.df <- filter(ct.df,Gene %in% c(gene.sig.vec,gene.nosig.vec))
+
+sub.df$Sig <- sub.df$Gene %in% gene.sig.vec
+
+ggplot(data=filter(sub.df,Cell=="EndoB"),aes(x=Sig,y=Count)) + geom_boxplot() +
+  theme_bw() + geom_jitter(shape=21,aes(fill=Sample),alpha=0.2) + 
+    scale_y_continuous(name = "Number of unique reporter fragments",
+                     breaks = seq(0,70000,5000),
+                     limits=c(0,70000)) + xlab("eQTLs overlap significant interactions (Modeled)")
+
+t.test(filter(sub.df,Cell=="EndoB",Sig==TRUE)$Count,filter(sub.df,Cell=="EndoB",Sig==FALSE)$Count) # p-value = 0.146
+
+#	Welch Two Sample t-test
+
+#data:  filter(sub.df, Cell == "EndoB", Sig == TRUE)$Count and filter(sub.df, Cell == "EndoB", Sig == FALSE)$Count
+#t = 1.478, df = 47.378, p-value = 0.146
+#alternative hypothesis: true difference in means is not equal to 0
+#95 percent confidence interval:
+# -1309.637  8567.683
+#sample estimates:
+#mean of x mean of y 
+# 20165.37  16536.34 
+
+```
+
+
 
 
 #Additional analyses 
