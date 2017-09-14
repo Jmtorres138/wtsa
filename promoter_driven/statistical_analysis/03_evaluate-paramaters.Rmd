@@ -74,6 +74,8 @@ Evalutate
 
 ```{r}
 
+plot.dir <- "/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/statistical_analysis/plots/"
+
 #fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-01.txt"
 #plt01A <- eval_plot(fname,FDR=0.01)
 #plt01B <- eval_plot(fname,FDR=0.05)
@@ -89,19 +91,22 @@ fname <- out.dir %&% "enrich_peakC-modeled_gwasPPA-10_full.txt"
 plt10A <- eval_plot(fname,FDR=0.01,type="T2D Credible Sets")
 plt10B <- eval_plot(fname,FDR=0.05,type="T2D Credible Sets")
 plt10C <- eval_plot(fname,FDR=0.20,type="T2D Credible Sets")
-grid.arrange(arrangeGrob(plt10A,plt10B,plt10C))
+plt <- grid.arrange(arrangeGrob(plt10A,plt10B,plt10C))
+ggsave(plt,filename=plot.dir%&%"optim_peakC-modeled_gwasPPA-10_full.png",height=10,width=8)
 
 fname <- out.dir %&% "enrich_peakC-modeled_islet-enhancers.txt"
 pltIA <- eval_plot(fname,FDR=0.01,type="islet enhancer")
 pltIB <- eval_plot(fname,FDR=0.05,type="islet enhancer")
 pltIC <- eval_plot(fname,FDR=0.20,type="islet enhancer")
-grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
+plt <- grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
+ggsave(plt,filename=plot.dir%&%"optim_peakC-modeled_islet-enhancers.png",height=10,width=8)
 
 fname <- out.dir %&% "enrich_peakC-modeled_engage-fg-1000G.txt"
 pltIA <- eval_plot(fname,FDR=0.01,type="Fasting Glucose GWAS")
 pltIB <- eval_plot(fname,FDR=0.05,type="Fasting Glucose GWAS")
 pltIC <- eval_plot(fname,FDR=0.20,type="Fasting Glucose GWAS")
-grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
+plt <- grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
+ggsave(plt,filename=plot.dir%&%"optim_peakC-modeled_engage-fg-1000G.png",height=10,width=8)
 
 ```
 
@@ -113,19 +118,23 @@ fname <- out.dir %&% "enrich_peakC-comparative_gwasPPA-10_full.txt"
 plt01A <- eval_plot_comp(fname,win=11)
 plt01B <- eval_plot_comp(fname,win=60)
 plt01C <- eval_plot_comp(fname,win=78)
-grid.arrange(arrangeGrob(plt01A,plt01B,plt01C))
+plt <- grid.arrange(arrangeGrob(plt01A,plt01B,plt01C))
+ggsave(plt,filename=plot.dir%&%"optim_peakC-comparative_gwasPPA-10_full.png",height=10,width=8)
 
 fname <- out.dir %&% "enrich_peakC-comparative_islet-enhancers.txt"
 pltIA <- eval_plot_comp(fname,win=11,type="islet enhancer")
 pltIB <- eval_plot_comp(fname,win=60,type="islet enhancer")
 pltIC <- eval_plot_comp(fname,win=78,type="islet enhancer")
-grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
+plt <- grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
+ggsave(plt,filename=plot.dir%&%"optim_peakC-comparative_islet-enhancers.png",height=10,width=8)
 
 fname <- out.dir %&% "enrich_peakC-comparative_engage-fg-1000G.txt"
 pltIA <- eval_plot_comp(fname,win=11,type="Fasting Glucose GWAS")
 pltIB <- eval_plot_comp(fname,win=60,type="Fasting Glucose GWAS")
 pltIC <- eval_plot_comp(fname,win=78,type="Fasting Glucose GWAS")
-grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
+plt <- grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
+ggsave(plt,filename=plot.dir%&%"optim_peakC-comparative_engage-fg-1000G.png",height=10,width=8)
+
 
 ```
 
