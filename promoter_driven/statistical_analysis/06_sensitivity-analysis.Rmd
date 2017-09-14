@@ -177,7 +177,7 @@ get_sensitivity_significant <- function(sens.df){
     print(i)
     sig.vec <- append(sig.vec,any(sens.df[i,13:16]==TRUE))
   }
-  sens <- dim(sens.df[vec,])[1] / dim(sens.df)[1] # sensitivity 36%   
+  sens <- dim(sens.df[sig.vec,])[1] / dim(sens.df)[1] # sensitivity 36%   
   print("Sensitivity: " %&% round(sens,3))
   sens.sig.df <- select(sens.df[sig.vec,],
                         one_of("chrom","pos","eqtl",
@@ -345,10 +345,16 @@ sensLD20.sig.df <- get_sensitivity_significant_ld(sensLD20.df,my.fdr=0.20)
 write.table(x=sensLD20.sig.df,file=stat.dir %&% "sensitivity-sig-table_LD_FDR20-proxies.txt",
             sep="\t",row.names=FALSE,quote=FALSE)
 
+length(unique(sensLD05.sig.df$eqtl))/length(unique(sensLD05.df$eqtl)) # 0.50 sensitivity 
+length(unique(sensLD10.sig.df$eqtl))/length(unique(sensLD10.df$eqtl)) # 0.50 sensitivity 
+length(unique(sensLD20.sig.df$eqtl))/length(unique(sensLD20.df$eqtl)) # 0.50 sensitivity 
+
 ```
 
 
 #Additional analyses 
+
+Genotype quick check 
 
 ```{r}
 
