@@ -21,6 +21,8 @@ genome_file = ref_dir + "hg19.chrom.sizes"
 # ENGAGE_FG_1000G.bed
 # ENGAGE_FIadjBMI1000G.bed
 
+
+
 def get_intersect(gwas_bed,capc_bed,temp_name):
 	command = ["bedtools", "intersect", "-wa","-a",gwas_bed,"-b",capc_bed,"|","uniq",">",out_dir+"inter.temp."+temp_name+".bed"]
 	sp.check_call(" ".join(command),shell=True)
@@ -65,13 +67,19 @@ def enrich(fname,gwas_bed):
 	return [observed,numpy.mean(iter_list), observed/numpy.mean(iter_list), pval]
 
 def main():
-	file_list = ["peakC-modeled_fdr0.05_win11.txt","peakC-modeled_fdr0.05_win42.txt","peakC-comparative_abscutoff-170_win11.txt","peakC-comparative_abscutoff-170_win42.txt"]
-	afile_list = ["islet.TFs.incl_chr.bed", "FOXA2.bed","NKX2.2.bed","NKX6.1.bed","MAFB.bed","PDX1.bed","ENGAGE_FG_1000G.bed","ENGAGE_FIadjBMI1000G.bed"]
+	#Based on visual inspection, FDR 5%, window size = 11 and 60, and abscutoff 10, 140 are worth evaluating
+	file_list = ["peakC-modeled_fdr0.05_win11.txt","peakC-modeled_fdr0.05_win60.txt",
+	"peakC-comparative_abscutoff-140_win11.txt","peakC-comparative_abscutoff-140_win60.txt",
+	"peakC-comparative_abscutoff-10_win11.txt","peakC-comparative_abscutoff-10_win60.txt"]
+	afile_list = ["islet.TFs.incl_chr.bed", "FOXA2.bed","NKX2.2.bed","NKX6.1.bed","MAFB.bed",
+	"PDX1.bed","ENGAGE_FG_1000G.bed","ENGAGE_FIadjBMI1000G.bed","Islets_Active_enhancers.chromatinStates.bed",
+	"Liver_Active_enhancers.chromatinStates.bed","Adipose_Active_enhancers.chromatinStates.bed",
+	"SkeletalMuscle_Active_enhancers.chromatinStates.bed"]
 	gwas_list = os.listdir(ref_dir+"gwas_beds/")
 	gwas_list = [x for x in gwas_list if "diabetes" in x]
 	afile_list =  gwas_list + afile_list
 	print afile_list
-	out_file = stat_dir + "enrichment-testsV3.txt"
+	out_file = stat_dir + "enrichment-tests.txt"
 	fout = open(out_file,'w')
 	fout.write("\t".join(["test","feature","observed.count","null.mean","enrich.factor","p.val"])+"\n")
 	for f in file_list:
