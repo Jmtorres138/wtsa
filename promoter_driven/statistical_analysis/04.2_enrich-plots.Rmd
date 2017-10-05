@@ -19,6 +19,7 @@ library("data.table")
 library("ggplot2")
 library("gridExtra")
 library("GenomicRanges")
+library("tidyverse")
 
 serv.dir <- "/Users/jtorres/FUSE2/" # FUSE
 stat.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/statistical_analysis/" #"projects/wtsa/promoter_driven/statistical_analysis/"
@@ -32,25 +33,41 @@ plot.dir <- "/Users/jtorres/Google Drive/Science/Projects/wtsa/promoter_driven/s
 ```{r}
 
 #/Users/jtorres/FUSE2/analysis/wtsa/promoter_driven/statistical_analysis/enrichment-testsV3.txt 
-df <- fread(stat.dir %&% "enrichment-tests.txt")
+df1 <- fread(stat.dir %&% "enrichment-tests.txt")
+df2 <- fread(stat.dir %&% "enrichment-tests_additional.txt")
+df <- bind_rows(df1,df2)
 names(df)[1:2] <- c("test","feature")
 
+tf.df <- filter(df,feature%in%c("islet.TFs.incl_chr","FOXA2","NKX2.2",
+                                "NKX6.1","MAFB","PDX1"))
+tf.df$feature <- map(tf.df$feature,function(i){
+  gsub("islet.TFs.incl_chr","All TFs",i)}) %>% as.character(.) %>% as.factor(.)
+tf.df$feature <- factor(tf.df$feature,
+                        levels=c("FOXA2","MAFB","NKX2.2","NKX6.1",
+                                 "PDX1","All TFs"))
 
-enrich_plot_v1 <- function(testname="peakC-modeled_fdr0.05_win42",plotname="test"){
-  plt <- ggplot(data=filter(df,test==testname),
-                  aes(x=feature,y=enrich.factor)) + 
-    geom_point(color="black",size=3, shape=21, 
-             aes(fill=-log(p.val,base=10))) +
-    scale_fill_continuous(low="dodgerblue4",
-                          high="firebrick2",
-                          name="-log10(P-value)") + 
-    ylab("Enrichment Factor") + xlab("Feature") + theme_bw() + 
-    scale_y_continuous(limits=c(0,30),breaks=seq(0,30,2)) + 
-    theme(axis.text.x=element_text(angle=0)) + ggtitle(plotname)
-  plt
-}
-  
-enrich_plot <- function(testname="peakC-modeled_fdr0.05_win42"){
+enhan.df <- filter(df,feature%in%c("islet_specific_strong_enhancer",
+                                    "adipose_specific_strong_enhancer",
+                                    "muscle_specific_strong_enhancer",
+                                    "liver_specific_strong_enhancer",
+                                    "islet_shared_strong_enhancer",
+                                    "irpt_shared_strong_enhancer"))
+enhan.df$feature <- map(enhan.df$feature,function(i){
+  s1 <- gsub("_strong_enhancer","",i) 
+  gsub("_"," ",s1)}) %>% as.character(.) %>% as.factor(.)
+
+enhan.df$feature <- factor(enhan.df$feature,
+                           levels=c("islet specific","adipose specific","muscle specific",
+                              "liver specific","islet shared","irpt shared"))
+
+misc.df <- filter(df,feature%in%c("ENGAGE_FG_1000G","ENGAGE_FIadjBMI1000G",
+                                  "Type_1_diabetes","Type_2_diabetes","eqtl-index"))
+misc.df$feature <- map(misc.df$feature,function(i){
+  s1 <- gsub("ENGAGE_FG_1000G","Fasting glucose",i) 
+  s2 <- gsub("ENGAGE_FIadjBMI1000G","Fasting insulin",s1) 
+  s3 <- gsub("_"," ",s2)}) %>% as.character(.) %>% as.factor(.)
+
+enrich_plot <- function(testname="peakC-modeled_fdr0.05_win42",df){
   plt <- ggplot(data=filter(df,test==testname),
                   aes(x=feature,y=-log(p.val,base=10))) + 
     geom_point(color="black",size=3, shape=21, 
@@ -66,20 +83,62 @@ enrich_plot <- function(testname="peakC-modeled_fdr0.05_win42"){
   plt
 }
   
+```
 
 
-plt1 <- enrich_plot("peakC-modeled_fdr0.05_win11")
-plt2 <- enrich_plot("peakC-modeled_fdr0.05_win60") # 
-plt3 <- enrich_plot("peakC-comparative_abscutoff-140_win11") #
-plt4 <- enrich_plot("peakC-comparative_abscutoff-140_win60") 
-plt5 <- enrich_plot("peakC-comparative_abscutoff-10_win11")
-plt6 <- enrich_plot("peakC-comparative_abscutoff-10_win60")
+Save plots 
 
-ggsave(plt2,filename=plot.dir %&% "plot-enrich_win60_fdr05.png",height=5,width=8)
-ggsave(plt3,filename=plot.dir %&% "plot-enrich_win11_abscutoff140.png",height=5,width=8)
+```{r}
+
+plt1A <- enrich_plot("peakC-modeled_fdr0.05_win11",df=tf.df)
+plt1B <- enrich_plot("peakC-modeled_fdr0.05_win11",df=enhan.df)
+plt1C <- enrich_plot("peakC-modeled_fdr0.05_win11",df=misc.df)
+plt1 <- grid.arrange(plt1A,plt1B,plt1C,nrow=1)
 
 
-grid.arrange(plt1,plt2,plt3,plt4,nrow=4)
+plt2A <- enrich_plot("peakC-modeled_fdr0.05_win60",df=tf.df)
+plt2B <- enrich_plot("peakC-modeled_fdr0.05_win60",df=enhan.df)
+plt2C <- enrich_plot("peakC-modeled_fdr0.05_win60",df=misc.df)
+plt2 <- grid.arrange(plt2A,plt2B,plt2C,nrow=1)
+
+
+plt3A <- enrich_plot("peakC-comparative_abscutoff-140_win11",
+                     df=tf.df)
+plt3B <- enrich_plot("peakC-comparative_abscutoff-140_win11",
+                     df=enhan.df)
+plt3C <- enrich_plot("peakC-comparative_abscutoff-140_win11",
+                     df=misc.df)
+plt3 <- grid.arrange(plt3A,plt3B,plt3C,nrow=1)
+
+plt4A <- enrich_plot("peakC-comparative_abscutoff-140_win60",
+                     df=tf.df)
+plt4B <- enrich_plot("peakC-comparative_abscutoff-140_win60",
+                     df=enhan.df)
+plt4C <- enrich_plot("peakC-comparative_abscutoff-140_win60",
+                     df=misc.df)
+plt4 <- grid.arrange(plt4A,plt4B,plt4C,nrow=1)
+
+plt5A <- enrich_plot("peakC-comparative_abscutoff-10_win11",
+                     df=tf.df)
+plt5B <- enrich_plot("peakC-comparative_abscutoff-10_win11",
+                     df=enhan.df)
+plt5C <- enrich_plot("peakC-comparative_abscutoff-10_win11",
+                     df=misc.df)
+plt5 <- grid.arrange(plt5A,plt5B,plt5C,nrow=1)
+
+plt6A <- enrich_plot("peakC-comparative_abscutoff-10_win60",
+                     df=tf.df)
+plt6B <- enrich_plot("peakC-comparative_abscutoff-10_win60",
+                     df=enhan.df)
+plt6C <- enrich_plot("peakC-comparative_abscutoff-10_win60",
+                     df=misc.df)
+plt6 <- grid.arrange(plt6A,plt6B,plt6C,nrow=1)
+
+ggsave(plt2,filename=plot.dir %&% "plot-enrich_win60_fdr05.png",height=5,width=10)
+ggsave(plt3,filename=plot.dir %&% "plot-enrich_win11_abscutoff140.png",height=5,width=10)
+
+
+#grid.arrange(plt1,plt2,plt3,plt4,nrow=4)
   
 ```
 
