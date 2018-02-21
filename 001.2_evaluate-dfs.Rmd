@@ -1,0 +1,48 @@
+---
+title: "Untitled"
+author: "Jason Torres"
+date: "February 21, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+
+library("data.table")
+library("tidyverse")
+
+rescomp.dir <- "/Users/jtorres/FUSE5/"
+cur.dir <- rescomp.dir %&% "projects/wtsa/enhancer_driven/first_round/evaluate_pipeline_output/"
+endoA.file <- cur.dir %&% "report-Endo_A.txt"
+
+```
+
+
+```{r}
+
+df <- fread(endoA.file) %>% arrange(.,capture.name)
+summary(df$cis.reporters.filtered)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#      2   10280   19510   19500   28950   51780 
+hist(df$cis.reporters.filtered,breaks=20)
+sum(df$cis.reporters.filtered > 30000) # 49
+sum(df$cis.reporters.filtered > 20000) # 103
+sum(df$cis.reporters.filtered < 20000) # 111
+
+filter(df,cis.reporters.filtered>=30000)$capture.name %>% map(.,function(s){
+  strsplit(s,split="__")[[1]][1]
+}) %>% as.character(.) %>% unique(.)
+
+filter(df,cis.reporters.filtered>=30000)$cis.reporters.filtered %>% summary(.)
+
+```
+
+

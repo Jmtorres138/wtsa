@@ -1,0 +1,386 @@
+---
+title: "Cost estimation"
+author: "Jason Torres"
+date: "January 5, 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+suppressMessages(suppressWarnings(library("tidyverse")))
+```
+
+
+
+### Experimental steps/costs include:
+
+  * 3C library prep; ~ 250$\pounds$/sample (Depending on source on restriction enzyme)
+  * 3C library indexing; ~100$\pounds$/sample 
+  * Capture step; ~100$\pounds$/sample
+  * Oligonucleotide probes; ~10$\pounds$ per probe, ideally two paired probes per capture site (i.e. targeted restriction fragment to capture)  
+  
+Experimental cost per biological sample is roughly 250$\pounds$
+
+**Note:** The experimental costs for library prep and indexing for the 3 EndoC-$\beta$H1  and 3 hESC cell lines covers Rounds 1-3
+
+
+### Sequencing requirements for Capture-C 
+
+1 million reads per capture per library 
+
+(Minimum required: 723,000 reads per capture (from Jim's group))
+
+
+HiSeq 4000  
+**Cost:** 2,080.36$\pounds$ per lane  
+**Estimated reads per lane:** 240 million 
+
+Covaris / Tape station (new bioanalyzer (Sonicator) both are WIGWAM 
+PAM coding variants 
+REB1 (coding-T2D/non-coding-FG) 
+
+Discussion (have Damien to help more, he offered to contribute more)
+
+
+# Promoter Round 
+
+
+```{r, echo=FALSE}
+
+#Endo's:	120£
+#Library prep: 1750£
+#probes:	2700£
+#seq:	623£
+#total:	5193£
+
+promoter.round.cost <- 120 + 1750 + 2700 + 623
+
+```
+
+```{r}
+
+print(promoter.round.cost)
+
+```
+
+# First Round 
+
+Enhancer-driven capture targeting loci with one lead variant (DIAMANTE-HRC), 17 loci fine-mapped to a single variant (DIAMANTE-trans-ethnic), and islet eQTLs that co-localize with GWAS associations 
+
+Ordered 311 oligonucleotide probes (mix of paired and single), requiring 190 captures 
+6 samples (3 Endos and 3 hESCs) 
+
+
+
+## Experimental costs 
+
+```{r, echo=FALSE}
+
+first.round.probe.costs = 3110.00 # From invoice from Integrated DNA Technologies (August 2017)
+first.round.exp.costs = 250 * 6 # From Vibe 
+
+```
+
+```{r, echo=FALSE}
+
+print(first.round.probe.costs + first.round.exp.costs)
+
+```
+
+
+## Sequencing costs 
+
+
+
+```{r, echo=FALSE}
+
+#**Note:** NextSeq sequencing was used for low-scale testing of capture 
+
+#**Nextseq cost:** 3,414$\pounds$ 
+
+max.required <- (190 * 6 * 1e6) %>% as.integer(.) # 1,140,000,000 or 1140 million reads 
+minimum.required <-  (190 * 6 * 723000) %>% as.integer(.) # 824,220,000 or ~ 824 million reads
+
+lanes.required = max.required * (1/240000000) # 4.75 
+max.lanes.required = ceiling(lanes.required) # 5 
+
+
+first.round.hiseq.cost = max.lanes.required * 2080.36 # 10,401.8 GBP sequencing cost for first round 
+nextseq.cost = 2706 
+
+```
+
+
+```{r, echo=FALSE}
+
+print(first.round.hiseq.cost + nextseq.cost)
+
+```
+
+
+## Total first round cost:
+
+```{r, echo=FALSE}
+
+first.round.total = first.round.probe.costs + first.round.exp.costs + first.round.hiseq.cost + nextseq.cost 
+print(first.round.total)
+
+```
+
+
+# Second Round 
+
+Enhancer-driven capture targeting loci with allelic heterogeneity (DIAMANTE-HRC) and GWAS loci associated with glycemic traits 
+Estimating **200** required captures 
+
+## Experimental costs 
+
+
+
+```{r, echo=FALSE}
+
+second.round.probe.costs = 4000.00 # approximation (extrapolating from first round probe costs)
+second.round.exp.costs = (100 * 6 ) # capture costs as indexing and library prep already done 
+
+print(second.round.probe.costs + second.round.exp.costs)
+
+```
+
+## Sequencing costs 
+
+```{r, echo=FALSE}
+
+r2.max.required <- (200 * 6 * 1e6) %>% as.integer(.) # 1,200,000,000 or 1,200 million reads 
+r2.lanes.required = r2.max.required * (1/240000000) # 5 
+r2.max.lanes.required = ceiling(r2.lanes.required) # 5 
+second.round.hiseq.cost = r2.max.lanes.required * 2080.36 # 10,401.8 GBP sequencing cost for second round 
+nextseq.cost = 2706 
+
+print(second.round.hiseq.cost + nextseq.cost)
+
+```
+
+
+## Total second round cost: 
+
+```{r, echo=FALSE}
+
+second.round.total = second.round.probe.costs + second.round.exp.costs + second.round.hiseq.cost + nextseq.cost 
+print(second.round.total)
+
+```
+
+
+# Third Round  
+
+The first two captures use DpnII as the restriction enzyme, however, several SNPs don't directly map to DpnII restriction fragments that can be targeted with high quality probes (e.g. CAMK1D eQTL) - due to repetiveness of sequence in fragment 
+Therefore, it is worth using an alternative restriction enzyme, NlaIII (CATG), to target SNPs that can't be captured with high-quality DpnII fragment probes but can be captured with high-quality NlaIII fragment probes 
+
+Estimate that the costs will be roughly half of each of the first two rounds, estimating **100** captures 
+
+## Experimental costs 
+
+```{r, echo=FALSE}
+
+third.round.probe.costs = 2000.00 # approximation (extrapolating from first round probe costs)
+third.round.exp.costs = (100 * 6 ) # capture costs as indexing and library prep already done 
+
+print(third.round.probe.costs + third.round.exp.costs)
+
+```
+
+## Sequencing costs 
+
+```{r, echo=FALSE}
+
+r3.max.required <- (100 * 6 * 1e6) %>% as.integer(.) # 600,000,000 or 600 million reads 
+r3.lanes.required = r3.max.required * (1/240000000) # 2.5
+r3.max.lanes.required = ceiling(r3.lanes.required) # 3
+third.round.hiseq.cost = r3.max.lanes.required * 2080.36 # 6,241.08 GBP sequencing cost for third round 
+nextseq.cost = 2706 
+
+print(third.round.hiseq.cost + nextseq.cost)
+
+```
+
+
+## Total third round cost:
+
+```{r, echo=FALSE}
+
+third.round.total = third.round.probe.costs + third.round.exp.costs + third.round.hiseq.cost + nextseq.cost 
+print(third.round.total)
+
+```
+
+
+
+
+# Islet Capture-C Round  
+
+Based on results from Endo captures (Rounds 1-3), will perform low-input Capture-C protocal to capture selected loci in **4** primary human islet samples 
+Estimating that we'll capture **400** sites 
+
+## Experimental costs 
+
+
+
+```{r, echo=FALSE}
+
+islet.round.probe.costs = 10 * 2 * 400 # approximation (extrapolating from first round probe costs)
+islet.round.exp.costs = (250 * 4 ) # costs include indexing, library prep, and capture
+
+print(islet.round.probe.costs + islet.round.exp.costs)
+
+```
+
+## Sequencing costs 
+
+```{r, echo=FALSE}
+
+isl.max.required <- (400 * 6 * 1e6) #%>% as.integer(.) # 2.4 billion reads
+isl.lanes.required = isl.max.required * (1/240000000) # 10 
+isl.max.lanes.required = ceiling(isl.lanes.required) # 10 
+islet.round.hiseq.cost = isl.max.lanes.required * 2080.36 # 20803.6
+nextseq.cost = 2706 
+
+print(islet.round.hiseq.cost + nextseq.cost)
+
+```
+
+
+## Total islet round cost:
+
+```{r, echo=FALSE}
+
+islet.round.total = islet.round.probe.costs + islet.round.exp.costs + islet.round.hiseq.cost + nextseq.cost 
+print(islet.round.total)
+
+```
+
+
+
+# Hi-C in EndoC-$\beta$H1 cells 
+
+Projecting costs of performing Hi-C experiments in 3 EndoC-$\beta$H1 cells
+
+300 million reads sufficient for 10kb resolution, this of course depends on a number of factors (i.e. complexity of input library)
+Matt in Jim's group finding good results with 500 million reads per sample 
+
+
+## Experimental costs 
+
+```{r, echo=FALSE}
+
+#Hiseq endo cost: 120£
+#new restr enz exp:	120£
+
+endo.cost = 120
+enz.cost = 120 
+
+biotin = 162.11 # Biotin-14-dCTP
+beads = 323.19 # DynaBeads MyOne Streptavidin C1, 2mL, enough for all experiments (10 microliters per cell)
+library.prep = 300 # library prep and indexing costs seem comparable to capture-C 
+
+hic.exp.costs = 3 * library.prep + biotin + beads + endo.cost + enz.cost # 1385.3
+
+print(hic.exp.costs)
+
+```
+
+## Sequencing costs 
+
+```{r, echo=FALSE}
+
+hic.reads = 3 * 500000000
+hic.lanes.required = hic.reads * (1/240000000) # 6.25
+hic.max.lanes.required = ceiling(hic.lanes.required)  # 7 
+
+hic.hiseq.cost = hic.max.lanes.required * 2080.36 # 14,562.52 GBP sequencing cost for hi-C round
+
+print(hic.hiseq.cost)
+
+```
+
+
+**Total hi-C round cost:** 
+
+```{r, echo=FALSE}
+
+hic.round.total = hic.exp.costs + hic.hiseq.cost
+print(hic.round.total)
+
+```
+
+
+# Validation: Setting up activating and repressing CRISPR in Endo's		
+
+```{r, echo=FALSE}
+
+#addgene plasmid, repressive	65	£
+#addgene plasmid, activating	65	£
+#lentispecific bacteria, stbl	298	£
+#midi prep, wizard	194	£
+#transfection reagent, fugene 1 mL	400	£
+#puromycin	50	£
+#endo cost	360	£
+#sybr green reagent	274	£
+#trizol reagent	242	£
+#chip kit	600	£
+#chip AB	900	£
+		
+crispr.cost <- 	3448	 
+
+```
+
+## Total CRISPR cost:
+
+```{r, echo=FALSE}
+
+print(crispr.cost)
+
+```
+
+
+
+# Total 
+
+## All WIGWAM Costs budgeted 
+
+
+```{r, echo=FALSE}
+
+all.costs = promoter.round.cost + first.round.total + second.round.total + third.round.total + islet.round.total + hic.round.total + crispr.cost
+print(all.costs)
+
+```
+
+
+## Remaining WIGWAM Costs after January 2018 
+
+```{r, echo=FALSE}
+
+remaining.costs = all.costs - first.round.total
+print(remaining.costs)
+
+```
+
+
+# Tabulated 
+
+
+```{r}
+
+
+
+```
+
+		
+
+
+
