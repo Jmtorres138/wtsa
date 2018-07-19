@@ -19,30 +19,76 @@ knitr::opts_chunk$set(echo = TRUE)
 library("data.table")
 library("tidyverse")
 
-rescomp.dir <- "/Users/jtorres/FUSE5/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/" #"/Users/jtorres/FUSE5/"
 cur.dir <- rescomp.dir %&% "projects/wtsa/enhancer_driven/first_round/evaluate_pipeline_output/"
 endoA.file <- cur.dir %&% "report-Endo_A.txt"
+#endoB.file <- cur.dir %&% "report-Endo_B.txt"
+endoC.file <- cur.dir %&% "report-Endo_C.txt"
+hescA.file <- cur.dir %&% "report-hESC_A.txt"
+hescB.file <- cur.dir %&% "report-hESC_B.txt"
+hescC.file <- cur.dir %&% "report-hESC_C.txt"
+
+df1 <- fread(endoA.file)
+df2 <- fread(endoB.file)
+df3 <- fread(endoC.file)
+df4 <- fread(hescA.file)
+df5 <- fread(hescB.file)
+df6 <- fread(hescC.file)
+
+df <- rbind(df1,df3,df4,df5,df6)
+
+
+```
+
+
+# Histograms
+
+```{r}
+
+library("viridis")
+plt <- ggplot(data=df,aes(x=cis.reporters.filtered)) + 
+  geom_histogram(color="black",fill=viridis(10)[10]) + 
+  facet_wrap(~sample) + geom_vline(xintercept = 25000,color=viridis(10)[1],size=2)
 
 ```
 
 
 ```{r}
 
-df <- fread(endoA.file) %>% arrange(.,capture.name)
-summary(df$cis.reporters.filtered)
-#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#      2   10280   19510   19500   28950   51780 
-hist(df$cis.reporters.filtered,breaks=20)
-sum(df$cis.reporters.filtered > 30000) # 49
-sum(df$cis.reporters.filtered > 20000) # 103
-sum(df$cis.reporters.filtered < 20000) # 111
+val1 <- filter(df,sample=="Endo_A") %>% select(.,cis.reporters.filtered) %>% sum(.)
+val2 <- filter(df,sample=="Endo_B") %>% select(.,cis.reporters.filtered) %>% sum(.)
+val3 <- filter(df,sample=="Endo_C") %>% select(.,cis.reporters.filtered) %>% sum(.)
+val4 <- filter(df,sample=="hESC_A") %>% select(.,cis.reporters.filtered) %>% sum(.)
+val5 <- filter(df,sample=="hESC_B") %>% select(.,cis.reporters.filtered) %>% sum(.)
+val6 <- filter(df,sample=="hESC_C") %>% select(.,cis.reporters.filtered) %>% sum(.)
 
-filter(df,cis.reporters.filtered>=30000)$capture.name %>% map(.,function(s){
-  strsplit(s,split="__")[[1]][1]
-}) %>% as.character(.) %>% unique(.)
+df2 <- data.frame(sample=c("Endo_A","Endo_C","hESC_A","hESC_B","hESC_C"),
+                  total.cis.rep.counts=c(val1,val3,val4,val5,val6),stringsAsFactors = FALSE)
 
-filter(df,cis.reporters.filtered>=30000)$cis.reporters.filtered %>% summary(.)
+plt2 <- ggplot(data=df2,aes(x=sample,y=total.cis.rep.counts)) + geom_bar(stat="identity",color="black",fill=viridis(1))
+
+
 
 ```
 
+
+```{r}
+
+val1 <- filter(df,sample=="Endo_A",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
+val2 <- filter(df,sample=="Endo_B",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
+val3 <- filter(df,sample=="Endo_C",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
+val4 <- filter(df,sample=="hESC_A",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
+val5 <- filter(df,sample=="hESC_B",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
+val6 <- filter(df,sample=="hESC_C",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
+
+df3 <- data.frame(sample=c("Endo_A","Endo_C","hESC_A","hESC_B","hESC_C"),
+                  counts=c(val1,val3,val4,val5,val6),stringsAsFactors = FALSE)
+
+df4 <- inner_join(df2,df3,by="sample")
+
+plt2 <- ggplot(data=df4,aes(x=sample,y=total.cis.rep.counts)) + geom_bar(stat="identity",color="black",fill=viridis(1)) +
+  geom_bar(aes(x=sample,y=counts),stat="identity",color="black",fill=viridis(10)[4]) + 
+  ggtitle("Counts > 25K")
+
+```
 
