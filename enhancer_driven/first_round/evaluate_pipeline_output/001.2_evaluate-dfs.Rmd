@@ -22,7 +22,7 @@ library("tidyverse")
 rescomp.dir <- "/home/jason/science/servers/FUSE5/" #"/Users/jtorres/FUSE5/"
 cur.dir <- rescomp.dir %&% "projects/wtsa/enhancer_driven/first_round/evaluate_pipeline_output/"
 endoA.file <- cur.dir %&% "report-Endo_A.txt"
-#endoB.file <- cur.dir %&% "report-Endo_B.txt"
+endoB.file <- cur.dir %&% "report-Endo_B.txt"
 endoC.file <- cur.dir %&% "report-Endo_C.txt"
 hescA.file <- cur.dir %&% "report-hESC_A.txt"
 hescB.file <- cur.dir %&% "report-hESC_B.txt"
@@ -35,7 +35,7 @@ df4 <- fread(hescA.file)
 df5 <- fread(hescB.file)
 df6 <- fread(hescC.file)
 
-df <- rbind(df1,df3,df4,df5,df6)
+df <- rbind(df1,df2,df3,df4,df5,df6)
 
 
 ```
@@ -177,8 +177,8 @@ val4 <- filter(df,sample=="hESC_A") %>% select(.,cis.reporters.filtered) %>% sum
 val5 <- filter(df,sample=="hESC_B") %>% select(.,cis.reporters.filtered) %>% sum(.)
 val6 <- filter(df,sample=="hESC_C") %>% select(.,cis.reporters.filtered) %>% sum(.)
 
-df2 <- data.frame(sample=c("Endo_A","Endo_C","hESC_A","hESC_B","hESC_C"),
-                  total.cis.rep.counts=c(val1,val3,val4,val5,val6),stringsAsFactors = FALSE)
+df2 <- data.frame(sample=c("Endo_A","Endo_B","Endo_C","hESC_A","hESC_B","hESC_C"),
+                  total.cis.rep.counts=c(val1,val2,val3,val4,val5,val6),stringsAsFactors = FALSE)
 
 ```
 
@@ -192,8 +192,8 @@ val4 <- filter(df,sample=="hESC_A",cis.reporters.filtered>25000) %>% select(.,ci
 val5 <- filter(df,sample=="hESC_B",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
 val6 <- filter(df,sample=="hESC_C",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
 
-df3 <- data.frame(sample=c("Endo_A","Endo_C","hESC_A","hESC_B","hESC_C"),
-                  counts=c(val1,val3,val4,val5,val6),stringsAsFactors = FALSE)
+df3 <- data.frame(sample=c("Endo_A","Endo_B","Endo_C","hESC_A","hESC_B","hESC_C"),
+                  counts=c(val1,val2,val3,val4,val5,val6),stringsAsFactors = FALSE)
 
 df4 <- inner_join(df2,df3,by="sample")
 
