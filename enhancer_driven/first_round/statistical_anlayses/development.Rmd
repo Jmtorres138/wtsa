@@ -14,6 +14,11 @@ knitr::opts_chunk$set(echo = TRUE)
 "%&%" <- function(a,b) paste0(a,b)
 library("data.table")
 library("tidyverse")
+library("ggbio")
+library("RColorBrewer")
+library("viridis")
+library(Homo.sapiens)
+
 
 
 serv.dir1 <- "/home/jason/science/servers/FUSE5/"
@@ -23,6 +28,11 @@ source(serv.dir2 %&% "peakC/R/util_functions.R")
 #source(serv.dir2 %&% "peakC/manually_added/experiment_comparison.R")
 bg.dir <- serv.dir2 %&%
   "CaptureCompare/FirstRound_cis_analysis/3_unionBedgraphs/"
+winfile.dir <- serv.dir2 %&% "CaptureCompare/FirstRound_cis_analysis/6_windowFiles/"
+parameters.file <- serv.dir2 %&% "endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt" #"/well/mccarthy/projects/ng_capture-C/endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt"
+genes.file <- serv.dir2 %&% "CaptureCompare/annotation/RefSeqGenes_hg19.bed"
+
+id <- "rs59153558_HMG20A__8QTL__eQTL__chr15_77806770"
 
 
 ```
@@ -62,6 +72,9 @@ mean_mat <- function(bg.df,vp,region.size=1e6,keep.cols=c(4,5,6)){
 }
 
 ```
+
+
+Comparative test functions (from an earlier version of PeakC)
 
 ```{r}
 
@@ -145,9 +158,219 @@ run_peakC <- function(bg.df,vp,region.size=1e6,winsize=11,fdr=0.05,abscutoff=100
 ```
 
 
+# Updated plotting function 
+
+
 ```{r}
 
-test.df <- fread(bg.dir %&% "rs59153558_HMG20A__8QTL__eQTL__chr15_77806770.unionbdg") %>% as.data.frame(.)
+IntersectBedDataframe <- function(df, chr, start, end){
+  # Wrapper to subset/intersect a given BED format df with a region of interest
+  #
+  # Input:
+  #   df: bedlike 4 or more column df
+  #   chr: chromsome of interest
+  #   start: start coord of interest
+  #   end: end coord of interest
+  df <- df[df[,1] == chr,] #chr
+  df <- df[
+    (df[, 2] >= start & df[, 2] < end) |
+      (df[, 3] > start & df[, 3] <= end) |
+      (df[, 2] <= start & df[, 3] >= end),] # coords
+  return(df)
+}	
+
+science_theme <- theme(
+  panel.grid.major = element_line(size = 0.5, color = "grey"),
+  panel.grid.minor = element_blank(),
+  plot.title = element_text(hjust = 0.5),
+  text = element_text(size = 14),  axis.line = element_line(color="black", size = 0.7),
+  axis.line.x = element_line(color="black", size = 0.7),
+  axis.line.y = element_line(color="black", size = 0.7),
+  # plot.margin = unit(c(0.7,0.7,0.7,0.7), "lines"),
+  panel.border=element_blank(),
+  strip.background = element_blank()
+)
+
+```
+
+
+```{r}
+
+prepare_plot_list <- function(id){
+  data.file <- winfile.dir %&% id %&% "_window.tab"
+  data <- as.tibble(read.table(data.file, header=T))
+  parameters <- as.tibble(read.table(parameters.file))
+  names(parameters) <- c("Viewpoint", "Chr", "Frag_start", "Frag_stop", "Exclusion_Start", 
+                         "Exclusion_Stop", "Plot_Region_Start",
+                         "Plot_Region_Stop", "Bin_Size", "Window_size")
+  # Modify and select from parameters file =======================================
+  # select viewpoint from parameters file
+  viewp <- parameters %>% filter(Viewpoint == id)
+  # select exclusion fragments within plotting region
+  parameters <- parameters %>%
+  filter(Frag_stop >= viewp$Plot_Region_Start & Frag_start <= viewp$Plot_Region_Stop)
+  # add window size to exclusion zone only for viewpoint
+  parameters <- parameters %>%
+    mutate(Exclusion_Start = if_else(Viewpoint == id, (Exclusion_Start - Window_size),
+                                     Exclusion_Start)) %>%
+  mutate(Exclusion_Stop = if_else(Viewpoint == id, (Exclusion_Stop + Window_size),
+                                  Exclusion_Stop))
+
+
+  
+  to.exclude <- parameters %>% filter(Viewpoint == id)
+  # Gather Data =================================================================
+  # 1 gather in long format
+  d <- data %>% gather(key, value, -c(BinNum, Chr, Start, Stop))
+  # 2 extract condition and replicate
+  d <- d %>% 
+    mutate(condition = sub('_.+', "", key, perl=T)) %>%
+    mutate(replicate = sub('.+_', "", key, perl=T)) %>%
+    mutate(pos = Start + (Stop - Start)/2)
+  # Calculate Mean and STDEV ====================================================
+  d <- d %>%
+    group_by(BinNum, Chr, Start, Stop, pos, condition) %>%
+  summarize(mean = mean(value), sd = sd(value)) %>%
+  ungroup()  
+  return(list(d,to.exclude,parameters))
+}
+
+
+capc_plot <- function(bdg.df, d,to.excude,params,peakc.res,plotwin=1e5){
+  plotmax <- filter(d,Stop<to.exclude$Exclusion_Start |
+                      Start>to.exclude$Exclusion_Stop)$mean %>% max(.) %>% 
+    mean(.) %>% round(.); plotmax <- plotmax+50
+
+  p <- ggplot(filter(d,Stop<to.exclude$Exclusion_Start |
+                      Start>to.exclude$Exclusion_Stop),
+              aes(x=pos, y=mean, col = condition, fill = condition)) +
+    geom_ribbon(inherit.aes = F, 
+                aes(x=pos, ymin=mean-sd, ymax=mean+sd, fill=condition), alpha=.35) + 
+    geom_line() + 
+    scale_fill_manual(values=viridis(20)[c(10,4)]) +
+    scale_color_manual(values=viridis(20)[c(10,4)]) +
+    geom_rect(data=to.exclude, inherit.aes=F, 
+              aes(xmin=Exclusion_Start, xmax=Exclusion_Stop), 
+              ymin=-25, ymax=max(d$mean)+max(d$sd), col="lightgrey", fill="white") + 
+    geom_rect(data=parameters, inherit.aes=F, 
+              aes(xmin=Frag_start, xmax=Frag_stop), ymin=-25, 
+              ymax=max(d$mean)+max(d$sd), col="grey", fill="grey") + 
+    labs(x="Genomic Position", y="Mean Interaction") + 
+    #coord_cartesian(xlim=c(viewp$Plot_Region_Start, viewp$Plot_Region_Stop),
+    #              ylim=c(0,plotmax)) + 
+    coord_cartesian(xlim=c(params$Frag_start-(plotwin/2), 
+                           params$Frag_stop+(plotwin/2)),
+                  ylim=c(0,plotmax)) + 
+    ggtitle(id) +
+    theme_bw() + science_theme +  
+    theme(panel.grid = element_blank())	 
+  
+  peakc.mod <- peakc.res[[1]]$peak
+  peakc.df <- filter(bdg.df,V2 %in% peakc.mod) %>% 
+    dplyr::select(.,one_of("V1","V2","V3")) %>% 
+    filter(.,V3<to.exclude$Exclusion_Start |
+                      V3>to.exclude$Exclusion_Stop)
+  comp.df <- filter(bdg.df,V2 %in% peakc.res[[2]]$pos) %>% 
+    dplyr::select(.,one_of("V1","V2","V3")) %>% 
+    filter(.,V3<to.exclude$Exclusion_Start |
+                      V3>to.exclude$Exclusion_Stop)
+  if (dim(peakc.df)[1]>0){
+    p = p + geom_rect(data=peakc.df,inherit.aes=F,aes(xmin=V2,xmax=V3),
+                ymin=-(plotmax/50),ymax=(plotmax/50),size=0.1,
+                color="black",fill="firebrick1")
+  }
+  if (dim(comp.df)[1]>0){
+    p = p + geom_rect(data=comp.df,inherit.aes=F,aes(xmin=V2,xmax=V3),
+                ymin=-(plotmax/50),ymax=(plotmax/50),size=0.1,
+                color="black",fill=viridis(2)[2])    
+  }
+  return(p)
+}
+
+```
+
+
+```{r}
+
+data(genesymbol, package = "biovizBase")
+
+gene_plot <- function(params,plotwin){
+  reg.gr <- GRanges(seqnames=params$Chr,IRanges(params$Frag_start-(plotwin/2),
+                                             params$Frag_stop+(plotwin/2)))
+  wh <- genesymbol[genesymbol %over% reg.gr] 
+  wh <- range(wh, ignore.strand = TRUE)
+  p <- autoplot(Homo.sapiens, which = wh,reduce=TRUE,
+                color=viridis(20)[2],
+                fill=viridis(20)[7]) 
+  p = p + theme_bw() + theme(panel.grid=element_blank())
+  return(p)
+}
+
+
+
+
+```
+
+
+
+```{r}
+
+
+
+
+plt.list <- prepare_plot_list(id)
+
+plt1 <- capc_plot(bdg.df,plt.list[[1]],plt.list[[2]],
+                 plt.list[[3]],peakc.res,plotwin=200000)
+
+plt2 <- gene_plot(plt.list[[3]],plotwin=200000)
+
+
+
+# Load Data for Gene intersect =================================================
+known.genes <- read.table(genes.file)
+# Intersect Genes with plot frame ==============================================
+genes <- as.tibble(IntersectBedDataframe(known.genes, chr=as.character(viewp$Chr), start=viewp$Plot_Region_Start, end=viewp$Plot_Region_Stop))
+names(genes) <- c("chr", "start", "end", "name")
+# some formating for plotting
+genes <- genes %>% 
+  mutate(annotation = "Genes") %>%
+  mutate(x = start + (end - start)/2) %>%
+  mutate(y = 2)
+genes[seq(1,nrow(genes), 2),"y"] <- 0 
+
+# Plot of Genes ===============================================================
+g <- ggplot(as.data.frame(genes), aes(col=annotation)) +
+  geom_hline(yintercept = 1, col = brewer.pal(3, "Set1")[2]) +
+  geom_rect(data=genes,aes(xmin=start, xmax=end, ymin=0.55, ymax=1.55), fill="white") +
+  scale_colour_manual(values = brewer.pal(3, "Set1")[2]) + 
+  geom_text(aes(label = name, x = x, y = y), size=3.5, col="black", fontface=2) +
+  coord_cartesian(xlim=c(viewp$Plot_Region_Start, viewp$Plot_Region_Stop), ylim = c(-0.5, 2.5)) +
+  labs(x="position", y="genes") + 
+  science_theme + 
+  theme(
+    legend.position="None",
+    axis.text.y=element_blank(), 
+    axis.line.y=element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.border = element_blank(),
+    plot.margin = unit(c(0,1,0,1), "lines"))
+
+ tracks(capture=p,
+       genes=g)
+
+#c <- plot_grid(p, g, align = "v", axis = "lrtb", nrow=2, rel_heights = c(5,1))
+
+
+```
+
+
+
+
+```{r}
+
+test.df <- fread(bg.dir %&% id %&% ".unionbdg") %>% as.data.frame(.)
 vp = 77808771
 res <- run_peakC(test.df,vp,region.size = 1e6,winsize=11,abscutoff = 100)
 
