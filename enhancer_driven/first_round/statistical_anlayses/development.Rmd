@@ -32,6 +32,9 @@ winfile.dir <- serv.dir2 %&% "CaptureCompare/FirstRound_cis_analysis/6_windowFil
 parameters.file <- serv.dir2 %&% "endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt" #"/well/mccarthy/projects/ng_capture-C/endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt"
 genes.file <- serv.dir2 %&% "CaptureCompare/annotation/RefSeqGenes_hg19.bed"
 
+gencred.df <- fread(serv.dir1 %&% "datasets/diamante_hrc/gencred.txt")
+
+
 id <- "rs59153558_HMG20A__8QTL__eQTL__chr15_77806770"
 
 
@@ -236,7 +239,7 @@ prepare_plot_list <- function(id){
 }
 
 
-capc_plot <- function(bdg.df, d,to.excude,params,peakc.res,plotwin=1e5){
+capc_plot <- function(bdg.df, d,to.exclude,params,peakc.res,plotwin=1e5){
   plotmax <- filter(d,Stop<to.exclude$Exclusion_Start |
                       Start>to.exclude$Exclusion_Stop)$mean %>% max(.) %>% 
     mean(.) %>% round(.); plotmax <- plotmax+50
@@ -252,7 +255,7 @@ capc_plot <- function(bdg.df, d,to.excude,params,peakc.res,plotwin=1e5){
     geom_rect(data=to.exclude, inherit.aes=F, 
               aes(xmin=Exclusion_Start, xmax=Exclusion_Stop), 
               ymin=-25, ymax=max(d$mean)+max(d$sd), col="lightgrey", fill="white") + 
-    geom_rect(data=parameters, inherit.aes=F, 
+    geom_rect(data=params, inherit.aes=F, 
               aes(xmin=Frag_start, xmax=Frag_stop), ymin=-25, 
               ymax=max(d$mean)+max(d$sd), col="grey", fill="grey") + 
     labs(x="Genomic Position", y="Mean Interaction") + 
@@ -299,33 +302,47 @@ gene_plot <- function(params,plotwin){
                                              params$Frag_stop+(plotwin/2)))
   wh <- genesymbol[genesymbol %over% reg.gr] 
   wh <- range(wh, ignore.strand = TRUE)
-  p <- autoplot(Homo.sapiens, which = wh,reduce=TRUE,
+  p <- autoplot(Homo.sapiens, which = wh,
                 color=viridis(20)[2],
                 fill=viridis(20)[7]) 
   p = p + theme_bw() + theme(panel.grid=element_blank())
   return(p)
 }
 
+```
 
 
+```{r}
+
+credset_plot <- function(params,plotwin){
+  sub <- filter(gencred.df,
+                CHR==params$Chr,
+                POS>=params$Frag_start-(plotwin/2),
+                POS<=params$Frag_stop+(plotwin/2))
+  plt <- ggplot(data=sub,aes(x=POS,y=PPA)) + 
+    geom_point(shape=21,color="black",fill="red") + 
+    ylim(c(0,1)) + theme_classic()
+  return(plt)
+}
 
 ```
+
 
 
 
 ```{r}
 
 
-
-
 plt.list <- prepare_plot_list(id)
 
-plt1 <- capc_plot(bdg.df,plt.list[[1]],plt.list[[2]],
-                 plt.list[[3]],peakc.res,plotwin=200000)
+plt1 <- capc_plot(bdg.df=bdg.df,d=plt.list[[1]],to.exclude=plt.list[[2]],
+                 params=plt.list[[3]], peakc.res=peakc.res, plotwin=500000)
 
-plt2 <- gene_plot(plt.list[[3]],plotwin=200000)
+plt2 <- gene_plot(plt.list[[3]],plotwin=500000)
 
+plt3 <- credset_plot(plt.list[[3]],plotwin=500000)
 
+tracks(plt1,plt3,plt2,heights=c(2,0.5,1))
 
 # Load Data for Gene intersect =================================================
 known.genes <- read.table(genes.file)
