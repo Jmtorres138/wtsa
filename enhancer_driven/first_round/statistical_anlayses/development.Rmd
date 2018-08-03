@@ -19,20 +19,24 @@ library("RColorBrewer")
 library("viridis")
 library(Homo.sapiens)
 
-
-
 serv.dir1 <- "/home/jason/science/servers/FUSE5/"
 serv.dir2 <- "/home/jason/science/servers/FUSE6/"
+got2d.dir <- "/home/jason/science/servers/FUSE/" 
 source(serv.dir2 %&% "peakC/R/reading_functions.R")
 source(serv.dir2 %&% "peakC/R/util_functions.R")
 #source(serv.dir2 %&% "peakC/manually_added/experiment_comparison.R")
 bg.dir <- serv.dir2 %&%
   "CaptureCompare/FirstRound_cis_analysis/3_unionBedgraphs/"
 winfile.dir <- serv.dir2 %&% "CaptureCompare/FirstRound_cis_analysis/6_windowFiles/"
+plot.dir <- serv.dir1 %&% "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/plots/"
+states.dir <- got2d.dir %&% "reference/chromatin_segmentation/varshney_2016/chromatin_states/"
+
+
 parameters.file <- serv.dir2 %&% "endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt" #"/well/mccarthy/projects/ng_capture-C/endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt"
 genes.file <- serv.dir2 %&% "CaptureCompare/annotation/RefSeqGenes_hg19.bed"
-
 gencred.df <- fread(serv.dir1 %&% "datasets/diamante_hrc/gencred.txt")
+
+
 
 
 id <- "rs59153558_HMG20A__8QTL__eQTL__chr15_77806770"
@@ -63,9 +67,9 @@ mean_mat <- function(bg.df,vp,region.size=1e6,keep.cols=c(4,5,6)){
   sub <- filter(bg.df,V2>=(vp-flank),V3<=(vp+flank))
   sub <- sub[,c(2,keep.cols)] 
   vec <- c()
-  pb <- txtProgressBar(min=0,max=dim(sub)[1],style=3)
+  #pb <- txtProgressBar(min=0,max=dim(sub)[1],style=3)
   for (i in 1:dim(sub)[1]){
-    setTxtProgressBar(pb,i)
+    #setTxtProgressBar(pb,i)
     val <- sub[i,c(2:4)] %>% as.numeric(.) %>% mean(.)
     vec <- append(vec,val)
   }
@@ -250,8 +254,8 @@ capc_plot <- function(bdg.df, d,to.exclude,params,peakc.res,plotwin=1e5){
     geom_ribbon(inherit.aes = F, 
                 aes(x=pos, ymin=mean-sd, ymax=mean+sd, fill=condition), alpha=.35) + 
     geom_line() + 
-    scale_fill_manual(values=viridis(20)[c(10,4)]) +
-    scale_color_manual(values=viridis(20)[c(10,4)]) +
+    scale_fill_manual(values=viridis(20)[c(10,4)],name="Cell Type") +
+    scale_color_manual(values=viridis(20)[c(10,4)],name="Cell Type") +
     geom_rect(data=to.exclude, inherit.aes=F, 
               aes(xmin=Exclusion_Start, xmax=Exclusion_Stop), 
               ymin=-25, ymax=max(d$mean)+max(d$sd), col="lightgrey", fill="white") + 
@@ -280,12 +284,12 @@ capc_plot <- function(bdg.df, d,to.exclude,params,peakc.res,plotwin=1e5){
   if (dim(peakc.df)[1]>0){
     p = p + geom_rect(data=peakc.df,inherit.aes=F,aes(xmin=V2,xmax=V3),
                 ymin=-(plotmax/50),ymax=(plotmax/50),size=0.1,
-                color="black",fill="firebrick1")
+                color="firebrick3",fill="firebrick1")
   }
   if (dim(comp.df)[1]>0){
     p = p + geom_rect(data=comp.df,inherit.aes=F,aes(xmin=V2,xmax=V3),
                 ymin=-(plotmax/50),ymax=(plotmax/50),size=0.1,
-                color="black",fill=viridis(2)[2])    
+                color=viridis(20)[20],fill=viridis(20)[15])    
   }
   return(p)
 }
@@ -303,9 +307,10 @@ gene_plot <- function(params,plotwin){
   wh <- genesymbol[genesymbol %over% reg.gr] 
   wh <- range(wh, ignore.strand = TRUE)
   p <- autoplot(Homo.sapiens, which = wh,
-                color=viridis(20)[2],
-                fill=viridis(20)[7]) 
-  p = p + theme_bw() + theme(panel.grid=element_blank())
+                color=cividis(20)[1],
+                fill=cividis(20)[4]) 
+  p = p + theme_bw() + theme(panel.grid=element_blank()) + ylab("Transcripts") + 
+    xlab("Genomic Position")
   return(p)
 }
 
@@ -320,7 +325,7 @@ credset_plot <- function(params,plotwin){
                 POS>=params$Frag_start-(plotwin/2),
                 POS<=params$Frag_stop+(plotwin/2))
   plt <- ggplot(data=sub,aes(x=POS,y=PPA)) + 
-    geom_point(shape=21,color="black",fill="red") + 
+    geom_point(shape=21,color=inferno(20)[2],fill=inferno(20)[8]) + 
     ylim(c(0,1)) + theme_classic()
   return(plt)
 }
@@ -328,56 +333,205 @@ credset_plot <- function(params,plotwin){
 ```
 
 
+```{r}
+
+
+got2d.dir <- "/home/jason/science/servers/FUSE/" 
+states.dir <- got2d.dir %&% "reference/chromatin_segmentation/varshney_2016/chromatin_states/"
+
+
+get_state_df <- function(){
+    isl.file <- states.dir %&% "Islets.chromatinStates.bed.gz"
+    isl.df <- fread("cat " %&% isl.file %&% " | zmore",sep="\t")
+    isl.df$V6 <- "Islets"
+    
+    es1.file <- states.dir %&% "ES-HUES6.chromatinStates.bed.gz"
+    es1.df <- fread("cat " %&% es1.file %&% " | zmore",sep="\t")
+    es1.df$V6 <- "ES-HUES6" 
+    
+    es2.file <- states.dir %&% "ES-HUES64.chromatinStates.bed.gz"
+    es2.df <- fread("cat " %&% es2.file %&% " | zmore",sep="\t")
+    es2.df$V6 <- "ES-HUES64"  
+    
+    #adi.file <- states.dir %&% "Adipose.chromatinStates.bed.gz"
+    #adi.df <- fread("cat " %&% adi.file %&% " | zmore",sep="\t")
+    #adi.df$V6 <- "Adipose"
+    
+    #liv.file <- states.dir %&% "Liver.chromatinStates.bed.gz"
+    #liv.df <- fread("cat " %&% liv.file %&% " | zmore",sep="\t")
+    #liv.df$V6 <- "Liver"
+    
+    #mus.file <- states.dir %&% "SkeletalMuscle.chromatinStates.bed.gz"
+    #mus.df <- fread("cat " %&% mus.file %&% " | zmore",sep="\t")
+    #mus.df$V6 <- "Muscle"
+    
+    #state.df <- rbind(isl.df,adi.df,liv.df,mus.df)
+    state.df <- rbind(isl.df,es1.df,es2.df)
+    
+    state.df$V2 <- state.df$V2 + 1 ; state.df$V3 <- state.df$V3 + 1 
+    names(state.df) <- c("CHR","START","END","STATE","RGB","Tissue")
+    pb <- txtProgressBar(min=0,max=dim(state.df)[1],style=3)
+    state.df$COL <- map(1:length(state.df$RGB),function(i){
+      setTxtProgressBar(pb,i)
+      rgb <- state.df$RGB[i]
+      vec <- strsplit(rgb,split=",")[[1]]
+      r <- vec[1]; g <- vec[2]; b <- vec[3]
+      col <- rgb(r,g,b,maxColorValue=255)
+    }) %>% as.character(.)  
+    return(state.df)
+}
+
+
+chromHMM_plot <- function(state.df,params,plotwin){
+  sub.df <- filter(state.df,CHR==params$Chr,START<=(params$Frag_stop+plotwin),END>=(params$Frag_start - plotwin))
+  sub.df$START <- sub.df$START %>% as.integer(.)
+  sub.df$END <- sub.df$END %>% as.integer(.)
+  sub.df$Y <- ifelse(sub.df$Tissue=="Islets",4.2,
+                            ifelse(sub.df$Tissue=="ES-HUES6",3.1,
+                                   ifelse(sub.df$Tissue=="ES-HUES64",2,NA)))
+  plt <- ggplot(data=sub.df) + 
+    geom_rect(data=sub.df,aes(xmin=START,xmax=END,ymin=Y-0.5,ymax=Y+0.5),color=sub.df$COL,fill=sub.df$COL) + 
+    #coord_cartesian(ylim=c(-2,8),expand = TRUE) + 
+    theme_clear() + 
+    theme(#axis.title = element_blank(),
+          axis.text.y = element_blank(),
+          axis.ticks.y=element_blank()) + 
+    #annotate("text",x=params$Frag_start,y=6.7,label="Islet") + 
+    #annotate("text",x=params$Frag_start,y=4.7,label="ES-HUES6") + 
+    #annotate("text",x=params$Frag_start,y=2.7,label="ES-HUES64") + 
+    annotate("rect",xmin=params$Frag_start-plotwin,
+             xmax=params$Frag_start+plotwin,
+             ymin=1,ymax=1.4,fill="white") + 
+    ylab("Chr. States")
+             
+  return(plt)
+}
+
+
+```
+
+
+# ATAC Track 
+
+
+```{r}
+
+bamfile <- "/home/jason/science/projects/wtsa/enhancer_driven/first_round/statistical_anlayses/" %&% "HP1620.bam"
+
+atac_plot <- function(params,plotwin,bamfile){
+  wh <- GRanges(seqnames=params$Chr,IRanges(params$Frag_start-500000,
+                                       params$Frag_stop+500000))  
+  plt <- autoplot(bamfile,which=wh,color=magma(20)[7]) + 
+    theme_bw() + ylab("ATAC")
+  return(plt)
+}
+
+
+
+```
+
+
+
+
 
 
 ```{r}
 
 
-plt.list <- prepare_plot_list(id)
+save_plot <- function(id,plotwin=500000){
+  plt.list <- prepare_plot_list(id)
+  plt.list[[3]] <- plt.list[[3]][grepl(id,plt.list[[3]]$Viewpoint),]
+  
+  bdg.df <- fread(bg.dir %&% id %&% ".unionbdg") %>% as.data.frame(.)
+  vp = plt.list[[3]]$Frag_start
+  peakc.res <- run_peakC(bdg.df,vp,region.size = 1e6,winsize=11,abscutoff = 100)
+  
+  plt1 <- capc_plot(bdg.df=bdg.df,d=plt.list[[1]],to.exclude=plt.list[[2]],
+                 params=plt.list[[3]], peakc.res=peakc.res, plotwin) + scale_x_sequnit(unit="kb")
 
-plt1 <- capc_plot(bdg.df=bdg.df,d=plt.list[[1]],to.exclude=plt.list[[2]],
-                 params=plt.list[[3]], peakc.res=peakc.res, plotwin=500000)
+  plt2 <- gene_plot(plt.list[[3]],plotwin) + scale_x_sequnit(unit="kb")
 
-plt2 <- gene_plot(plt.list[[3]],plotwin=500000)
+  plt3 <- credset_plot(plt.list[[3]],plotwin) + scale_x_sequnit(unit="kb")
+  
+  plt4 <- chromHMM_plot(state.df,plt.list[[3]],plotwin)
+  
+  plt5 <- atac_plot(plt.list[[3]],plotwin,bamfile)
 
-plt3 <- credset_plot(plt.list[[3]],plotwin=500000)
+  plt <- tracks(plt1,plt4,plt3,plt2,plt5,heights=c(2,0.5,0.5,1,0.5),
+                main="Capture: " %&% plt.list[[3]]$Viewpoint, 
+                xlab="Genomic Position on Chromosome " %&% gsub("chr","",plt.list[[3]]$Chr))  + 
+                theme(axis.text.x=element_text(size=7),
+                  axis.text.y=element_text(size=7),
+                  axis.title.y=element_text(size=12)) + 
+                scale_x_sequnit(unit="kb") # + xlab("Genomic Position")
 
-tracks(plt1,plt3,plt2,heights=c(2,0.5,1))
+  save.name <- plot.dir %&% plt.list[[3]]$Viewpoint %&% ".Tracks.png"
+  ggsave(x=plt,filename = save.name,height = 10,width=20)  
+}
 
-# Load Data for Gene intersect =================================================
-known.genes <- read.table(genes.file)
-# Intersect Genes with plot frame ==============================================
-genes <- as.tibble(IntersectBedDataframe(known.genes, chr=as.character(viewp$Chr), start=viewp$Plot_Region_Start, end=viewp$Plot_Region_Stop))
-names(genes) <- c("chr", "start", "end", "name")
-# some formating for plotting
-genes <- genes %>% 
-  mutate(annotation = "Genes") %>%
-  mutate(x = start + (end - start)/2) %>%
-  mutate(y = 2)
-genes[seq(1,nrow(genes), 2),"y"] <- 0 
 
-# Plot of Genes ===============================================================
-g <- ggplot(as.data.frame(genes), aes(col=annotation)) +
-  geom_hline(yintercept = 1, col = brewer.pal(3, "Set1")[2]) +
-  geom_rect(data=genes,aes(xmin=start, xmax=end, ymin=0.55, ymax=1.55), fill="white") +
-  scale_colour_manual(values = brewer.pal(3, "Set1")[2]) + 
-  geom_text(aes(label = name, x = x, y = y), size=3.5, col="black", fontface=2) +
-  coord_cartesian(xlim=c(viewp$Plot_Region_Start, viewp$Plot_Region_Stop), ylim = c(-0.5, 2.5)) +
-  labs(x="position", y="genes") + 
-  science_theme + 
-  theme(
-    legend.position="None",
-    axis.text.y=element_blank(), 
-    axis.line.y=element_blank(),
-    axis.ticks.y = element_blank(),
-    panel.grid.major = element_blank(),
-    panel.border = element_blank(),
-    plot.margin = unit(c(0,1,0,1), "lines"))
 
- tracks(capture=p,
-       genes=g)
 
-#c <- plot_grid(p, g, align = "v", axis = "lrtb", nrow=2, rel_heights = c(5,1))
+```
+
+
+```{r}
+#ADCY5 – 300 kb
+
+#COBLL – 300 kb
+
+#HHEX – 400 kb, only variant 94462882 & 94480334
+
+#DGKB – 1 MB
+
+#And if you have time, if you can prepare the extension for RREB1 to 400 kb to.
+
+ 
+
+#Also, something I forgot to ask you. Would it be possible for you to visualise the promoter captures in CaptureCompare? Would be interesting for ADCY5 and WARS where I am compiling the promoter and enhancer capturesJ
+
+ 
+```
+
+
+```{r}
+
+state.df <- get_state_df()
+
+```
+
+
+# Manually job run 
+
+```{r}
+
+gene.vec <- c("ADCY5","COBLL","HHEX","DGKB","RREB1")
+file.vec <- list.files(bg.dir)
+id.vec  <- c()
+for (g in gene.vec){
+  for (f in file.vec){
+    if (grepl(g,f)==TRUE){
+      
+      id.vec <- append(id.vec,strsplit(x=f,split=".unionbdg")[[1]][1])
+    }
+  }
+}
+
+
+id.vec <- c("RREB1__2TG__DIAMANTE_Morris__chr6_7231843", 
+            "rs17168486_DGKB__7QTL__eQTL__chr7_14898282",
+            "rs10231021_DGKB__6QTL__eQTL__chr7_15060429",
+            "HHEX__89DF__credible_variant__chr10_94462882",
+            "HHEX__89DF__credible_variant__chr10_94466439",
+            "HHEX__89DF__credible_variant__chr10_94480334",
+            "HHEX__89DF__downstream_control__chr10_94602920",
+            "HHEX__89DF__upstream_control__chr10_94353285")
+
+for (id in id.vec){
+  print(id)
+  save_plot(id)
+}
+
 
 
 ```
