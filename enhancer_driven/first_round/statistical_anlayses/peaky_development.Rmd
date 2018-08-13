@@ -1,0 +1,125 @@
+---
+title: "peaky development"
+output: html_notebook
+---
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("peaky")
+
+serv.dir1 <- "/home/jason/science/servers/FUSE5/"
+serv.dir2 <- "/home/jason/science/servers/FUSE6/"
+got2d.dir <- "/home/jason/science/servers/FUSE/" 
+bg.dir <- serv.dir2 %&%
+  "CaptureCompare/FirstRound_cis_analysis/3_unionBedgraphs/"
+winfile.dir <- serv.dir2 %&% "CaptureCompare/FirstRound_cis_analysis/6_windowFiles/"
+
+parameters.file <- serv.dir2 %&% "endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt" #"/well/mccarthy/projects/ng_capture-C/endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt"
+
+id <- "rs59153558_HMG20A__8QTL__eQTL__chr15_77806770"
+
+
+```
+
+# Tutorial 
+
+```{r}
+
+base = system.file("extdata",package="peaky")
+
+interactions_file = paste0(base,"/counts.tsv")
+fragments_file = paste0(base,"/fragments.bed")
+
+interactions = data.table::fread(interactions_file)
+fragments = data.table::fread(fragments_file)
+
+print(head(interactions))
+print(head(fragments))
+
+```
+
+
+```{r}
+
+BI = bin_interactions(interactions, fragments, bins=5)
+print(BI$bins)
+
+```
+
+
+```{r}
+
+models = by(BI$interactions, BI$interactions$dist.bin, model_bin, subsample_size=1000)
+plot(models[[1]]$fit)
+
+residuals = lapply(models, "[[", "residuals")
+bins = split(BI$interactions, BI$interactions$dist.bin)
+BTS = split_baits(bins, residuals)
+
+```
+
+```{r}
+relevant_bait = BTS[baitID==618421]
+zoom = relevant_bait[abs(relevant_bait$dist)<1e6]
+plot(x=zoom$dist, 
+     y=zoom$residual, 
+     xlab="Distance from bait (bp)", 
+     ylab="Adjusted readcount",
+     main=paste("Bait",unique(zoom$baitID)))
+
+```
+
+
+
+```{r}
+peak_center = zoom$dist[which.max(zoom$residual)]
+zoom$distance_from_peak = abs(zoom$dist-peak_center)
+single_peak = zoom[distance_from_peak<4e5,]
+
+#Define the distance function and find the best fit for omega
+dist_exp = function(offset, strength, omega_power){
+  omega = 10^omega_power
+  strength * exp(-(abs(offset * omega)))
+}
+
+fit_omega = nls(residual~dist_exp(distance_from_peak,strength,omega_power), 
+    data=single_peak, 
+    start=list(strength=5, omega_power=-3))
+
+{
+plot(single_peak$distance_from_peak, single_peak$residual, 
+     main=paste0("Decay of signal for an isolated peak\nEstimate of omega = 10^",
+                round(coefficients(fit_omega)["omega_power"],3)),
+     xlab="Distance from center of peak (bp)",
+     ylab="Adjusted readcount")
+lines(single_peak$distance_from_peak, fitted.values(fit_omega), col="red", lwd=3)
+}
+```
+
+
+```{r}
+
+relevant_bait = BTS[baitID==618421]
+omega_power = -5
+PKS = peaky(relevant_bait, omega_power, iterations=1e6)
+P = interpret_peaky(relevant_bait, PKS, omega_power)
+
+par(mfrow=c(3,1))
+zoom = P[abs(P$dist)<1e6]
+plot(x=zoom$dist, xlab="Distance from bait (bp)",
+     y=zoom$residual, ylab="Adjusted readcount")
+
+plot(x=zoom$dist, xlab="Distance from bait (bp)",
+     y=zoom$beta_mean, ylab="Mean contact strength",
+     col="green")
+
+plot(x=zoom$dist, xlab="Distance from bait (bp)",
+     y=zoom$rjmcmc_pos, ylab="MPPC",
+     col="blue")
+```
+
