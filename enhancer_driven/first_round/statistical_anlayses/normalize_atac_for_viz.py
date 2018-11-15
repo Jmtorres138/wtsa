@@ -45,10 +45,10 @@ def main():
         if os.path.isfile(fname) == True:
             norm_file = out_dir+f+".bigWig"
             norm_list.append(norm_file)
-            command = "bamCoverage -b "  + fname + " --binSize 100 --normalizeUsingRPKM -of bigwig -v -p 8 -o " + norm_file
+            command = "bamCoverage -b "  + fname + " --binSize 100 --normalizeUsingRPKM -of bigwig -v -p 8 -o " + norm_file # previously tried with binsize 100
             #print(command)
             sp.check_call(command,shell=True)
-    # Summarize the bams
+    # Summarize the bamss
     #multiBigwigSummary bins -b HP1507_CMRL.bigWig HP1535.bigWig -o results.npz --outRawCounts test.out
     command2 = "multiBigwigSummary bins -b " +  " ".join(norm_list) + " -o " + out_dir + "combined_results.npz --outRawCounts " + out_dir+"combined_results.txt"
     print(command2)
