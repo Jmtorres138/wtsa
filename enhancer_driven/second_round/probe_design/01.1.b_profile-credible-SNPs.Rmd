@@ -1,0 +1,101 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+
+library("tidyverse")
+library("data.table")
+library("GenomicRanges")
+
+serv.dir <- "/home/jason/science/servers/FUSE5/" # Rescomp
+proj.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/second_round/"
+work.dir <- proj.dir %&% "probe_design/"
+
+cred.df <- fread(serv.dir%&%"projects/t2d_classification/revamp/genetic_credible_sets/gencred.txt")
+atac.dir <- serv.dir %&% "projects/atac_analyses/evaluate_peaks/eLife2018/"
+atac.df <- fread(atac.dir %&% "combined-cpm.txt")
+
+atac.mat <- dplyr::select(atac.df[,7:24],-one_of("HP1507_UW")) %>% as.matrix(.)
+peak_mean <- rowMeans(atac.mat)
+atac.df$peak_mean <- peak_mean
+
+
+```
+
+
+Filter T2D credible SNPs (Mahajan et al 2018) with PPA >= 0.10
+
+```{r}
+
+sigcred.df <- filter(cred.df,PPA>=0.10)
+sigcred01.df <- filter(cred.df,PPA>=0.01)
+
+
+```
+
+Append ATAC information 
+
+```{r}
+
+append_atac <- function(df){
+  atac <- c()
+  peak_mean <- c()
+  pb <- txtProgressBar(min=0,max=dim(df)[1],style=3)
+  for (i in 1:dim(df)[1]){
+    setTxtProgressBar(pb,i)
+    c <- df$CHR[i];pos <- df$POS[i]
+    sub <- filter(atac.df,Chr==c,Start<=pos,End>=pos)
+    if (dim(sub)[1]==0){
+      atac <- append(atac,FALSE)
+      peak_mean <- append(peak_mean,NA)
+    } else{
+      atac <- append(atac,TRUE)
+      peak_mean <- append(peak_mean,sub$peak_mean)      
+    }
+  }
+  df$atac <- atac
+  df$peak_mean <- peak_mean
+  return(df)
+}
+
+```
+
+
+```{r}
+
+sigcred.df <- append_atac(sigcred.df)
+sigcred01.df <- append_atac(sigcred01.df)
+
+```
+
+
+```{r}
+
+atac.gr <- GRanges(seqnames = atac.df$Chr,IRanges(start=atac.df$Start,end=atac.df$End))
+
+sigcred.df$dist.atac <- map(1:dim(sigcred.df)[1],function(i){
+  sub.gr <- GRanges(seqnames = sigcred.df$CHR[i],IRanges(start=sigcred.df$POS[i],end=sigcred.df$POS[i]))
+  d <- distanceToNearest(sub.gr,atac.gr)
+  elementMetadata(d)$distance
+}) %>% as.integer(.)
+
+
+write.table(x=sigcred.df,file = work.dir %&% "second-round_T2D-SNPs_PPA10_profile.txt",
+            sep="\t",quote=F,row.names=F,col.names=F)
+
+```
+
+
+
+
