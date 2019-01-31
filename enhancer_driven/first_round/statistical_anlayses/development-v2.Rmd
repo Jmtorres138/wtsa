@@ -1,0 +1,551 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("ggbio")
+library("RColorBrewer")
+library("viridis")
+library(Homo.sapiens)
+
+serv.dir1 <- "/home/jason/science/servers/FUSE5/"
+serv.dir2 <- "/home/jason/science/servers/FUSE6/"
+got2d.dir <- "/home/jason/science/servers/FUSE/" 
+source(serv.dir2 %&% "peakC/R/reading_functions.R")
+source(serv.dir2 %&% "peakC/R/util_functions.R")
+#source(serv.dir2 %&% "peakC/manually_added/experiment_comparison.R")
+bg.dir <- serv.dir2 %&%
+  "CaptureCompare/FirstRound_cis_analysis/3_unionBedgraphs/"
+winfile.dir <- serv.dir2 %&% "CaptureCompare/FirstRound_cis_analysis/6_windowFiles/"
+plot.dir <- serv.dir1 %&% "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/plots/"
+states.dir <- got2d.dir %&% "reference/chromatin_segmentation/varshney_2016/chromatin_states/"
+
+
+parameters.file <- serv.dir2 %&% "endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt" #"/well/mccarthy/projects/ng_capture-C/endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt"
+genes.file <- serv.dir2 %&% "CaptureCompare/annotation/RefSeqGenes_hg19.bed"
+gencred.df <- fread(serv.dir1 %&% "datasets/diamante_hrc/gencred.txt")
+
+
+
+
+id <- "rs59153558_HMG20A__8QTL__eQTL__chr15_77806770"
+
+
+```
+
+
+```{r}
+
+prepare_input_list <- function(bg.df,vp,region.size=1e6,keep.cols=c(4,5,6)){
+  flank = region.size/2
+  sub <- filter(bg.df,V2>=(vp-flank),V3<=(vp+flank))
+  
+  # Note in union bedgraph, columns 4,5,6 correspond to Endos whereas 7,8,9 are hESC
+  sub <- sub[,c(2,keep.cols)]
+  df1 <- sub[,c(1,2)]; df2 <- sub[,c(1,3)]; df3 <- sub[,c(1,4)]
+  names(df1) <- c("frag_pos","frag_score");names(df2) <- c("frag_pos","frag_score");
+  names(df3) <- c("frag_pos","frag_score")
+  l <- list(df1,df2,df3)
+  return(l)
+}
+
+mean_mat <- function(bg.df,vp,region.size=1e6,keep.cols=c(4,5,6)){
+  # take union bedgraph and get mean signal per fragment 
+  # Note in union bedgraph, columns 4,5,6 correspond to Endos whereas 7,8,9 are hESC
+  flank = region.size/2
+  sub <- filter(bg.df,V2>=(vp-flank),V3<=(vp+flank))
+  sub <- sub[,c(2,keep.cols)] 
+  vec <- c()
+  #pb <- txtProgressBar(min=0,max=dim(sub)[1],style=3)
+  for (i in 1:dim(sub)[1]){
+    #setTxtProgressBar(pb,i)
+    val <- sub[i,c(2:4)] %>% as.numeric(.) %>% mean(.)
+    vec <- append(vec,val)
+  }
+  m <- cbind(sub[,1],vec) %>% as.matrix(.)
+  colnames(m) <- c("frag_pos","frag_sig")
+  return(m)
+}
+
+```
+
+
+Comparative test functions (from an earlier version of PeakC)
+
+```{r}
+
+runmean.perm <- function ( x1, x2, k = 21, iter = 1000 ){
+  X <- matrix(NA, ncol=iter, nrow=length(x1)-k+1)
+  for(i in 1:iter){
+    #randomly select a value from one of the two experiments
+    X[,i] <- running(ifelse(runif(length(x1)) > 0.5, x1, x2), k)
+  }
+  return(X)
+}
+
+running <- function(x,n=20){
+  cumsum(x)->sum.v
+  sum.v<-c(0,sum.v)
+  #(sum.v[(n+1):length(x)]-sum.v[1:(length(x)-n)])/n
+  diff(sum.v,n)/n
+}
+
+compare.data <- function( x1, x2, wSize = 21, cut.off = 0.997, abs.cut.off = 500, vp.pos = 0, vp.dist=0){
+  #check whether x1 and x2 contain the same fragments
+  #if not select the overlapping fragments
+  x1 <- x1[x1[,1]%in%x2[,1],]
+  x2 <- x2[x2[,1]%in%x1[,1],]
+  
+  shuffle.profile <- runmean.perm(x1[,2], x2[,2], k = wSize)
+  #this is written somewhat counter-intuitively:
+  #if shuffle profile is higher than the running mean of x2 in more then
+  #cut.off fraction of the cases, this mean that x1 is up
+  #and vice versa
+  #up.i <- which(apply(shuffle.profile > running(x2[,2],wSize), 1, mean) > cut.off)
+  #down.i <- which(apply(shuffle.profile < running(x2[,2],wSize), 1, mean) > cut.off)
+  #alternative less counter-intuitive way
+  up.i   <- which(apply(running(x1[,2],wSize) > shuffle.profile, 1, mean) > cut.off | apply(running(x2[,2],wSize) < shuffle.profile, 1, mean) > cut.off)
+  down.i <- which(apply(running(x2[,2],wSize) > shuffle.profile, 1, mean) > cut.off | apply(running(x1[,2],wSize) < shuffle.profile, 1, mean) > cut.off)
+  x1.run <- running(x1[,2],wSize)
+  x2.run <- running(x2[,2],wSize)
+  diff.x <- abs(x1.run[up.i] - x2.run[up.i])
+  up.i <- up.i[diff.x > abs.cut.off]
+  diff.x <- abs(x1.run[down.i] - x2.run[down.i])
+  down.i <- down.i[diff.x > abs.cut.off]
+  
+  up.pos <- rem(x1[,1],wSize)[up.i]
+  down.pos <- rem(x1[,1],wSize)[down.i]
+  if(vp.dist > 0){
+    up.pos <- up.pos[up.pos < vp.pos-vp.dist | up.pos > vp.pos + vp.dist]
+    down.pos <- down.pos[down.pos < vp.pos-vp.dist | down.pos > vp.pos + vp.dist]
+  }
+  if(length(up.pos) > 0){
+    up <- data.frame(pos=up.pos, col=1)
+  }else{
+    up <- data.frame()
+  }
+  if(length(down.pos) > 0){
+    down <- data.frame(pos=down.pos, col=2)
+  }else{
+    down <- data.frame()
+  }
+  rbind(up, down)
+}
+```
+
+
+```{r}
+
+run_peakC <- function(bg.df,vp,region.size=1e6,winsize=11,fdr=0.05,abscutoff=100){
+  # first list object is list of modeled results, 
+  # second list object is a data frame from comparative analysis
+  l1 <- prepare_input_list(bg.df,vp,region.size,keep.cols=c(4,5,6)) # Endos 
+  m1 <- mean_mat(bg.df,vp,region.size,keep.cols=c(4,5,6))
+  l2 <- prepare_input_list(bg.df,vp,region.size,keep.cols=c(7,8,9)) # hESC
+  m2 <- mean_mat(bg.df,vp,region.size,keep.cols=c(7,8,9))
+  results.modeled <- combined.analysis(data=l1,num.exp=3,vp.pos=vp,wSize=winsize,alphaFDR=fdr)#PeakC modeled 
+  results.compared <- compare.data(x1=m1,# EndoC
+                                    x2=m2, # hESC 
+                                    wSize=winsize, vp.pos=vp, abs.cut.off=abscutoff)  # PeakC comparative
+  return(list(results.modeled,results.compared))
+}
+
+
+```
+
+
+# Updated plotting function 
+
+
+```{r}
+
+IntersectBedDataframe <- function(df, chr, start, end){
+  # Wrapper to subset/intersect a given BED format df with a region of interest
+  #
+  # Input:
+  #   df: bedlike 4 or more column df
+  #   chr: chromsome of interest
+  #   start: start coord of interest
+  #   end: end coord of interest
+  df <- df[df[,1] == chr,] #chr
+  df <- df[
+    (df[, 2] >= start & df[, 2] < end) |
+      (df[, 3] > start & df[, 3] <= end) |
+      (df[, 2] <= start & df[, 3] >= end),] # coords
+  return(df)
+}	
+
+science_theme <- theme(
+  panel.grid.major = element_line(size = 0.5, color = "grey"),
+  panel.grid.minor = element_blank(),
+  plot.title = element_text(hjust = 0.5),
+  text = element_text(size = 14),  axis.line = element_line(color="black", size = 0.7),
+  axis.line.x = element_line(color="black", size = 0.7),
+  axis.line.y = element_line(color="black", size = 0.7),
+  # plot.margin = unit(c(0.7,0.7,0.7,0.7), "lines"),
+  panel.border=element_blank(),
+  strip.background = element_blank()
+)
+
+```
+
+
+```{r}
+
+prepare_plot_list <- function(id){
+  data.file <- winfile.dir %&% id %&% "_window.tab"
+  data <- as.tibble(read.table(data.file, header=T))
+  parameters <- as.tibble(read.table(parameters.file))
+  names(parameters) <- c("Viewpoint", "Chr", "Frag_start", "Frag_stop", "Exclusion_Start", 
+                         "Exclusion_Stop", "Plot_Region_Start",
+                         "Plot_Region_Stop", "Bin_Size", "Window_size")
+  # Modify and select from parameters file =======================================
+  # select viewpoint from parameters file
+  viewp <- parameters %>% filter(Viewpoint == id)
+  # select exclusion fragments within plotting region
+  parameters <- parameters %>%
+  filter(Frag_stop >= viewp$Plot_Region_Start & Frag_start <= viewp$Plot_Region_Stop)
+  # add window size to exclusion zone only for viewpoint
+  parameters <- parameters %>%
+    mutate(Exclusion_Start = if_else(Viewpoint == id, (Exclusion_Start - Window_size),
+                                     Exclusion_Start)) %>%
+  mutate(Exclusion_Stop = if_else(Viewpoint == id, (Exclusion_Stop + Window_size),
+                                  Exclusion_Stop))
+
+
+  
+  to.exclude <- parameters %>% filter(Viewpoint == id)
+  # Gather Data =================================================================
+  # 1 gather in long format
+  d <- data %>% gather(key, value, -c(BinNum, Chr, Start, Stop))
+  # 2 extract condition and replicate
+  d <- d %>% 
+    mutate(condition = sub('_.+', "", key, perl=T)) %>%
+    mutate(replicate = sub('.+_', "", key, perl=T)) %>%
+    mutate(pos = Start + (Stop - Start)/2)
+  # Calculate Mean and STDEV ====================================================
+  d <- d %>%
+    group_by(BinNum, Chr, Start, Stop, pos, condition) %>%
+  summarize(mean = mean(value), sd = sd(value)) %>%
+  ungroup()  
+  return(list(d,to.exclude,parameters))
+}
+
+
+capc_plot <- function(bdg.df, d,to.exclude,params,peakc.res,plotwin=1e5){
+  plotmax <- filter(d,Stop<to.exclude$Exclusion_Start |
+                      Start>to.exclude$Exclusion_Stop)$mean %>% max(.) %>% 
+    mean(.) %>% round(.); plotmax <- plotmax+50
+
+  p <- ggplot(filter(d,Stop<to.exclude$Exclusion_Start |
+                      Start>to.exclude$Exclusion_Stop),
+              aes(x=pos, y=mean, col = condition, fill = condition)) +
+    geom_ribbon(inherit.aes = F, 
+                aes(x=pos, ymin=mean-sd, ymax=mean+sd, fill=condition), alpha=.35) + 
+    geom_line() + 
+    scale_fill_manual(values=viridis(20)[c(10,4)],name="Cell Type") +
+    scale_color_manual(values=viridis(20)[c(10,4)],name="Cell Type") +
+    geom_rect(data=to.exclude, inherit.aes=F, 
+              aes(xmin=Exclusion_Start, xmax=Exclusion_Stop), 
+              ymin=-25, ymax=max(d$mean)+max(d$sd), col="lightgrey", fill="white") + 
+    geom_rect(data=params, inherit.aes=F, 
+              aes(xmin=Frag_start, xmax=Frag_stop), ymin=-25, 
+              ymax=max(d$mean)+max(d$sd), col="grey", fill="grey") + 
+    labs(x="Genomic Position", y="Mean Interaction") + 
+    #coord_cartesian(xlim=c(viewp$Plot_Region_Start, viewp$Plot_Region_Stop),
+    #              ylim=c(0,plotmax)) + 
+    coord_cartesian(xlim=c(params$Frag_start-(plotwin/2), 
+                           params$Frag_stop+(plotwin/2)),
+                  ylim=c(0,plotmax)) + 
+    ggtitle(id) +
+    theme_bw() + science_theme +  
+    theme(panel.grid = element_blank())	 
+  
+  peakc.mod <- peakc.res[[1]]$peak
+  peakc.df <- filter(bdg.df,V2 %in% peakc.mod) %>% 
+    dplyr::select(.,one_of("V1","V2","V3")) %>% 
+    filter(.,V3<to.exclude$Exclusion_Start |
+                      V3>to.exclude$Exclusion_Stop)
+  comp.df <- filter(bdg.df,V2 %in% peakc.res[[2]]$pos) %>% 
+    dplyr::select(.,one_of("V1","V2","V3")) %>% 
+    filter(.,V3<to.exclude$Exclusion_Start |
+                      V3>to.exclude$Exclusion_Stop)
+  if (dim(peakc.df)[1]>0){
+    p = p + geom_rect(data=peakc.df,inherit.aes=F,aes(xmin=V2,xmax=V3),
+                ymin=-(plotmax/50),ymax=(plotmax/50),size=0.1,
+                color="firebrick3",fill="firebrick1")
+  }
+  if (dim(comp.df)[1]>0){
+    p = p + geom_rect(data=comp.df,inherit.aes=F,aes(xmin=V2,xmax=V3),
+                ymin=-(plotmax/50),ymax=(plotmax/50),size=0.1,
+                color=viridis(20)[20],fill=viridis(20)[15])    
+  }
+  return(p)
+}
+
+```
+
+
+```{r}
+
+data(genesymbol, package = "biovizBase")
+
+gene_plot <- function(params,plotwin){
+  reg.gr <- GRanges(seqnames=params$Chr,IRanges(params$Frag_start-(plotwin/2),
+                                             params$Frag_stop+(plotwin/2)))
+  wh <- genesymbol[genesymbol %over% reg.gr] 
+  wh <- range(wh, ignore.strand = TRUE)
+  p <- autoplot(Homo.sapiens, which = wh,
+                color=cividis(20)[1],
+                fill=cividis(20)[4]) 
+  p = p + theme_bw() + theme(panel.grid=element_blank()) + ylab("Transcripts") + 
+    xlab("Genomic Position")
+  return(p)
+}
+
+```
+
+
+```{r}
+
+credset_plot <- function(params,plotwin){
+  sub <- filter(gencred.df,
+                CHR==params$Chr,
+                POS>=params$Frag_start-(plotwin/2),
+                POS<=params$Frag_stop+(plotwin/2))
+  plt <- ggplot(data=sub,aes(x=POS,y=PPA)) + 
+    geom_point(shape=21,color=inferno(20)[2],fill=inferno(20)[8]) + 
+    ylim(c(0,1)) + theme_classic()
+  return(plt)
+}
+
+```
+
+
+```{r}
+
+
+got2d.dir <- "/home/jason/science/servers/FUSE/" 
+states.dir <- got2d.dir %&% "reference/chromatin_segmentation/varshney_2016/chromatin_states/"
+
+
+get_state_df <- function(){
+    isl.file <- states.dir %&% "Islets.chromatinStates.bed.gz"
+    isl.df <- fread("cat " %&% isl.file %&% " | zmore",sep="\t")
+    isl.df$V6 <- "Islets"
+    
+    es1.file <- states.dir %&% "ES-HUES6.chromatinStates.bed.gz"
+    es1.df <- fread("cat " %&% es1.file %&% " | zmore",sep="\t")
+    es1.df$V6 <- "ES-HUES6" 
+    
+    es2.file <- states.dir %&% "ES-HUES64.chromatinStates.bed.gz"
+    es2.df <- fread("cat " %&% es2.file %&% " | zmore",sep="\t")
+    es2.df$V6 <- "ES-HUES64"  
+    
+    #adi.file <- states.dir %&% "Adipose.chromatinStates.bed.gz"
+    #adi.df <- fread("cat " %&% adi.file %&% " | zmore",sep="\t")
+    #adi.df$V6 <- "Adipose"
+    
+    #liv.file <- states.dir %&% "Liver.chromatinStates.bed.gz"
+    #liv.df <- fread("cat " %&% liv.file %&% " | zmore",sep="\t")
+    #liv.df$V6 <- "Liver"
+    
+    #mus.file <- states.dir %&% "SkeletalMuscle.chromatinStates.bed.gz"
+    #mus.df <- fread("cat " %&% mus.file %&% " | zmore",sep="\t")
+    #mus.df$V6 <- "Muscle"
+    
+    #state.df <- rbind(isl.df,adi.df,liv.df,mus.df)
+    state.df <- rbind(isl.df,es1.df,es2.df)
+    
+    state.df$V2 <- state.df$V2 + 1 ; state.df$V3 <- state.df$V3 + 1 
+    names(state.df) <- c("CHR","START","END","STATE","RGB","Tissue")
+    pb <- txtProgressBar(min=0,max=dim(state.df)[1],style=3)
+    state.df$COL <- map(1:length(state.df$RGB),function(i){
+      setTxtProgressBar(pb,i)
+      rgb <- state.df$RGB[i]
+      vec <- strsplit(rgb,split=",")[[1]]
+      r <- vec[1]; g <- vec[2]; b <- vec[3]
+      col <- rgb(r,g,b,maxColorValue=255)
+    }) %>% as.character(.)  
+    return(state.df)
+}
+
+
+chromHMM_plot <- function(state.df,params,plotwin){
+  sub.df <- filter(state.df,CHR==params$Chr,START<=(params$Frag_stop+plotwin),END>=(params$Frag_start - plotwin))
+  sub.df$START <- sub.df$START %>% as.integer(.)
+  sub.df$END <- sub.df$END %>% as.integer(.)
+  sub.df$Y <- ifelse(sub.df$Tissue=="Islets",4.2,
+                            ifelse(sub.df$Tissue=="ES-HUES6",3.1,
+                                   ifelse(sub.df$Tissue=="ES-HUES64",2,NA)))
+  plt <- ggplot(data=sub.df) + 
+    geom_rect(data=sub.df,aes(xmin=START,xmax=END,ymin=Y-0.5,ymax=Y+0.5),color=sub.df$COL,fill=sub.df$COL) + 
+    #coord_cartesian(ylim=c(-2,8),expand = TRUE) + 
+    theme_clear() + 
+    theme(#axis.title = element_blank(),
+          axis.text.y = element_blank(),
+          axis.ticks.y=element_blank()) + 
+    #annotate("text",x=params$Frag_start,y=6.7,label="Islet") + 
+    #annotate("text",x=params$Frag_start,y=4.7,label="ES-HUES6") + 
+    #annotate("text",x=params$Frag_start,y=2.7,label="ES-HUES64") + 
+    annotate("rect",xmin=params$Frag_start-plotwin,
+             xmax=params$Frag_start+plotwin,
+             ymin=1,ymax=1.4,fill="white") + 
+    ylab("Chr. States")
+             
+  return(plt)
+}
+
+
+```
+
+
+# ATAC Track 
+
+
+```{r}
+
+bamfile <- "/home/jason/science/projects/wtsa/enhancer_driven/first_round/statistical_anlayses/" %&% "HP1620.bam"
+
+atac_plot <- function(params,plotwin,bamfile){
+  wh <- GRanges(seqnames=params$Chr,IRanges(params$Frag_start-500000,
+                                       params$Frag_stop+500000))  
+  plt <- autoplot(bamfile,which=wh,color=magma(20)[7]) + 
+    theme_bw() + ylab("ATAC")
+  return(plt)
+}
+
+
+
+```
+
+
+
+
+
+
+```{r}
+
+
+save_plot <- function(id,plotwin=500000){
+  plt.list <- prepare_plot_list(id)
+  plt.list[[3]] <- plt.list[[3]][grepl(id,plt.list[[3]]$Viewpoint),]
+  
+  bdg.df <- fread(bg.dir %&% id %&% ".unionbdg") %>% as.data.frame(.)
+  vp = plt.list[[3]]$Frag_start
+  peakc.res <- run_peakC(bdg.df,vp,region.size = 1e6,winsize=11,abscutoff = 100)
+  
+  plt1 <- capc_plot(bdg.df=bdg.df,d=plt.list[[1]],to.exclude=plt.list[[2]],
+                 params=plt.list[[3]], peakc.res=peakc.res, plotwin) + scale_x_sequnit(unit="kb")
+
+  plt2 <- gene_plot(plt.list[[3]],plotwin) + scale_x_sequnit(unit="kb")
+
+  plt3 <- credset_plot(plt.list[[3]],plotwin) + scale_x_sequnit(unit="kb")
+  
+  plt4 <- chromHMM_plot(state.df,plt.list[[3]],plotwin)
+  
+  plt5 <- atac_plot(plt.list[[3]],plotwin,bamfile)
+
+  plt <- tracks(plt1,plt4,plt3,plt2,plt5,heights=c(2,0.5,0.5,1,0.5),
+                main="Capture: " %&% plt.list[[3]]$Viewpoint, 
+                xlab="Genomic Position on Chromosome " %&% gsub("chr","",plt.list[[3]]$Chr))  + 
+                theme(axis.text.x=element_text(size=7),
+                  axis.text.y=element_text(size=7),
+                  axis.title.y=element_text(size=12)) + 
+                scale_x_sequnit(unit="kb") # + xlab("Genomic Position")
+
+  save.name <- plot.dir %&% plt.list[[3]]$Viewpoint %&% ".Tracks.png"
+  ggsave(x=plt,filename = save.name,height = 10,width=20)  
+}
+
+
+
+
+```
+
+
+```{r}
+#ADCY5 – 300 kb
+
+#COBLL – 300 kb
+
+#HHEX – 400 kb, only variant 94462882 & 94480334
+
+#DGKB – 1 MB
+
+#And if you have time, if you can prepare the extension for RREB1 to 400 kb to.
+
+ 
+
+#Also, something I forgot to ask you. Would it be possible for you to visualise the promoter captures in CaptureCompare? Would be interesting for ADCY5 and WARS where I am compiling the promoter and enhancer capturesJ
+
+ 
+```
+
+
+```{r}
+
+state.df <- get_state_df()
+
+```
+
+
+# Manually job run 
+
+```{r}
+
+gene.vec <- c("ADCY5","COBLL","HHEX","DGKB","RREB1")
+file.vec <- list.files(bg.dir)
+id.vec  <- c()
+for (g in gene.vec){
+  for (f in file.vec){
+    if (grepl(g,f)==TRUE){
+      
+      id.vec <- append(id.vec,strsplit(x=f,split=".unionbdg")[[1]][1])
+    }
+  }
+}
+
+
+id.vec <- c("RREB1__2TG__DIAMANTE_Morris__chr6_7231843", 
+            "rs17168486_DGKB__7QTL__eQTL__chr7_14898282",
+            "rs10231021_DGKB__6QTL__eQTL__chr7_15060429",
+            "HHEX__89DF__credible_variant__chr10_94462882",
+            "HHEX__89DF__credible_variant__chr10_94466439",
+            "HHEX__89DF__credible_variant__chr10_94480334",
+            "HHEX__89DF__downstream_control__chr10_94602920",
+            "HHEX__89DF__upstream_control__chr10_94353285")
+
+for (id in id.vec){
+  print(id)
+  save_plot(id)
+}
+
+
+
+```
+
+
+
+
+```{r}
+
+test.df <- fread(bg.dir %&% id %&% ".unionbdg") %>% as.data.frame(.)
+vp = 77808771
+res <- run_peakC(test.df,vp,region.size = 1e6,winsize=11,abscutoff = 100)
+
+```
+
+
+
