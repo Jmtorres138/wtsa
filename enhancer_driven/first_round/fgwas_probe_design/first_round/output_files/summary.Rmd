@@ -1,0 +1,82 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table");library("tidyverse")
+library("GenomicRanges")
+serv.dir <- "/home/jason/science/servers/FUSE5/"
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/first_round/fgwas_probe_design/first_round/output_files/"
+
+```
+
+
+```{r}
+
+allsnp.df <- fread(work.dir %&% "All_SNPs_of_interest.csv")newOligofile_shortNames_modified.txt
+unique(allsnp.df$ID) %>% length(.)
+unique(allsnp.df$SEGNUMBER) %>% length(.)
+unique(allsnp.df$SEGNUMBER) %>% map(.,function(id){grepl("QTL",id)}) %>% as.logical(.) %>% sum(.)
+unique(allsnp.df$SEGNUMBER) %>% map(.,function(id){grepl("TG",id)}) %>% as.logical(.) %>% sum(.)
+
+allsnp.df$snp <- map(allsnp.df$ID,function(id){
+  strsplit(x=id,split=",")[[1]][4]
+}) %>% as.character(.)
+
+allsnp.df$snp %>% unique(.) %>% length(.) # 283 unique SNPs 
+sub.df <- dplyr::select(allsnp.df,one_of("Capture.Status","Fragment"))
+sub.df <- sub.df[!duplicated(sub.df),]
+table(sub.df$Capture.Status)
+
+
+```
+
+
+```{r}
+
+pruned.df <- fread(work.dir %&% "Pruned_oligo_probeset.csv")
+sub.df <- dplyr::select(pruned.df,one_of("type","quality","fragment"))
+sub.df <- sub.df[!duplicated(sub.df),]
+filter(sub.df,type=="paired")$quality %>% table(.)
+filter(sub.df,type=="single")$quality %>% table(.)
+
+```
+
+
+```{r}
+
+cap.df <- fread(work.dir %&% "newOligofile_shortNames_modified.txt")
+fail.df <-  fread(work.dir %&% "failed_captures_list.txt", header=F)
+fail.df$id <- map(fail.df$V1,function(s){
+  r <- regexpr(pattern="chr\\d+_",s)
+  i <- attr(r,"match.length")
+  substr(s,start=i+1,stop=nchar(s))  
+}) %>% as.character(.)
+
+fail.df$id %in% cap.df$V1 %>% sum(.)
+
+good.df <- filter(cap.df,!(V1 %in% fail.df$id))
+good.df$V2 <- "chr" %&% good.df$V2
+
+good.gr <- GRanges(seqnames = good.df$V2, IRanges(start=good.df$V3,end=good.df$V4))
+
+allsnp.df$success <- map(1:dim(allsnp.df)[1],function(i){
+  row.df <- allsnp.df[i,]
+  snp.gr <- GRanges(seqnames = row.df$Chrom, IRanges(start=row.df$Start,end=row.df$End))
+  snp.gr %over% good.gr
+}) %>% as.logical(.)
+
+goodsnp.df <- filter(allsnp.df,success==TRUE)
+goodsnp.df$snp %>% unique(.) %>% length(.)
+
+```
+
+
