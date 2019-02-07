@@ -1,0 +1,163 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table");library("tidyverse")
+work.dir <- "/home/jason/science/projects/wtsa/enhancer_driven/second_round/probe_design/"
+fname <- work.dir %&% "FinalListEnhancerCapture2ndRound_2019-01-25.txt"
+
+serv.dir <- "/home/jason/science/servers/FUSE/"
+dpn.file <- serv.dir %&% "reference/DpnII/hg19_DpnII-sites.bed.gz"
+
+```
+
+
+```{r}
+
+df <- fread(fname)
+df$chrom <- map(df$chr,function(s){
+  gsub(x=s,pattern="chr",replace="")
+}) %>% as.integer(.)
+names(df)[2:3] <- c("bp.start","bp.end")
+df <- arrange(df,chr,bp.start)
+df$chr[1:2] <- rep("chr10",2)
+df$chrom[1:2] <- rep(10,2)
+df <- arrange(df,chr,bp.start)
+df$bp.start[29] <- 87862954
+df$bp.end[29] <- 87863074
+df$bp.start[30] <- 87864373
+df$bp.end[30] <- 87864493
+df <- arrange(df,chr,bp.start)
+
+
+names(df)[8] <- "ProbeID"
+df$frag <- map(df$ProbeID,function(s){
+  strsplit(s,split="chr")[[1]][2]
+}) %>% as.character(.)
+
+View(select(df,one_of("ProbeID","frag")))
+
+sub.df <- select(df,one_of("ProbeID","Sequence"))
+write.table(x=sub.df,file=work.dir%&%"Probes-to-order.txt",sep="\t",quote=F,row.names=F)
+
+
+df$frag[19:22] <- c("PTEN","PTEN","RNLS","RNLS")
+
+df$probe.type <- map(df$frag,function(f){
+  sub <- filter(df,frag==f)
+  ifelse(dim(sub)[1]==1,"single","paired")
+}) %>% as.character(.)
+
+df$frag[4] <- "1_214150445_PROX1"
+df$probe.type[3:4] <- "paired"
+
+View(filter(df,probe.type=="single"))
+
+```
+
+
+
+```{r}
+
+dpn.df <- fread("cat " %&% dpn.file %&% " | zcat ")
+
+```
+
+
+
+# Append Fragment coordinates for paired and singles 
+
+```{r}
+
+get_frag_start <- function(f){
+  sub <- filter(df,frag==f) %>% select(.,one_of("chr","bp.start","bp.end","probe.type"))
+  if (unique(sub$probe.type)=="paired"){
+    frag.start <- sub$bp.start[1]
+  } else {
+      sub1 <- filter(dpn.df,V1==sub$chr,V2==(sub$bp.start+1))
+      sub2 <- filter(dpn.df,V1==sub$chr,V3==(sub$bp.end-3))
+      if (dim(sub1)[1]==1){
+        frag.start <- sub1$V2
+      } else if (dim(sub2)[1]==1){
+        frag.start <- sub2$V2
+      } else {
+        frag.start <- NA
+      }
+  }
+  return(frag.start)
+}
+
+get_frag_end <- function(f){
+  sub <- filter(df,frag==f) %>% select(.,one_of("chr","bp.start","bp.end","probe.type"))
+  if (unique(sub$probe.type)=="paired"){
+    frag.end <- sub$bp.end[2]
+  } else {
+      sub1 <- filter(dpn.df,V1==sub$chr,V2==(sub$bp.start+1))
+      sub2 <- filter(dpn.df,V1==sub$chr,V3==(sub$bp.end-3))
+      if (dim(sub1)[1]==1){
+        frag.end <- sub1$V3
+      } else if (dim(sub2)[1]==1){
+        frag.end <- sub2$V3
+      } else {
+        frag.end <- NA
+      }
+  }
+  return(frag.end)
+  
+}
+
+
+frag.start <- c() 
+for (f in df$frag){
+  val <- get_frag_start(f)
+  frag.start <- append(frag.start,val)
+}
+
+frag.end <- c() 
+for (f in df$frag){
+  val <- get_frag_end(f)
+  frag.end <- append(frag.end,val)
+}
+
+df$frag.start <- frag.start %>% as.integer(.)
+df$frag.end <- frag.end %>% as.integer(.)
+df$bp.start <- df$bp.start %>% as.integer(.)
+df$bp.end <- df$bp.end %>% as.integer(.)
+
+
+```
+
+
+```{r}
+
+sub.df <- select(df,one_of("frag","probe.type"))
+# 218 probes 
+filter(sub.df,probe.type=="single") %>% dim(.)
+# 38 of these are single probes 
+(218-38)/2
+# there are 90 pairs of probes 
+
+sub.df <- sub.df[!duplicated(sub.df),]
+# There are 128 captures to be completed 
+table(sub.df$probe.type)
+# 90 paired captures and 38 single captures 
+
+
+
+```
+
+
+
+
+
