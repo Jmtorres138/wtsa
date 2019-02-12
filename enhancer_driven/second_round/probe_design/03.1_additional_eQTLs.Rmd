@@ -1,0 +1,215 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+
+library("tidyverse")
+library("data.table")
+library("GenomicRanges")
+
+serv.dir <- "/home/jason/science/servers/FUSE5/" # Rescomp
+serv.dir2 <- "/home/jason/science/servers/FUSE/" # got2d
+serv.dir3 <- "/home/jason/science/servers/FUSE2/" # cbrg
+
+proj.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/second_round/"
+work.dir <- proj.dir %&% "probe_design/"
+
+secondcred.df <- fread(work.dir %&% "second-round-credible-SNPs-to-capture.txt")
+eqtl.dir <- serv.dir2 %&% "reference/islet/eqtls/inspire/"
+#eqtl.df <- fread("cat " %&% eqtl.dir %&% "nominal_pass/output/eqtls_fdr05.txt.gz" %&% " | zmore")
+snploc.df <- fread(eqtl.dir %&% "matrix_qtl_files/snpsloc.txt")
+
+```
+
+
+```{r}
+
+#genes <- unique(eqtl.df$V1)
+#pb <- txtProgressBar(min=0,max=length(genes),style=3)
+#pruned.df <- c()
+#for (i in 1:length(genes)){
+#  setTxtProgressBar(pb,i)
+#  g <- genes[i]
+#  sub <- filter(eqtl.df,V1==g) %>% arrange(.,V6)
+#  build.df <- sub[1,]
+#  pruned.df <- rbind(pruned.df,build.df)
+#}
+
+#pruned.df <- arrange(pruned.df,V6)
+#names(pruned.df)[2] <- "snp"
+
+#df1 <- inner_join(pruned.df,snploc.df,by="snp")
+
+```
+
+
+
+```{r}
+
+coloc.df <- fread(serv.dir %&% "projects/t2d_classification/revamp/analysis_files/coloc.txt")
+coloc.df <- filter(coloc.df,Tissue=="Islet",CLPP>=0.05) # 489 SNPs 
+coloc.df$SNPID <- ("chr" %&% coloc.df$SNP_ID) %>% gsub(.,pattern="_",replacement = ":")
+coloc.df$CHR <- map(coloc.df$SNP_ID,function(s){
+ "chr" %&%  strsplit(s,split="_")[[1]][1]
+}) %>% as.character(.)
+coloc.df$POS <- map(coloc.df$SNP_ID,function(s){
+ strsplit(s,split="_")[[1]][2]
+}) %>% as.integer(.)
+
+```
+
+
+
+See what would have been captured in the first round 
+
+
+```{r}
+
+cbrg.dir <- serv.dir3 %&% "wtsa/enhancer_driven/first_round/"
+failed.vec <- fread(cbrg.dir %&% "failed_captures_list_alt.txt",header=F)$V1
+oligo.df <- fread(cbrg.dir %&% "newOligofile_shortNames_modified.txt",header=F)
+success.df <- filter(oligo.df,!(V1 %in% failed.vec))
+success.df$CHR <- "chr" %&% success.df$V2
+
+coloc.df$eqtl.captured.in.first <- map(1:dim(coloc.df)[1],function(i){
+ row.df <- coloc.df[i,] 
+ c <- row.df$CHR
+ p <- row.df$POS
+ sub <- filter(success.df,CHR==c,V3<=p,V4>=p)
+ ifelse(dim(sub)[1]>0,TRUE,FALSE)
+}) %>% as.logical(.)
+
+```
+
+
+Look up gene TSS 
+
+
+```{r}
+
+library("GenomicFeatures")
+ensgene <- makeTxDbFromUCSC( genome="hg19", tablename="ensGene")
+transcripts <- transcripts(ensgene, columns=c("tx_id", "tx_name"))
+tss <- resize(transcripts, width=1, fix='start')
+
+tss.df <- as.data.frame(tss)
+names(tss.df)[7] <- "TXNAME"
+test <- select(ensgene, keys=tss.df$TXNAME, columns=c("GENEID"), keytype="TXNAME")
+tss.df <- inner_join(tss.df,test,by="TXNAME")
+names(tss.df)[2] <- "tss"
+
+coloc.df$GENEID <- map(coloc.df$Gene, function(g){
+  strsplit(g,split=".",fixed=TRUE)[[1]][1]
+}) %>% as.character(.)
+
+coloc.df$TSS <- map(coloc.df$GENEID, function(g){
+  filter(tss.df,GENEID==g)$tss %>% paste0(.,collapse=",")
+}) %>% as.character(.)
+
+```
+
+
+
+```{r}
+
+cred.df <- fread(serv.dir%&%"projects/t2d_classification/revamp/genetic_credible_sets/gencred.txt")
+coloc.df$max.ppa <- map(coloc.df$SNPID,function(s){
+  filter(cred.df,SNPID==s)$PPA %>% max(.)
+}) %>% as.numeric(.)
+
+sig.df <- filter(coloc.df,CLPP>0.5,max.ppa>0.5) #%>% dim(.)
+
+
+
+```
+
+
+# MVB 2015 eQTLs
+
+
+```{r}
+
+eqtl.df <- fread("/home/jason/science/projects/wtsa/vdb_eqtls_2015.txt",header=FALSE)
+eqtl.df$chrom <- map(eqtl.df$V5,function(s){
+  filter(snploc.df,snp==s)$chr %>% unique(.)
+}) %>% as.character(.)
+eqtl.df$pos <- map(eqtl.df$V5,function(s){
+  filter(snploc.df,snp==s)$pos %>% unique(.)
+}) %>% as.integer(.)
+
+eqtl.df$ensgene <- c("ENSG00000175164","ENSG00000165066","ENSG00000157823","ENSG00000214530","ENSG00000214530",
+                "ENSG00000183049","ENSG00000136267","ENSG00000134575","ENSG00000110514","ENSG00000110514",
+                "ENSG00000140105","ENSG00000173175","ENSG00000173175","ENSG00000004534","ENSG00000136267",
+                "ENSG00000149485","ENSG00000134640"," ENSG00000247121","ENSG00000152127","ENSG00000259361",
+                "ENSG00000108175")
+eqtl.df$SNPID <- eqtl.df$chrom %&% ":" %&% eqtl.df$pos
+
+
+out.df <- c()
+for (i in 1:dim(eqtl.df)){
+  print(i)
+  row.df <- eqtl.df[i,]
+  row.df$id <- row.df$V4 %&% "_eQTL_" %&% row.df$V3
+  sub.df <- dplyr::select(row.df, one_of("id","chrom","pos"))
+  #sub2.df <- filter(tss.df,GENEID==row.df$ensgene) %>% arrange(.,tss)
+  #if (dim(sub.df)[1]>0 & dim(sub2.df)[1]>0){
+  #  sub2.df$id <- row.df$V4 %&% "_tss_" %&% 1:dim(sub2.df)[1]
+  #  sub2.df <- dplyr::select(sub2.df, one_of("id","seqnames","tss"))
+  names(sub.df) <- c("ID","CHR","POS")
+   # names(sub2.df) <- c("ID","CHR","POS")
+  build.df <- sub.df
+  out.df <- rbind(out.df,build.df)    
+ # }
+}
+
+write.table(x=out.df,file=work.dir %&% "eqtls_mvdb_2015.txt",sep="\t",quote=F,row.names=F)
+
+
+```
+
+
+
+# Final list for Vibe 
+
+
+```{r}
+
+str(secondcred.df)
+
+secondcred.df$mvdb_eqtl <- map(1:dim(secondcred.df)[1],function(i){
+  row.df <- secondcred.df[i,]
+  c <- row.df$CHR
+  p <- row.df$POS
+  sub <- filter(eqtl.df,chrom==c,pos==p)
+  dim(sub)[1] > 0
+}) %>% as.logical(.) 
+
+eqtl.df$SNPID <- eqtl.df$chrom %&% ":" %&% eqtl.df$pos
+
+out.df$eqtl.captured.in.first <- map(1:dim(out.df)[1],function(i){
+ row.df <- out.df[i,] 
+ c <- row.df$CHR
+ p <- row.df$POS
+ sub <- filter(success.df,CHR==c,V3<=p,V4>=p)
+ ifelse(dim(sub)[1]>0,TRUE,FALSE)
+}) %>% as.logical(.)
+
+
+write.table(x=out.df,file=work.dir %&% "eqtls_mvdb_2015_to-capture.txt",sep="\t",quote=F,row.names=F)
+
+# note that 7 of the 21 eQTLs were successfully captured in the first round 
+
+```
+

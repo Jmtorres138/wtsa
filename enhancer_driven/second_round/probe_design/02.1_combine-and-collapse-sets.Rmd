@@ -1,0 +1,156 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+
+library("tidyverse")
+library("data.table")
+library("GenomicRanges")
+
+serv.dir <- "/home/jason/science/servers/FUSE5/" # Rescomp
+serv.dir2 <- "/home/jason/science/servers/FUSE2/" # CBRG
+
+proj.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/second_round/"
+work.dir <- proj.dir %&% "probe_design/"
+
+
+gt.df <- fread(work.dir %&% "second-round_ENGAGE-SNPs_PPA01_withFirstRound.txt")
+t2d.df <- fread(work.dir %&% "second-round_T2D-SNPs_PPA01_withFirstRound.txt")
+
+
+```
+
+
+# Combine DF 
+
+```{r}
+
+snps <- c(gt.df$SNPID,t2d.df$SNPID) %>% unique(.)
+
+df <- c()
+pb <- txtProgressBar(min=0,max=length(snps),style=3)
+for (i in 1:length(snps)){
+  setTxtProgressBar(pb,i)
+  s <- snps[i]
+  a <- filter(t2d.df,SNPID==s) %>% select(.,one_of("SNPID","CHR","POS","peak_mean","first.round"))
+  b <- filter(gt.df,SNPID==s) %>% select(.,one_of("SNPID","CHR","POS","peak_mean","first.round"))
+  c <- rbind(a,b); c <- c[!duplicated(c),]
+  df <- rbind(df,c)
+}
+
+df$t2d <- map(1:(dim(df)[1]),function(i){
+  s <- df$SNPID[i]
+  sub <- filter(t2d.df,SNPID==s)
+  ifelse(dim(sub)[1]>0,TRUE,FALSE)
+}) %>% as.logical(.)
+df$bmi <- map(1:(dim(df)[1]),function(i){
+  s <- df$SNPID[i]
+  sub <- filter(gt.df,SNPID==s,trait=="BMI")
+  ifelse(dim(sub)[1]>0,TRUE,FALSE)
+}) %>% as.logical(.)
+df$fg <- map(1:(dim(df)[1]),function(i){
+  s <- df$SNPID[i]
+  sub <- filter(gt.df,SNPID==s,trait=="FG")
+  ifelse(dim(sub)[1]>0,TRUE,FALSE)
+}) %>% as.logical(.)
+df$fi <- map(1:(dim(df)[1]),function(i){
+  s <- df$SNPID[i]
+  sub <- filter(gt.df,SNPID==s,trait=="FI")
+  ifelse(dim(sub)[1]>0,TRUE,FALSE)
+}) %>% as.logical(.)
+
+
+df$t2d.ppa <- map(1:(dim(df)[1]),function(i){
+  s <- df$SNPID[i]
+  sub <- filter(t2d.df,SNPID==s)$PPA
+  ifelse(length(sub)>0,sub,NA)
+}) %>% as.numeric(.)
+df$bmi.ppa <- map(1:(dim(df)[1]),function(i){
+  s <- df$SNPID[i]
+  sub <- filter(gt.df,SNPID==s,trait=="BMI")$PPA
+  ifelse(length(sub)>0,sub,NA)
+}) %>% as.numeric(.)
+df$fg.ppa <- map(1:(dim(df)[1]),function(i){
+  s <- df$SNPID[i]
+  sub <- filter(gt.df,SNPID==s,trait=="FG")$PPA
+  ifelse(length(sub)>0,sub,NA)
+}) %>% as.numeric(.)
+df$fi.ppa <- map(1:(dim(df)[1]),function(i){
+  s <- df$SNPID[i]
+  sub <- filter(gt.df,SNPID==s,trait=="FI")$PPA
+  ifelse(length(sub)>0,sub,NA)
+}) %>% as.numeric(.)
+
+
+```
+
+
+Filter out SNPs that are only associated with BMI and/or FI 
+
+```{r}
+
+df.full <- df
+com.df <- filter(df,t2d==TRUE | fg==TRUE)
+
+```
+
+There are 670 SNPs that have been fine-mapped to have PPA >= 0.01 for association with T2D and/or FG that also overlap with ATAC peaks (n=17) 
+
+
+Determined if successfully captured in the first round 
+
+```{r}
+
+cbrg.dir <- serv.dir2 %&% "wtsa/enhancer_driven/first_round/"
+failed.vec <- fread(cbrg.dir %&% "failed_captures_list_alt.txt",header=F)$V1
+oligo.df <- fread(cbrg.dir %&% "newOligofile_shortNames_modified.txt",header=F)
+success.df <- filter(oligo.df,!(V1 %in% failed.vec))
+success.df$CHR <- "chr" %&% success.df$V2
+
+com.df$captured.in.first <- map(1:dim(com.df)[1],function(i){
+ row.df <- com.df[i,] 
+ c <- row.df$CHR
+ p <- row.df$POS
+ sub <- filter(success.df,CHR==c,V3<=p,V4>=p)
+ ifelse(dim(sub)[1]>0,TRUE,FALSE)
+}) %>% as.logical(.)
+
+new.df <- filter(com.df,captured.in.first==FALSE)
+
+new.df$locus <- map(1:dim(new.df)[1],function(i){
+  s <- new.df$SNPID[i]
+  a <- filter(t2d.df,SNPID==s)$symbol
+  b <- filter(gt.df,SNPID==s)$symbol
+  ifelse(length(a)>0,a,b)
+}) %>% as.character(.)
+new.df$locus[25:26] <- "GCK"
+
+(new.df$locus) %>% unique(.) %>% length(.)
+
+```
+
+Of the 670 SNPs (that have been fine-mapped to have PPA >= 0.01 for association with T2D and/or FG that also overlap with ATAC peaks (n=17), 624 SNPs (93.1%) at 188 loci have NOT BEEN CAPTURED in the first round 
+
+
+```{r}
+
+new05.df <- filter(new.df,t2d.ppa>=0.05 | fg.ppa>0.05)
+(new05.df$locus) %>% unique(.) %>% length(.)
+
+write.table(x=new05.df,work.dir %&% "second-round-credible-SNPs-to-capture.txt",sep="\t",quote=F,row.names=F)
+
+```
+
+
+Of the 670 SNPs (that have been fine-mapped to have PPA >= 0.01 for association with T2D and/or FG that also overlap with ATAC peaks (n=17), 220 SNPs (32.8%) at 112 loci have NOT BEEN CAPTURED in the first round AND have a PPA >= 0.05 for T2D and/or FG 
