@@ -39,6 +39,7 @@ Filter T2D credible SNPs (Mahajan et al 2018) with PPA >= 0.10
 ```{r}
 
 sigcred.df <- filter(cred.df,PPA>=0.10)
+sigcred05.df <- filter(cred.df,PPA>=0.05)
 sigcred01.df <- filter(cred.df,PPA>=0.01)
 
 
@@ -75,6 +76,7 @@ append_atac <- function(df){
 ```{r}
 
 sigcred.df <- append_atac(sigcred.df)
+sigcred05.df <- append_atac(sigcred05.df)
 sigcred01.df <- append_atac(sigcred01.df)
 
 ```
@@ -123,11 +125,14 @@ Filter to those with ATAC overlap
 ```{r}
 
 sigatac.df <- sigcred.df %>% filter(.,atac==TRUE) %>% assess_in_first(.)
+sigatac05.df <- sigcred05.df %>% filter(.,atac==TRUE) %>% assess_in_first(.)
 sigatac01.df <- sigcred01.df %>% filter(.,atac==TRUE) %>% assess_in_first(.)
 
 ```
 
 There are 159 credible SNPs (from 120 loci) that have PPA >=0.10 and overlap islet ATAC peaks (MACS2 on n=17 islet ATAC samples) using filtered ATAC peaks 
+
+There are 257 credible SNPs (from 167 loci) that have PPA >=0.10 and overlap islet ATAC peaks (MACS2 on n=17 islet ATAC samples) using filtered ATAC peaks 
 
 There are 665 credible SNPs (from 280 loci) that have PPA >=0.01 and overlap islet ATAC peaks (MACS2 on n=17 islet ATAC samples) using filtered ATAC peaks
 
@@ -138,26 +143,26 @@ There are 665 credible SNPs (from 280 loci) that have PPA >=0.01 and overlap isl
 
 new.df <- filter(sigatac.df,first.round==FALSE)
 write.table(x=new.df,file=work.dir %&% "second-round_T2D-SNPs_PPA10.txt",sep="\t",quote=F,row.names=F)
-write.table(x=sigatac.df,file=work.dir %&% "second-round_T2D-SNPs_PPA10_withFirstRound.txt",sep="\t",quote=F,row.names=F)
+write.table(x=sigatac.df,file=work.dir %&% "second-round_T2D-SNPs_PPA05_withFirstRound.txt",sep="\t",quote=F,row.names=F)
+
+new05.df <- filter(sigatac.df,first.round==FALSE)
+write.table(x=new05.df,file=work.dir %&% "second-round_T2D-SNPs_PPA05.txt",sep="\t",quote=F,row.names=F)
+write.table(x=sigatac05.df,file=work.dir %&% "second-round_T2D-SNPs_PPA05_withFirstRound.txt",sep="\t",quote=F,row.names=F)
 
 new01.df <- filter(sigatac01.df,first.round==FALSE)
-write.table(x=new.df,file=work.dir %&% "second-round_T2D-SNPs_PPA01.txt",sep="\t",quote=F,row.names=F)
-
+write.table(x=new01.df,file=work.dir %&% "second-round_T2D-SNPs_PPA01.txt",sep="\t",quote=F,row.names=F)
+write.table(x=sigatac01.df,file=work.dir %&% "second-round_T2D-SNPs_PPA01_withFirstRound.txt",sep="\t",quote=F,row.names=F)
 ```
-
-There are 139 SNPs with PPA > 10% at 108 loci that meet the above criteria and have not been captured in the first round 
-There are 621 SNPs with PPA > 1% at 267 loci that meet the above criteria and have not been captured in the first round 
-
 
 
 First Round variants 
 
 ```{r}
 
-first.df <- filter(sigatac.df,first.round==TRUE)
-first.df$Locus.ID %>% unique(.) %>% length(.)
-first.df$symbol %>% unique(.)
-write.table(x=first.df,file=work.dir %&% "second-round_T2D-SNPs_PPA10_OnlyInFirstRound.txt",sep="\t",quote=F,row.names=F)
+#first.df <- filter(sigatac.df,first.round==TRUE)
+#first.df$Locus.ID %>% unique(.) %>% length(.)
+#first.df$symbol %>% unique(.)
+#write.table(x=first.df,file=work.dir %&% "second-round_T2D-SNPs_PPA10_OnlyInFirstRound.txt",sep="\t",quote=F,row.names=F)
 
 
 ```
