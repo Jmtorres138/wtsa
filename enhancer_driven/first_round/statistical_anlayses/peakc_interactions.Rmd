@@ -298,7 +298,7 @@ param.df <- fread(parameters.file)
 ```{r}
 
 res.df <- build_results_df()
-write.table(x=inter.df,file=out.dir %&% "peakC-interactions-default_withBaits.txt",sep="\t",quote=F,row.names=F)
+write.table(x=res.df,file=out.dir %&% "peakC-interactions-default_withBaits.txt",sep="\t",quote=F,row.names=F)
 
 ```
 
