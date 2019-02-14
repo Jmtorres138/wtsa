@@ -1,0 +1,71 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("ggbio")
+library("RColorBrewer")
+library("viridis")
+library(Homo.sapiens)
+
+serv.dir <- "/home/jason/science/servers/FUSE5/"
+got2d.dir <- "/home/jason/science/servers/FUSE/" 
+
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/"
+out.dir <- work.dir %&% "output_files/"
+
+res.df <- fread(out.dir %&% "peakC-interactions-default_withBaits.txt")
+ens.df <- fread(serv.dir %&% "datasets/Ensembl_HumanGenes_GRCh37-p13.txt")
+names(ens.df) <- c("ensGene","ensTranscript","chrom","Gene.name" ,
+                   "Gene.start","Gene.end","TSS","Transcript.length")
+ens.df$chrom <- "chr" %&% ens.df$chrom
+tss.gr <- GRanges(seqnames = ens.df$chrom,IRanges(start=ens.df$TSS,ens.df$TSS))
+
+```
+
+# peaks to genes 
+
+```{r}
+
+peak_to_genes_df <- function(){
+  out.df <- c()
+  pb <- txtProgressBar(min=0,max=dim(res.df)[1],style=3)
+  for (i in 1:dim(res.df)[1]){
+    #print(i)
+    setTxtProgressBar(pb,i)
+    row.df <- res.df[i,]
+    row.gr <- GRanges(seqnames = row.df$chrom,IRanges(start=row.df$start,end=row.df$end))
+    inter <- findOverlapPairs(tss.gr,row.gr) %>% as.data.frame(.)
+    if (dim(inter)[1]>0){
+      sub <- filter(ens.df,chrom%in%inter$first.seqnames,TSS%in%inter$first.start) %>% 
+        dplyr::select(.,-one_of("chrom"))
+      for (e in 1:dim(sub)[1]){
+        build.df <- cbind(row.df,sub[e,])
+        out.df <- rbind(out.df, build.df)
+      }
+    }
+  } 
+  return(out.df)
+}
+
+
+```
+
+
+```{r}
+
+pg.df <- peak_to_genes_df()
+
+```
+
