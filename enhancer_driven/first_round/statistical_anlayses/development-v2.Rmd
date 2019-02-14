@@ -20,26 +20,19 @@ library("viridis")
 library(Homo.sapiens)
 
 serv.dir1 <- "/home/jason/science/servers/FUSE5/"
-serv.dir2 <- "/home/jason/science/servers/FUSE6/"
+serv.dir2 <- "/home/jason/science/servers/FUSE2/"
 got2d.dir <- "/home/jason/science/servers/FUSE/" 
-source(serv.dir2 %&% "peakC/R/reading_functions.R")
-source(serv.dir2 %&% "peakC/R/util_functions.R")
-#source(serv.dir2 %&% "peakC/manually_added/experiment_comparison.R")
+source(serv.dir1 %&% "projects/wtsa/software/peakC_functions/R/reading_functions.R")
+source(serv.dir1 %&% "projects/wtsa/software/peakC_functions/R/util_functions.R")
 bg.dir <- serv.dir2 %&%
-  "CaptureCompare/FirstRound_cis_analysis/3_unionBedgraphs/"
-winfile.dir <- serv.dir2 %&% "CaptureCompare/FirstRound_cis_analysis/6_windowFiles/"
+  "wtsa/enhancer_driven/first_round/capture_compare_cis_analysis/2_unionBedgraphs/B_normalised_counts/"
+winfile.dir <- serv.dir2 %&% 
+  "wtsa/enhancer_driven/first_round/capture_compare_cis_analysis/4_plotting/C_windowed/"
 plot.dir <- serv.dir1 %&% "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/plots/"
 states.dir <- got2d.dir %&% "reference/chromatin_segmentation/varshney_2016/chromatin_states/"
-
-
-parameters.file <- serv.dir2 %&% "endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt" #"/well/mccarthy/projects/ng_capture-C/endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt"
-genes.file <- serv.dir2 %&% "CaptureCompare/annotation/RefSeqGenes_hg19.bed"
+parameters.file <- serv.dir2 %&% "wtsa/enhancer_driven/first_round/capture_compare_parameters_pruned_chr.txt" 
+genes.file <- serv.dir2 %&% "wtsa/enhancer_driven/first_round/RefSeqGenes_hg19.bed"
 gencred.df <- fread(serv.dir1 %&% "datasets/diamante_hrc/gencred.txt")
-
-
-
-
-id <- "rs59153558_HMG20A__8QTL__eQTL__chr15_77806770"
 
 
 ```
@@ -431,10 +424,6 @@ atac_plot <- function(params,plotwin,bamfile){
 ```
 
 
-
-
-
-
 ```{r}
 
 
@@ -442,7 +431,7 @@ save_plot <- function(id,plotwin=500000){
   plt.list <- prepare_plot_list(id)
   plt.list[[3]] <- plt.list[[3]][grepl(id,plt.list[[3]]$Viewpoint),]
   
-  bdg.df <- fread(bg.dir %&% id %&% ".unionbdg") %>% as.data.frame(.)
+  bdg.df <- fread(bg.dir %&% id %&% "_normalised.unionbdg") %>% as.data.frame(.)
   vp = plt.list[[3]]$Frag_start
   peakc.res <- run_peakC(bdg.df,vp,region.size = 1e6,winsize=11,abscutoff = 100)
   
@@ -512,7 +501,7 @@ for (g in gene.vec){
   for (f in file.vec){
     if (grepl(g,f)==TRUE){
       
-      id.vec <- append(id.vec,strsplit(x=f,split=".unionbdg")[[1]][1])
+      id.vec <- append(id.vec,strsplit(x=f,split="_normalised.unionbdg")[[1]][1])
     }
   }
 }
@@ -532,8 +521,6 @@ for (id in id.vec){
   save_plot(id)
 }
 
-
-
 ```
 
 
@@ -541,11 +528,40 @@ for (id in id.vec){
 
 ```{r}
 
-test.df <- fread(bg.dir %&% id %&% ".unionbdg") %>% as.data.frame(.)
+
+id <- "rs59153558_HMG20A__8QTL__eQTL__chr15_77806770"
+test.df <- fread(bg.dir %&% id %&% "_normalised.unionbdg") %>% as.data.frame(.)
 vp = 77808771
 res <- run_peakC(test.df,vp,region.size = 1e6,winsize=11,abscutoff = 100)
 
 ```
+
+
+
+```{r}
+
+success.vec <- c()
+fail.vec <- c()
+
+file.vec <- list.files(bg.dir)
+id.vec <- map(file.vec,function(f){
+  strsplit(f,split = "_normalised.unionbdg")[[1]][1]
+}) %>% as.character(.)
+
+
+for (id in id.vec){
+  print(id)
+  if ((id %in% success.vec)==FALSE & (id %in% fail.vec)==FALSE){
+    save_plot(id)
+    success.vec <- append(success.vec,id)
+  }
+}
+
+fail.vec <- append(fail.vec,id) # manually use when there is a fail 
+
+```
+
+
 
 
 
