@@ -18,7 +18,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library("dplyr")
 library("data.table")
 
-serv.dir <- "/Users/jtorres/FUSE/"
+serv.dir <- "/home/jason/science/servers/FUSE/" #"/Users/jtorres/FUSE/"
 work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
 rds.dir <- work.dir %&% "RDS/"
 
