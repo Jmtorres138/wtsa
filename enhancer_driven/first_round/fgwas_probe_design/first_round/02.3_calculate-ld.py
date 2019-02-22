@@ -11,7 +11,9 @@ import subprocess as sp
 
 vcftools="/apps/well/vcftools/0.1.14-gcc4.7.2/bin/vcftools"
 ref_dir="/well/got2d/jason/reference/1KGenomes/"
-work_dir="/well/got2d/jason/projects/wtsa/enhancer_driven/probe_design/ld/"
+work_dir="/well/got2d/jason/projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/ld/"
+
+
 out_dir = work_dir + "ld_files/"
 #log_dir = work_dir + "logs/"
 
