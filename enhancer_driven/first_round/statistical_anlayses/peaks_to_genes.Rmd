@@ -1,0 +1,176 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("ggbio")
+library("RColorBrewer")
+library("viridis")
+library(Homo.sapiens)
+
+serv.dir <- "/home/jason/science/servers/FUSE5/"
+got2d.dir <- "/home/jason/science/servers/FUSE/" 
+eqtl.dir <- got2d.dir %&% "reference/islet/eqtls/inspire/"
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/"
+out.dir <- work.dir %&% "output_files/"
+
+res.df <- fread(out.dir %&% "peakC-interactions-default_withBaits.txt")
+ens.df <- fread(serv.dir %&% "datasets/Ensembl_HumanGenes_GRCh37-p13.txt")
+names(ens.df) <- c("ensGene","ensTranscript","chrom","Gene.name" ,
+                   "Gene.start","Gene.end","TSS","Transcript.length")
+ens.df$chrom <- "chr" %&% ens.df$chrom
+tss.gr <- GRanges(seqnames = ens.df$chrom,IRanges(start=ens.df$TSS,ens.df$TSS))
+
+```
+
+# peaks to genes 
+
+```{r}
+
+peak_to_genes_df <- function(){
+  out.df <- c()
+  pb <- txtProgressBar(min=0,max=dim(res.df)[1],style=3)
+  for (i in 1:dim(res.df)[1]){
+    #print(i)
+    setTxtProgressBar(pb,i)
+    row.df <- res.df[i,]
+    row.gr <- GRanges(seqnames = row.df$chrom,IRanges(start=row.df$start,end=row.df$end))
+    inter <- findOverlapPairs(tss.gr,row.gr) %>% as.data.frame(.)
+    if (dim(inter)[1]>0){
+      sub <- filter(ens.df,chrom%in%inter$first.seqnames,TSS%in%inter$first.start) %>% 
+        dplyr::select(.,-one_of("chrom"))
+      for (e in 1:dim(sub)[1]){
+        build.df <- cbind(row.df,sub[e,])
+        out.df <- rbind(out.df, build.df)
+      }
+    }
+  } 
+  return(out.df)
+}
+
+
+```
+
+
+```{r}
+
+pg.df <- peak_to_genes_df()
+
+write.table(x=pg.df,file=out.dir%&%"peaks-to-genes_all.txt",sep="\t",quote=F,row.names=F)
+
+```
+
+
+
+```{r}
+
+no.controls <- filter(res.df,!(grepl(pattern="__uc__",variant) | grepl(pattern="__dc__",variant) ))
+(unique(no.controls$variant) %>% length(.)) / dim(param.df)[1] # Mapped significant peakC interactions at 119/187 captures (65%) 
+
+```
+
+
+```{r}
+
+pg.nocontrols <- filter(pg.df,!(grepl(pattern="__uc__",variant) | grepl(pattern="__dc__",variant) ))
+pg.nocontrols$variant %>% unique(.) %>% length(.) # 93 captures mapped to gene tss 
+pg.nocontrols$Gene.name %>% unique(.) %>% length(.) # involving 97 genes 
+pg.genes <- pg.nocontrols$Gene.name %>% unique(.) # notable, ADCY5, ZMIZ1, RREB1, DGKB, and SLC38A11
+
+
+```
+
+
+# look for eQTL support 
+
+
+```{r}
+
+eqtl.df <- fread("cat " %&% eqtl.dir %&% "nominal_pass/output/eqtls_fdr05.txt.gz" %&% " | zmore")
+snploc.df <- fread(eqtl.dir %&% "matrix_qtl_files/snpsloc.txt")
+genes <- unique(eqtl.df$V1)
+pb <- txtProgressBar(min=0,max=length(genes),style=3)
+pruned.df <- c()
+for (i in 1:length(genes)){
+  setTxtProgressBar(pb,i)
+  g <- genes[i]
+  sub <- filter(eqtl.df,V1==g) %>% arrange(.,V6)
+  build.df <- sub[1,]
+  pruned.df <- rbind(pruned.df,build.df)
+}
+
+pruned.df <- arrange(pruned.df,V6)
+names(pruned.df)[2] <- "snp"
+
+snpsub <- filter(snploc.df,snp %in% eqtl.df$V2)
+
+out.df <- c()
+pb <- txtProgressBar(min=0,max=dim(eqtl.df)[1],style=3)
+for (i in 1:dim(eqtl.df)[1]){
+#for (i in 1:10){
+  setTxtProgressBar(pb,i)
+  row.df <- eqtl.df[i,]
+  names(row.df) <- c("ensGene","snp","dist","pval","beta","qval")
+  sub <- filter(snpsub,snp==row.df$snp)
+  if (dim(sub)[1]==0){
+    sub <- data.frame(snp=NA,chr=NA,pos=NA,stringsAsFactors = F)
+  }
+  build.df <- cbind(row.df,sub)
+  out.df <- rbind(out.df,build.df)
+}
+
+
+names(eqtl.df) <- c("ensGene","snp","dist","pval","beta","qval")
+
+full.df <- inner_join(eqtl.df,snploc.df,by="snp") # Note some eQTLs are missing because of non-mapped coordinates need to further inspect 
+
+```
+
+
+eQTL check at interactions 
+
+```{r}
+
+eqtl.support <- c()
+pb <- txtProgressBar(min=0,max=dim(pg.nocontrols)[1],style=3)
+for (i in 1:dim(pg.nocontrols)[1]){
+  setTxtProgressBar(pb,i)
+  row.df <- pg.nocontrols[i,]
+  sub <- filter(full.df,chr==row.df$chrom,pos>=row.df$start,pos<=row.df$end)
+  sub$ensGene <- map(sub$ensGene,function(s){
+    strsplit(s,split=".",fixed=T)[[1]][1]
+  }) %>% as.character(.)
+  val <- row.df$ensGene %in% sub$ensGene
+  eqtl.support <- append(eqtl.support,val)
+}
+
+pg.nocontrols$eqtl.support <- eqtl.support
+
+```
+
+
+
+```{r}
+
+write.table(x=pg.nocontrols,file=out.dir%&%"peaks-to-genes_cv_eqtlCheck.txt",sep="\t",quote=F,row.names=F)
+
+pg.eqtls <- filter(pg.nocontrols,eqtl.support==TRUE,type!="bait")
+pg.eqtls$Gene.name %>% unique(.) %>% length(.) # 13 genes 
+pg.eqtls$Gene.name %>% unique(.)
+
+
+sub <- filter(res.df,type!="bait",!(grepl(pattern="__uc__",variant) | grepl(pattern="__dc__",variant)))
+
+```
+

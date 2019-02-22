@@ -1,0 +1,33 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+
+library("tidyverse")
+library("data.table")
+library("GenomicRanges")
+
+serv.dir <- "/home/jason/science/servers/FUSE5/" # Rescomp
+
+proj.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/second_round/"
+work.dir <- proj.dir %&% "probe_design/"
+
+
+df <- fread(work.dir %&% "from_Vibe/2019.02.21_probes_2nd_enhancer.txt")
+
+out.df <- dplyr::select(df,one_of("FragID","Sequence"))
+names(out.df) <- c("ProbeID","Sequence")
+write.table(x=out.df,file=work.dir%&%"Probes_to_order.txt",sep="\t",quote=F,row.names=F)
+
+```

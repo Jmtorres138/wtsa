@@ -1,0 +1,218 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+
+library("tidyverse")
+library("data.table")
+library("GenomicRanges")
+
+serv0.dir <- "/home/jason/science/servers/FUSE/" # Rescomp
+serv.dir <- "/home/jason/science/servers/FUSE5/" # Rescomp
+proj.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/second_round/"
+work.dir <- proj.dir %&% "probe_design/"
+
+cred.dir <- serv0.dir %&% "reference/gwas/engage/ENGAGE_CredibleSets_1000G_2015/"
+atac.dir <- serv.dir %&% "projects/atac_analyses/evaluate_peaks/eLife2018/"
+atac.df <- fread(atac.dir %&% "combined-cpm.txt")
+
+atac.mat <- dplyr::select(atac.df[,7:24],-one_of("HP1507_UW")) %>% as.matrix(.)
+peak_mean <- rowMeans(atac.mat)
+atac.df$peak_mean <- peak_mean
+
+
+```
+
+# Prepare Credibe Set file 
+
+
+```{r}
+
+build_cred_df <- function(){
+  id.df <- fread(cred.dir %&% "ENGAGELocusNames.txt",header=F)
+  cred.files <- list.files(cred.dir)
+  cred.files <- cred.files[!grepl("ENGAGELocusNames.txt",cred.files)]
+  out.df <- c()
+  pb <- txtProgressBar(min=0,max=length(cred.files),style = 3)
+  for (i in 1:length(cred.files)){
+    setTxtProgressBar(pb,i)
+    fname <- cred.files[i]
+    #print(fname)
+    loc.id <- strsplit(fname,split=".",fixed=TRUE)[[1]][4]
+    trait <- strsplit(fname,split=".",fixed=TRUE)[[1]]
+    trait <- trait[length(trait)-1]
+    symbol <- filter(id.df,V1==loc.id)$V3 %>% gsub("/","-",.)
+    symbol <- ifelse(length(symbol)==0,"NA",symbol)
+    df <- fread(cred.dir %&% fname,header=F)
+    build.df <- data.frame(Locus.ID=loc.id,trait=trait,symbol=symbol,df,stringsAsFactors = F)
+    build.df$CHR <- map(build.df$V1,function(id){
+      strsplit(id,":")[[1]][1]
+    }) %>% as.character(.)
+    build.df$POS <- map(build.df$V1,function(id){
+      strsplit(id,":")[[1]][2]
+    }) %>% as.integer(.)
+    names(build.df)[4] <- "SNPID"
+    build.df <- dplyr::select(build.df,one_of("Locus.ID","trait","symbol","SNPID","CHR","POS","V8"))
+    names(build.df)[length(names(build.df))] <- "PPA"      
+    out.df <- rbind(out.df,build.df)
+  }
+  return(out.df)
+}
+
+
+cred.df <- build_cred_df()
+
+
+```
+
+
+
+Filter BMI/FG/FI credible SNPs (ENGAGE et al 2015) with PPA >= 0.10
+
+```{r}
+
+sigcred.df <- filter(cred.df,PPA>=0.10)
+sigcred05.df <- filter(cred.df,PPA>=0.05)
+sigcred01.df <- filter(cred.df,PPA>=0.01)
+
+
+```
+
+Append ATAC information 
+
+```{r}
+
+append_atac <- function(df){
+  atac <- c()
+  peak_mean <- c()
+  pb <- txtProgressBar(min=0,max=dim(df)[1],style=3)
+  for (i in 1:dim(df)[1]){
+    setTxtProgressBar(pb,i)
+    c <- df$CHR[i];pos <- df$POS[i]
+    sub <- filter(atac.df,Chr==c,Start<=pos,End>=pos)
+    if (dim(sub)[1]==0){
+      atac <- append(atac,FALSE)
+      peak_mean <- append(peak_mean,NA)
+    } else{
+      atac <- append(atac,TRUE)
+      peak_mean <- append(peak_mean,sub$peak_mean)      
+    }
+  }
+  df$atac <- atac
+  df$peak_mean <- peak_mean
+  return(df)
+}
+
+```
+
+
+```{r}
+
+sigcred.df <- append_atac(sigcred.df)
+sigcred05.df <- append_atac(sigcred05.df)
+sigcred01.df <- append_atac(sigcred01.df)
+
+```
+
+
+# Cross-reference with First Round SNPs 
+
+
+```{r}
+
+assess_in_first <- function(sigatac.df){
+  first.df <- fread(work.dir %&% "FirstRound-AllSNPsOfInterest.txt") %>%
+    dplyr::select(one_of("Capture.Status","ID","Fragment"))
+  first.df$CHR <- map(first.df$Fragment,function(s){
+    strsplit(s,split=":")[[1]][1]
+  }) %>% as.character(.)
+  first.df$Frag.Start <- map(first.df$Fragment,function(s){
+    (strsplit(s,split="-")[[1]][1] %>% strsplit(.,split=":"))[[1]][2]
+  }) %>% as.integer(.)
+  first.df$Frag.End <- map(first.df$Fragment,function(s){
+    strsplit(s,split="-")[[1]][2]
+  }) %>% as.integer(.)
+  first.round <- map(1:dim(sigatac.df)[1],function(i){
+    sub <- sigatac.df[i,]
+    c <- sub$CHR; pos <- sub$POS
+    sub2 <- filter(first.df,CHR==c,Frag.Start<=pos,Frag.End>=pos)
+    ifelse(dim(sub2)[1]==0,FALSE,ifelse(sub2$Capture.Status=="HighQuality.paired",TRUE,FALSE))
+  }) %>% as.logical(.)
+  fr.id <- map(1:dim(sigatac.df)[1],function(i){
+    sub <- sigatac.df[i,]
+    c <- sub$CHR; pos <- sub$POS
+    sub2 <- filter(first.df,CHR==c,Frag.Start<=pos,Frag.End>=pos)
+    ifelse(dim(sub2)[1]==0,NA,ifelse(sub2$Capture.Status=="HighQuality.paired",sub2$ID,NA))
+  }) %>% as.character(.)
+  sigatac.df$first.round <- first.round
+  sigatac.df$fr.id <- fr.id  
+  return(sigatac.df)
+}
+
+```
+
+
+
+Filter to those with ATAC overlap 
+
+```{r}
+
+sigatac.df <- sigcred.df %>% filter(.,atac==TRUE) %>% assess_in_first(.)
+sigatac05.df <- sigcred05.df %>% filter(.,atac==TRUE) %>% assess_in_first(.)
+sigatac01.df <- sigcred01.df %>% filter(.,atac==TRUE) %>% assess_in_first(.)
+
+```
+
+There are 16 credible SNPs (from 13 loci) that have PPA >=0.10 and overlap islet ATAC peaks (MACS2 on n=17 islet ATAC samples) using filtered ATAC peaks 
+
+There are 32 credible SNPs (from 21 loci) that have PPA >=0.05 and overlap islet ATAC peaks (MACS2 on n=17 islet ATAC samples) using filtered ATAC peaks 
+
+There are 77 credible SNPs (from 32 loci) that have PPA >=0.01 and overlap islet ATAC peaks (MACS2 on n=17 islet ATAC samples) using filtered ATAC peaks
+
+
+
+
+```{r}
+
+new.df <- filter(sigatac.df,first.round==FALSE)
+write.table(x=new.df,file=work.dir %&% "second-round_ENGAGE-SNPs_PPA10.txt",sep="\t",quote=F,row.names=F)
+write.table(x=sigatac.df,file=work.dir %&% "second-round_ENGAGE-SNPs_PPA10_withFirstRound.txt",sep="\t",quote=F,row.names=F)
+
+new05.df <- filter(sigatac05.df,first.round==FALSE)
+write.table(x=new05.df,file=work.dir %&% "second-round_ENGAGE-SNPs_PPA05.txt",sep="\t",quote=F,row.names=F)
+write.table(x=sigatac05.df,file=work.dir %&% "second-round_ENGAGE-SNPs_PPA05_withFirstRound.txt",sep="\t",quote=F,row.names=F)
+
+new01.df <- filter(sigatac01.df,first.round==FALSE)
+write.table(x=new01.df,file=work.dir %&% "second-round_ENGAGE-SNPs_PPA01.txt",sep="\t",quote=F,row.names=F)
+write.table(x=sigatac01.df,file=work.dir %&% "second-round_ENGAGE-SNPs_PPA01_withFirstRound.txt",sep="\t",quote=F,row.names=F)
+```
+
+There are 13 SNPs with PPA > 10% at 10 loci that meet the above criteria and have not been captured in the first round 
+
+There are 29 SNPs with PPA > 10% at 18 loci that meet the above criteria and have not been captured in the first round 
+
+There are 73 SNPs with PPA > 1% at 29 loci that meet the above criteria and have not been captured in the first round 
+
+
+First Round variants 
+
+```{r}
+
+#first.df <- filter(sigatac.df,first.round==TRUE)
+#first.df$Locus.ID %>% unique(.) %>% length(.)
+#first.df$symbol %>% unique(.)
+#write.table(x=first.df,file=work.dir %&% "second-round_ENGAGE-SNPs_PPA10_OnlyInFirstRound.txt",sep="\t",quote=F,row.names=F)
+
+
+```

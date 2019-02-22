@@ -1,0 +1,51 @@
+---
+title: "peaky development"
+output: html_notebook
+---
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("peaky")
+
+serv.dir <- "/home/jason/science/servers/FUSE5/"
+work.dir <- serv.dir %&%
+  "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/"
+atac.dir <- work.dir %&% "atac/"
+atac.file <- atac.dir %&% "combined_results.txt"
+df <- fread(atac.file)
+
+```
+
+
+# Make Bed graph
+
+
+```{r}
+
+mat <- dplyr::select(df,-one_of("#'chr'","'start'","'end'")) %>% as.matrix(.)
+rowmean <- rowMeans(mat)
+
+bdg.df <- dplyr::select(df,one_of("#'chr'","'start'","'end'"))
+bdg.df$score <- rowmean
+names(bdg.df) <- c("chr","start","end","score")
+
+#t <- filter(bdg.df,chr=="chr22")
+#ggplot(data=t[3000:3050,],aes(x=start,y=score)) + 
+#  geom_line(fill="black",size=2) + geom_area(fill="dodgerblue4") + 
+#  coord_cartesian(ylim=c(0,5))
+
+##bdg.df$temp <- map(bdg.df$chr,function(c){
+##  gsub("chr","",c) %>% as.integer(.)
+##} 
+
+write.table(x = bdg.df, file=atac.dir %&% "combined_results.bdg",
+            sep="\t",quote=F,row.names=F,col.names=F)
+
+```
+
+

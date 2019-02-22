@@ -19,30 +19,231 @@ knitr::opts_chunk$set(echo = TRUE)
 library("data.table")
 library("tidyverse")
 
-rescomp.dir <- "/Users/jtorres/FUSE5/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/" #"/Users/jtorres/FUSE5/"
 cur.dir <- rescomp.dir %&% "projects/wtsa/enhancer_driven/first_round/evaluate_pipeline_output/"
 endoA.file <- cur.dir %&% "report-Endo_A.txt"
+endoB.file <- cur.dir %&% "report-Endo_B.txt"
+endoC.file <- cur.dir %&% "report-Endo_C.txt"
+hescA.file <- cur.dir %&% "report-hESC_A.txt"
+hescB.file <- cur.dir %&% "report-hESC_B.txt"
+hescC.file <- cur.dir %&% "report-hESC_C.txt"
+
+df1 <- fread(endoA.file)
+df2 <- fread(endoB.file)
+df3 <- fread(endoC.file)
+df4 <- fread(hescA.file)
+df5 <- fread(hescB.file)
+df6 <- fread(hescC.file)
+
+df <- rbind(df1,df2,df3,df4,df5,df6)
+
+
+```
+
+
+Probe data frame
+
+
+```{r}
+
+probe.df <- fread(cur.dir %&% "Non-Redundant_oligo_probeset.tsv")
+probe.df2 <- fread(cur.dir %&% "Pruned_oligo_probeset.tsv")
+poor.df <- fread(cur.dir %&% "PoorQuality_SNPs_of_interest.tsv")
+pb <- txtProgressBar(min=0,max=dim(probe.df)[1],style=3)
+probe.df$capture.name <- map(1:length(probe.df$FragID),function(i){
+  setTxtProgressBar(pb,i)
+  frag <- probe.df$FragID[i]
+  val <- gsub(",","__",frag) %>% gsub(".","_",.,fixed=TRUE) %>% gsub(":","_",.,fixed=TRUE)
+}) %>% as.character(.)
+names(probe.df)[2:3] <- c("bp.start","bp.end")
+
+probe.df2 <- fread(cur.dir %&% "Pruned_oligo_probeset.tsv")
+
+snp.df <- fread(cur.dir %&% "All_SNPs_of_interest.tsv")
+pb <- txtProgressBar(min=0,max=dim(snp.df)[1],style=3)
+snp.df$capture.name <- map(1:length(snp.df$ID),function(i){
+  setTxtProgressBar(pb,i)
+  frag <- snp.df$ID[i]
+  val <- gsub(",","__",frag) %>% gsub(".","_",.,fixed=TRUE) %>% gsub(":","_",.,fixed=TRUE)
+}) %>% as.character(.)
+
+snp.df$capture.name <- map(snp.df$capture.name,function(s){
+  gsub("-","_",s)
+}) %>% as.character(.)
+
+```
+
+
+Append to data frame 
+ZBED3_AS1__44DF__credible_variant__chr5_76435004
+
+```{r}
+
+append_to_df <- function(df){
+  pb <- txtProgressBar(min=0,max=dim(df)[1],style=3)
+  df$type <- map(1:length(df$capture.name),function(i){
+    #print(i)
+    setTxtProgressBar(pb,i)
+    ref <- df$capture.name[i]
+    s <- strsplit(x=ref,split="__")[[1]][1]
+    if (length(strsplit(ref,split=s)[[1]]) > 2){
+      r <- s %&% strsplit(x=ref,split=s)[[1]][2]
+      ref <- substr(r,1,nchar(r)-1)
+    }
+    if (nchar(ref)>80){
+      vec <- strsplit(ref,split="_",fixed=TRUE)[[1]]
+      ref <- vec[1] %&% "_" %&% vec[2] %&% "__" %&% vec[4] %&% "__" %&% vec[6] %&% "__" %&% vec[8] %&% "_"%&% vec[9]
+    }
+    frag.df <- filter(snp.df,capture.name==ref)
+    frag <- frag.df$Fragment %>% unique(.)
+    filter(probe.df,fragment==frag)$type %>% unique(.)
+  }) %>% as.character(.)
+  out.df <- c()
+  pb <- txtProgressBar(min=0,max=dim(df)[1],style=3)
+  for (i in 1:dim(df)[1]){
+    #print(i)
+    setTxtProgressBar(pb,i)
+    ref <- df$capture.name[i]
+    s <- strsplit(x=ref,split="__")[[1]][1]
+    if (length(strsplit(ref,split=s)[[1]]) > 2){
+      r <- s %&% strsplit(x=ref,split=s)[[1]][2]
+      ref <- substr(r,1,nchar(r)-1)
+    }  
+    if (nchar(ref)>80){
+      vec <- strsplit(ref,split="_",fixed=TRUE)[[1]]
+      ref <- vec[1] %&% "_" %&% vec[2] %&% "__" %&% vec[4] %&% "__" %&% vec[6] %&% "__" %&% vec[8] %&% "_"%&% vec[9]
+    }
+    frag.df <- filter(snp.df,capture.name==ref)
+    frag <- frag.df$Fragment    
+    sub <- filter(probe.df,fragment==frag)
+    if (dim(sub)[1]==2){
+      frag1.qual <- sub$quality[1]; frag2.qual <- sub$quality[2] 
+      frag1.density <- sub$Density[1]; frag2.density <- sub$Density[2] 
+      frag1.perCG <- sub$Percent_CG[1]; frag2.perCG <- sub$Percent_CG[2] 
+      frag1.perGC <- sub$Percent_GC[1]; frag2.perGC <- sub$Percent_GC[2] 
+    } else if (dim(sub)[1]==1){
+      frag1.qual <- sub$quality[1]; frag2.qual <- NA 
+      frag1.density <- sub$Density[1]; frag2.density <- NA 
+      frag1.perCG <- sub$Percent_CG[1]; frag2.perCG <- NA 
+      frag1.perGC <- sub$Percent_GC[1]; frag2.perGC <- NA       
+    } else if (frag %in% poor.df$Fragment){
+      frag1.qual <- "Poor"; frag2.qual <- NA 
+      frag1.density <- NA; frag2.density <- NA 
+      frag1.perCG <- NA; frag2.perCG <- NA 
+      frag1.perGC <- NA; frag2.perGC <- NA       
+    } else{
+      frag1.qual <- NA; frag2.qual <- NA 
+      frag1.density <- NA; frag2.density <- NA 
+      frag1.perCG <- NA; frag2.perCG <- NA 
+      frag1.perGC <- NA; frag2.perGC <- NA       
+    }
+    build.df <- data.frame(frag1.qual,frag2.qual,frag1.density,frag2.density,
+                           frag1.perCG,frag2.perCG,frag1.perGC,frag2.perGC,stringsAsFactors = FALSE)
+    out.df <- rbind(out.df,build.df)
+  }
+  return(cbind(df,out.df))
+}
+
 
 ```
 
 
 ```{r}
 
-df <- fread(endoA.file) %>% arrange(.,capture.name)
-summary(df$cis.reporters.filtered)
-#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#      2   10280   19510   19500   28950   51780 
-hist(df$cis.reporters.filtered,breaks=20)
-sum(df$cis.reporters.filtered > 30000) # 49
-sum(df$cis.reporters.filtered > 20000) # 103
-sum(df$cis.reporters.filtered < 20000) # 111
-
-filter(df,cis.reporters.filtered>=30000)$capture.name %>% map(.,function(s){
-  strsplit(s,split="__")[[1]][1]
-}) %>% as.character(.) %>% unique(.)
-
-filter(df,cis.reporters.filtered>=30000)$cis.reporters.filtered %>% summary(.)
+df <- append_to_df(df)
 
 ```
+
+
+
+# Histograms
+
+```{r}
+
+library("viridis")
+plt <- ggplot(data=df,aes(x=cis.reporters.filtered)) + 
+  geom_histogram(color="black",fill=viridis(10)[10]) + 
+  facet_wrap(~sample) + geom_vline(xintercept = 25000,color=viridis(10)[1],size=2)
+
+```
+
+
+```{r}
+
+val1 <- filter(df,sample=="Endo_A") %>% select(.,cis.reporters.filtered) %>% sum(.)
+val2 <- filter(df,sample=="Endo_B") %>% select(.,cis.reporters.filtered) %>% sum(.)
+val3 <- filter(df,sample=="Endo_C") %>% select(.,cis.reporters.filtered) %>% sum(.)
+val4 <- filter(df,sample=="hESC_A") %>% select(.,cis.reporters.filtered) %>% sum(.)
+val5 <- filter(df,sample=="hESC_B") %>% select(.,cis.reporters.filtered) %>% sum(.)
+val6 <- filter(df,sample=="hESC_C") %>% select(.,cis.reporters.filtered) %>% sum(.)
+
+df2 <- data.frame(sample=c("Endo_A","Endo_B","Endo_C","hESC_A","hESC_B","hESC_C"),
+                  total.cis.rep.counts=c(val1,val2,val3,val4,val5,val6),stringsAsFactors = FALSE)
+
+```
+
+
+```{r}
+
+val1 <- filter(df,sample=="Endo_A",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
+val2 <- filter(df,sample=="Endo_B",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
+val3 <- filter(df,sample=="Endo_C",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
+val4 <- filter(df,sample=="hESC_A",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
+val5 <- filter(df,sample=="hESC_B",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
+val6 <- filter(df,sample=="hESC_C",cis.reporters.filtered>25000) %>% select(.,cis.reporters.filtered) %>% sum(.)
+
+df3 <- data.frame(sample=c("Endo_A","Endo_B","Endo_C","hESC_A","hESC_B","hESC_C"),
+                  counts=c(val1,val2,val3,val4,val5,val6),stringsAsFactors = FALSE)
+
+df4 <- inner_join(df2,df3,by="sample")
+
+plt2 <- ggplot(data=df4,aes(x=sample,y=total.cis.rep.counts)) + geom_bar(stat="identity",color="black",fill=viridis(1)) +
+  geom_bar(aes(x=sample,y=counts),stat="identity",color="black",fill=viridis(10)[4]) + 
+  ggtitle("Counts > 25K")
+
+```
+
+
+
+# Assess poor quality probes 
+
+
+```{r}
+
+failed.probes <- filter(df,cis.reporters.filtered<100)$capture.name %>% unique(.) # 34 
+passed.probes <- filter(df,!(capture.name %in% failed.probes))$capture.name %>% unique(.)
+
+fail.df <- filter(df,capture.name %in% failed.probes) %>% 
+  select(.,one_of("capture.name","type","frag1.qual","frag2.qual","frag1.density","frag2.density",
+                  "frag1.perCG","frag2.perCG","frag1.perGC","frag2.perGC"))
+fail.df <- fail.df[!duplicated(fail.df),]
+pass.df <- filter(df,!(capture.name %in% failed.probes)) %>%  
+  select(.,one_of("capture.name","type","frag1.qual","frag2.qual","frag1.density","frag2.density",
+                  "frag1.perCG","frag2.perCG","frag1.perGC","frag2.perGC"))
+pass.df <- pass.df[!duplicated(pass.df),]
+
+table(fail.df$frag1.qual)
+table(pass.df$frag1.qual)
+
+20/sum(table(fail.df$frag1.qual)) # 58% 
+2/sum(table(pass.df$frag1.qual)) # 1% 
+
+```
+
+
+
+```{r}
+
+boxplot(na.omit(fail.df$frag1.density),na.omit(pass.df$frag1.density)) # Failed probes have lower density 
+
+boxplot(na.omit(fail.df$frag2.density),na.omit(pass.df$frag2.density))
+
+boxplot(na.omit(fail.df$frag1.perCG),na.omit(pass.df$frag1.perCG))
+
+boxplot(na.omit(fail.df$frag1.perGC),na.omit(pass.df$frag1.perGC)) # Failed probes have higher GC/CG content 
+
+
+```
+
 
 

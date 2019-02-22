@@ -1,0 +1,7 @@
+Second round of probe design 
+
+1) select candidate SNPs with PPA >= 0.10 (DIAMANTE-HRC imputed, Mahajan et al. 2018b)
+2) Overlap with ATAC peaks (n=17, Thurner et al. 2018) 
+3) Cross-reference probes with those variants that have corresponding high-quality paired probes from first-round 
+
+ 

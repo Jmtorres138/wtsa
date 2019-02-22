@@ -8,9 +8,10 @@ Usage: python 00.1_script
 import sys,os
 import gzip
 
+samp_name = sys.argv[1] # "Endo_A"
 cur_dir = "/well/mccarthy/users/jason/projects/wtsa/enhancer_driven/first_round/evaluate_pipeline_output/"
-report_dir = "/well/mccarthy/projects/ng_capture-C/endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/Endo_A/F6_greenGraphs_combined_Endo_A_Cb5/"
-report_file = report_dir + "COMBINED_report_Cb5.txt"
+report_dir = "/well/mccarthy/projects/ng_capture-C/endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/" + samp_name + "/F6_greenGraphs_combined_"+samp_name+"_CS5/"
+report_file = report_dir + "COMBINED_report_CS5.txt"
 
 def build_result_dic(rep_file,samplename):
     dic = {}
@@ -43,7 +44,7 @@ def dic2file(dic,outname):
     fout.close()
 
 def main():
-    endoA_dic = build_result_dic(report_file,"Endo_A")
-    dic2file(endoA_dic,cur_dir+"report-Endo_A.txt")
+    endo_dic = build_result_dic(report_file,samp_name)
+    dic2file(endo_dic,cur_dir+"report-"+samp_name+".txt")
 
 if (__name__=="__main__"): main()
