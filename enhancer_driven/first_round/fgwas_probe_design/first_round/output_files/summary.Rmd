@@ -40,6 +40,17 @@ table(sub.df$Capture.Status)
 ```
 
 
+# Get SNP counts 
+
+
+```{r}
+
+#vec <- allsnp.df$SEGNUMBER %>% unique(.)
+
+```
+
+
+
 ```{r}
 
 pruned.df <- fread(work.dir %&% "Pruned_oligo_probeset.csv")
@@ -50,6 +61,9 @@ filter(sub.df,type=="single")$quality %>% table(.)
 
 ```
 
+
+
+# Output from bioinformatic capture anlaysis (CCAnalyser CM5)
 
 ```{r}
 
@@ -78,5 +92,7 @@ goodsnp.df <- filter(allsnp.df,success==TRUE)
 goodsnp.df$snp %>% unique(.) %>% length(.)
 
 ```
+
+I found out that only 191 of the 238 fragments were actually captured in the experiment whereas JT mistakenly included all 238 fragments in the oligofile for CCanalyser 
 
 
