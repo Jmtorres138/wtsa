@@ -21,7 +21,7 @@ work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/first_round/fgwas_probe_
 
 ```{r}
 
-allsnp.df <- fread(work.dir %&% "All_SNPs_of_interest.csv")newOligofile_shortNames_modified.txt
+allsnp.df <- fread(work.dir %&% "All_SNPs_of_interest.csv")#newOligofile_shortNames_modified.txt
 unique(allsnp.df$ID) %>% length(.)
 unique(allsnp.df$SEGNUMBER) %>% length(.)
 unique(allsnp.df$SEGNUMBER) %>% map(.,function(id){grepl("QTL",id)}) %>% as.logical(.) %>% sum(.)
