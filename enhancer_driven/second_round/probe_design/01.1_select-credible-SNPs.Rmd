@@ -141,13 +141,13 @@ There are 665 credible SNPs (from 280 loci) that have PPA >=0.01 and overlap isl
 
 ```{r}
 
-new.df <- filter(sigatac.df,first.round==FALSE)
-write.table(x=new.df,file=work.dir %&% "second-round_T2D-SNPs_PPA10.txt",sep="\t",quote=F,row.names=F)
-write.table(x=sigatac.df,file=work.dir %&% "second-round_T2D-SNPs_PPA05_withFirstRound.txt",sep="\t",quote=F,row.names=F)
+#new.df <- filter(sigatac.df,first.round==FALSE)
+#write.table(x=new.df,file=work.dir %&% "second-round_T2D-SNPs_PPA10.txt",sep="\t",quote=F,row.names=F)
+#write.table(x=sigatac.df,file=work.dir %&% "second-round_T2D-SNPs_PPA10_withFirstRound.txt",sep="\t",quote=F,row.names=F)
 
-new05.df <- filter(sigatac.df,first.round==FALSE)
-write.table(x=new05.df,file=work.dir %&% "second-round_T2D-SNPs_PPA05.txt",sep="\t",quote=F,row.names=F)
-write.table(x=sigatac05.df,file=work.dir %&% "second-round_T2D-SNPs_PPA05_withFirstRound.txt",sep="\t",quote=F,row.names=F)
+#new05.df <- filter(sigatac.df,first.round==FALSE)
+#write.table(x=new05.df,file=work.dir %&% "second-round_T2D-SNPs_PPA05.txt",sep="\t",quote=F,row.names=F)
+#write.table(x=sigatac05.df,file=work.dir %&% "second-round_T2D-SNPs_PPA05_withFirstRound.txt",sep="\t",quote=F,row.names=F)
 
 new01.df <- filter(sigatac01.df,first.round==FALSE)
 write.table(x=new01.df,file=work.dir %&% "second-round_T2D-SNPs_PPA01.txt",sep="\t",quote=F,row.names=F)
