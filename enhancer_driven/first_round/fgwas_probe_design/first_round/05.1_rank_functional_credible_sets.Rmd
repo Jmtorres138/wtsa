@@ -18,8 +18,8 @@ library("data.table")
 library("dplyr")
 library("ggplot2")
 library("gridExtra")
-serv.dir <- "/Users/jtorres/FUSE/"
-work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
+serv.dir <- "/home/jason/science/servers/FUSE/" #"/Users/jtorres/FUSE/"
+work.dir <- serv.dir %&% "projects/wtsa_archive/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
 rds.dir <- work.dir %&% "RDS/"
 prof.dir <- work.dir %&% "profile-snps/"
 phys.dir <- serv.dir %&% "reference/physiology/"
