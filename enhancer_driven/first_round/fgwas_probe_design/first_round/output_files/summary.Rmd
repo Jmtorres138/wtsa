@@ -117,3 +117,15 @@ goodsnp.df$snp %>% unique(.) %>% length(.)
 I found out that only 191 of the 238 fragments were actually captured in the experiment whereas JT mistakenly included all 238 fragments in the oligofile for CCanalyser 
 
 
+```{r}
+redund.vec <- c("1QTL","3QTL","4QTL","6TG","12QTL","5TG")
+success.df <- dplyr::select(goodsnp.df,one_of("snp","SEGNUMBER")) %>% 
+  filter(.,!(SEGNUMBER %in% redund.vec))
+success.df <- success.df[!duplicated(success.df),] # 257 snps 
+success.df$SEGNUMBER %>% unique(.) %>% length(.)                          
+
+# "9QTL" ,"1QTL","4QTL","6TG", "12QTL", ,"5TG" is redundant 
+
+
+```
+
