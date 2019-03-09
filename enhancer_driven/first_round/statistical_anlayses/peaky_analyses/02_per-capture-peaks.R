@@ -5,7 +5,7 @@ library("data.table")
 library("tidyverse")
 library("peaky")
 
-serv.dir1 <- "/home/jason/science/servers/FUSE5/"
+serv.dir1 <- "/well/mccarthy/users/jason/"
 
 work.dir <- serv.dir1 %&% "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/"
 write.dir <- work.dir  %&% "peaky_analyses/analysis_files/"
@@ -17,7 +17,10 @@ idmap.df <- fread(write.dir %&% "capture-bait-id-map.txt")
 args = commandArgs(trailingOnly=TRUE)
 bait <- args[1]
 
-save.name <- write.dir %&% bait %&% ".pky.txt"
+cap <- filter(idmap.df,bait.id==bait)$capture.id
+
+
+save.name <- write.dir %&% capname %&% "_" %&% bait %&%".pky.txt"
 
 relevant_bait = BTS[baitID==bait]
 omega_power = omega_to_use
