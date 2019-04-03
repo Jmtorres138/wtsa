@@ -3,6 +3,8 @@
 "%&%" <- function(a,b) paste0(a,b)
 library("data.table")
 library("tidyverse")
+
+.libPaths("/well/mccarthy/users/jason/R/3.4.3-openblas-0.2.18-omp-gcc5.4.0")
 library("peaky")
 
 serv.dir1 <- "/well/mccarthy/users/jason/"
@@ -17,7 +19,7 @@ idmap.df <- fread(write.dir %&% "capture-bait-id-map.txt")
 args = commandArgs(trailingOnly=TRUE)
 bait <- args[1]
 
-cap <- filter(idmap.df,bait.id==bait)$capture.id
+capname <- filter(idmap.df,bait.id==bait)$capture.id
 
 
 save.name <- write.dir %&% capname %&% "_" %&% bait %&%".pky.txt"
@@ -41,4 +43,3 @@ write.table(x=P,file=save.name,sep="\t",quote=F,row.names=F)
 #plot(x=zoom$dist, xlab="Distance from bait (bp)",
 #     y=zoom$rjmcmc_pos, ylab="MPPC",
 #     col="blue")
-
