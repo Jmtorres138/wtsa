@@ -45,7 +45,7 @@ param.df$plot_end <- (param.df$frag_stop + window_dist) %>% as.integer(.)
 param.df$bin_size <- bin_size 
 param.df$win_size <- win_size
 
-write.table(x=param.df,file=param.file,sep="\t",quote=F,row.names=F)
+write.table(x=param.df,file=param.file,sep="\t",quote=F,row.names=F,col.names=F)
 
 ```
 
