@@ -13,40 +13,80 @@ library("tidyverse")
 library("peaky")
 
 serv.dir1 <- "/home/jason/science/servers/FUSE5/"
-serv.dir2 <- "/home/jason/science/servers/FUSE6/"
+serv.dir2 <- "/home/jason/science/servers/FUSE2/"
 got2d.dir <- "/home/jason/science/servers/FUSE/" 
-bg.dir <- serv.dir2 %&%
-  "CaptureCompare/FirstRound_cis_analysis/3_unionBedgraphs/"
-winfile.dir <- serv.dir2 %&% "CaptureCompare/FirstRound_cis_analysis/6_windowFiles/"
 
-parameters.file <- serv.dir2 %&% "endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt" #"/well/mccarthy/projects/ng_capture-C/endoC-BH1/enhancer_driven/first_round/bioinformatics_pipeline/parameters.txt"
+work.dir <- serv.dir1 %&% "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/"
+write.dir <- work.dir  %&% "peaky_analyses/analysis_files/"
 
-id <- "rs59153558_HMG20A__8QTL__eQTL__chr15_77806770"
+cc.dir <- serv.dir2 %&% "wtsa/enhancer_driven/first_round/"
+peaky.input.dir <- cc.dir %&% "capture_compare_cis_analysis/6_PeakyInputs/"
 
-
-```
-
-# Tutorial 
-
-```{r}
-
-base = system.file("extdata",package="peaky")
-
-interactions_file = paste0(base,"/counts.tsv")
-fragments_file = paste0(base,"/fragments.bed")
-
-interactions = data.table::fread(interactions_file)
-fragments = data.table::fread(fragments_file)
-
-print(head(interactions))
-print(head(fragments))
+#  hESC_counts.tsv  
+parameters.file <- cc.dir %&% "capture_compare_parameters_pruned_chr.txt" 
 
 ```
 
 
+
+Read Peaky input files (outputted from Capture Compare script)
+
 ```{r}
 
-BI = bin_interactions(interactions, fragments, bins=5)
+param.df <- fread(parameters.file)
+pkyinter.df <- fread(peaky.input.dir %&% "Endo_counts.tsv") # Just running on Endos for now 
+pkyfrag.df <- fread(peaky.input.dir %&% "hg19_DpnII_Fragments_key.bed")
+
+```
+
+
+Map Capture IDs to Bait Ids for interpreting downstream results 
+
+```{r}
+
+lookup_bait_id <- function(capid){
+  # capid <- "PTGFRN__4DF__uc__chr1_117453383"
+  row.df <- filter(param.df,V1==capid)
+  c <- row.df$V2 %>% gsub("chr","",.)
+  start.pos <- row.df$V3 + 2 
+  end.pos <- row.df$V4 - 2
+  filter(pkyfrag.df,chrom==c,chromStart==start.pos | chromEnd==end.pos)$ID 
+}
+
+map_cap_to_baitid <- function(){
+  out.df <- c()
+  pb <- txtProgressBar(min=0,max=dim(param.df)[1],style=3)
+  for (i in 1:dim(param.df)[1]){
+    setTxtProgressBar(pb,i)
+    capid <- param.df$V1[i]
+    baitid <- lookup_bait_id(capid)
+    build.df <- data.frame(capture.id=capid,bait.id=baitid,stringsAsFactors = F)
+    out.df <- rbind(out.df,build.df)
+  }
+  return(out.df)
+}
+
+
+```
+
+
+```{r}
+
+idmap.df <- map_cap_to_baitid()
+
+
+
+```
+
+
+# Peaky 
+
+## Initial normalization of counts
+
+
+```{r}
+
+BI = bin_interactions(pkyinter.df, pkyfrag.df, bins=5)
 print(BI$bins)
 
 ```
@@ -60,37 +100,32 @@ plot(models[[1]]$fit)
 residuals = lapply(models, "[[", "residuals")
 bins = split(BI$interactions, BI$interactions$dist.bin)
 BTS = split_baits(bins, residuals)
+saveRDS(object = BTS,file=write.dir%&%"BTS.RDS")
+
 
 ```
 
+
 ```{r}
-relevant_bait = BTS[baitID==618421]
+
+relevant_bait = BTS[baitID==301716] # first capture bait 
 zoom = relevant_bait[abs(relevant_bait$dist)<1e6]
 plot(x=zoom$dist, 
      y=zoom$residual, 
      xlab="Distance from bait (bp)", 
      ylab="Adjusted readcount",
      main=paste("Bait",unique(zoom$baitID)))
-
-```
-
-
-
-```{r}
 peak_center = zoom$dist[which.max(zoom$residual)]
 zoom$distance_from_peak = abs(zoom$dist-peak_center)
 single_peak = zoom[distance_from_peak<4e5,]
-
 #Define the distance function and find the best fit for omega
 dist_exp = function(offset, strength, omega_power){
   omega = 10^omega_power
   strength * exp(-(abs(offset * omega)))
 }
-
 fit_omega = nls(residual~dist_exp(distance_from_peak,strength,omega_power), 
     data=single_peak, 
-    start=list(strength=5, omega_power=-3))
-
+    start=list(strength=5, omega_power=-3.8))
 {
 plot(single_peak$distance_from_peak, single_peak$residual, 
      main=paste0("Decay of signal for an isolated peak\nEstimate of omega = 10^",
@@ -102,9 +137,60 @@ lines(single_peak$distance_from_peak, fitted.values(fit_omega), col="red", lwd=3
 ```
 
 
+## Determine appropriate Omega value for joint analysis of neighboring fragments 
+
+Will manually inspect some baits 
+
+
 ```{r}
 
-relevant_bait = BTS[baitID==618421]
+get_omega <- function(baitid){
+  relevant_bait = BTS[baitID==baitid]
+  zoom = relevant_bait[abs(relevant_bait$dist)<1e6]
+  peak_center = zoom$dist[which.max(zoom$residual)]
+  zoom$distance_from_peak = abs(zoom$dist-peak_center)
+  single_peak = zoom[distance_from_peak<4e5,]
+  #Define the distance function and find the best fit for omega
+  dist_exp = function(offset, strength, omega_power){
+    omega = 10^omega_power
+    strength * exp(-(abs(offset * omega)))
+  }
+  fit_omega = nls(residual~dist_exp(distance_from_peak,strength,omega_power), 
+      data=single_peak, 
+      start=list(strength=5, omega_power=-3.8))  
+  return(as.numeric(coefficients(fit_omega)[2]))
+}
+
+pick_omega <- function(){
+  idmap.df <- as.data.frame(idmap.df)
+  baitchecks <- idmap.df[!duplicated(idmap.df$capture.id),]$bait.id %>% sample(.,size=10,replace=FALSE)
+  vec <- c()
+  for (bait in baitchecks){
+    if (bait %in% BTS$baitID){
+      v <- get_omega(bait)
+      vec <- append(vec,v)
+    }
+  }
+  return(mean(vec))
+}
+
+
+```
+
+
+```{r}
+
+set.seed(1)
+omega.to.use <- pick_omega() # -4.305031
+saveRDS(object = omega_to_use,file=write.dir%&%"omega.to.use.RDS")
+
+```
+
+
+
+```{r}
+
+relevant_bait = BTS[baitID==301716]
 omega_power = -5
 PKS = peaky(relevant_bait, omega_power, iterations=1e6)
 P = interpret_peaky(relevant_bait, PKS, omega_power)
