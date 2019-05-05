@@ -15,7 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library("data.table")
 library("dplyr")
 
-serv.dir <- "/Users/jtorres/FUSE/"
+serv.dir <- "/home/jason/science/servers/FUSE/" #"/Users/jtorres/FUSE/"
 work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
 rds.dir <- work.dir %&% "RDS/"
 
@@ -27,7 +27,7 @@ EndoC-BH1 ATAC-seq annotations
 
 ```{r}
 
-atac.path1 <- serv.dir %&% "projects/wtsa/EndoC-BH1_ATAC/call_peaks/mac2_all_reads/"
+atac.path1 <- serv.dir %&% "projects/wtsa_archive/wtsa/EndoC-BH1_ATAC/call_peaks/mac2_all_reads/"
 atac.path1 <- atac.path1 %&% "endoB_bio1_tech1_atac_peaks.narrowPeak"
 atac.path2 <- serv.dir %&%"reference/EndoCBH1/EndoC_chromatin_Parker/atacSeq/"
 atac.path2 <- atac.path2 %&% "endoC_50.broadPeak.fdr0.05.noBlacklist.bed.gz"
