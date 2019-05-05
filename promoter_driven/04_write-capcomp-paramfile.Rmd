@@ -1,0 +1,52 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+
+library("data.table");library("tidyverse")
+
+serv.dir <- "/home/jason/science/servers/FUSE2/"
+work.dir <- serv.dir %&% "wtsa/promoter_driven/"
+oligo.file <- work.dir %&% "oligo-file.txt"
+param.file <- work.dir %&% "capture_compare_parameters.txt"
+
+window_dist <- 1e6 # upstream and downstream extend by this amount 
+bin_size <- 300 
+win_size <- 6000
+
+```
+
+
+
+
+```{r}
+
+oligo.df <- fread(oligo.file)
+head(oligo.df)
+
+# Viewpoint    Chr Frag_start  Frag_stop Exlusion_Start Exlusion_Stop Plot_Region_Start Plot_Region_Stop Bin_Size Window_size
+
+param.df <- dplyr::select(oligo.df,one_of("V1","V2","V3","V4"))
+names(param.df) <- c("viewpoint","chr","frag_start","frag_stop")
+param.df$chr <- "chr" %&% param.df$chr
+param.df$exc_start <- oligo.df$V3
+param.df$exc_stop <- oligo.df$V4
+param.df$plot_start <- (param.df$frag_start - window_dist) %>% as.integer(.)
+param.df$plot_end <- (param.df$frag_stop + window_dist) %>% as.integer(.)
+param.df$bin_size <- bin_size 
+param.df$win_size <- win_size
+
+write.table(x=param.df,file=param.file,sep="\t",quote=F,row.names=F,col.names=F)
+
+```
+
