@@ -210,6 +210,7 @@ plt2 <- ggplot(data=df4,aes(x=sample,y=total.cis.rep.counts)) + geom_bar(stat="i
 
 ```{r}
 
+failed.probes <- filter(df,cis.reporters.filtered<10)$capture.name %>% unique(.) # 18 
 failed.probes <- filter(df,cis.reporters.filtered<100)$capture.name %>% unique(.) # 34 
 passed.probes <- filter(df,!(capture.name %in% failed.probes))$capture.name %>% unique(.)
 
@@ -225,7 +226,7 @@ pass.df <- pass.df[!duplicated(pass.df),]
 table(fail.df$frag1.qual)
 table(pass.df$frag1.qual)
 
-20/sum(table(fail.df$frag1.qual)) # 58% 
+21/sum(table(fail.df$frag1.qual)) # 58% 
 2/sum(table(pass.df$frag1.qual)) # 1% 
 
 ```
