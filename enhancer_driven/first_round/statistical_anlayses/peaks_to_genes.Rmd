@@ -20,6 +20,7 @@ library("viridis")
 library(Homo.sapiens)
 
 serv.dir <- "/home/jason/science/servers/FUSE5/"
+serv.dir2 <- "/home/jason/science/servers/FUSE2/"
 got2d.dir <- "/home/jason/science/servers/FUSE/" 
 eqtl.dir <- got2d.dir %&% "reference/islet/eqtls/inspire/"
 work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/"
@@ -31,6 +32,10 @@ names(ens.df) <- c("ensGene","ensTranscript","chrom","Gene.name" ,
                    "Gene.start","Gene.end","TSS","Transcript.length")
 ens.df$chrom <- "chr" %&% ens.df$chrom
 tss.gr <- GRanges(seqnames = ens.df$chrom,IRanges(start=ens.df$TSS,ens.df$TSS))
+
+cc.dir <- serv.dir2 %&% "wtsa/enhancer_driven/first_round/"
+parameters.file <- cc.dir %&% "capture_compare_parameters_pruned_chr.txt" 
+param.df <- fread(parameters.file)
 
 ```
 
