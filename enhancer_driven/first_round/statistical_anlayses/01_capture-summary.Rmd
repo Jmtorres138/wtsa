@@ -1,0 +1,82 @@
+---
+title: "Capture Summaries"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+
+library("data.table")
+library("tidyverse")
+library("viridis")
+
+cbrg.serv <- "/home/jason/science/servers/FUSE2/"
+rescomp.serv <- "/home/jason/science/servers/FUSE5/"
+input.dir.enhan <- cbrg.serv %&% "wtsa/enhancer_driven/first_round/capture_compare_cis_analysis/1_reports/"
+plot.dir <- rescomp.serv %&% "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/plots/"
+
+```
+
+# Functions 
+
+```{r}
+
+build_input_df <- function(input.dir,input.vec){
+  out.df <- c()
+  for (s in input.vec){
+    fname <- input.dir %&% s %&% "_cisReport.txt"
+    build.df <- fread(fname)
+    build.df$Sample <- s
+    out.df <- rbind(out.df,build.df)
+  }
+  return(out.df)
+}
+
+
+total.count.plot <- function(df,
+                             input.vec=c("Endo_A","Endo_B","Endo_C","hESC_A","hESC_B","hESC_C")){
+  v1 <- c()
+  v2 <- c()
+  for (s in input.vec){
+    val1 <- filter(df,Sample==s)$Total %>% sum(.)
+    val2 <- filter(df,Sample==s)$Cis %>% sum(.)
+    v1 <- append(v1,val1); v2 <- append(v2,val2)
+  }
+  plot.df <- data.frame(Sample=input.vec,Total.Count=v1,Cis.Count=v2,stringsAsFactors = F)
+  plot.df$Total.Count <- plot.df$Total.Count/1000000
+  plot.df$Cis.Count <- plot.df$Cis.Count/1000000
+  plt <- ggplot(data=plot.df,aes(x=Sample,y=Total.Count)) + 
+    geom_bar(stat="identity",color="black",fill=viridis(10)[8]) + 
+    geom_bar(stat="identity",aes(x=Sample,y=Cis.Count),color="black",fill=viridis(10)[3]) + 
+    geom_text(size=3,aes(x=Sample,y=Cis.Count+0.2,label=prettyNum(Cis.Count,digits=3))) + 
+    geom_text(size=3,aes(x=Sample,y=Cis.Count-0.2,label="(" %&% prettyNum(Cis.Count/Total.Count,digits=2) %&% ")")) + 
+    geom_text(size=3,aes(x=Sample,y=Total.Count+0.2,label=prettyNum(Total.Count,digits=3))) + 
+    scale_y_continuous(breaks=1:10) + 
+    theme_bw() + 
+    ylab("Interaction Counts (Million)")
+  plt
+}
+
+
+
+```
+
+
+```{r}
+ 
+enh.df <- build_input_df(input.dir=input.dir.enhan,
+                     input.vec=c("Endo_A","Endo_B","Endo_C","hESC_A","hESC_B","hESC_C"))
+tot.plt <- total.count.plot(enh.df,input.vec=c("Endo_A","Endo_B","Endo_C","hESC_A","hESC_B","hESC_C"))
+ggsave(plot=tot.plt,filename=plot.dir%&%"summary_counts_enh1st.png",width=5,height=5)
+ggsave(plot=tot.plt,filename=plot.dir%&%"summary_counts_enh1st.pdf",width=5,height=5)
+
+```
+
+
