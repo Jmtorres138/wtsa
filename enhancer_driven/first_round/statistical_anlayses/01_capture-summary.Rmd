@@ -65,6 +65,18 @@ total.count.plot <- function(df,
 }
 
 
+cis.hist.plot <- function(df){
+  df$CellType <- map(df$Sample,function(s){
+    strsplit(x=s,split="_")[[1]][1]
+  }) %>% as.character(.)
+  plt <- ggplot(data=df,aes(x=Cis/1000)) +
+    geom_histogram(color=viridis(10)[6],
+                   fill=viridis(10)[8]) + 
+    geom_vline(xintercept=25,color=viridis(10)[1]) +
+    facet_wrap(~CellType) 
+}
+
+
 
 ```
 
