@@ -16,8 +16,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library("data.table");library("tidyverse")
 
 serv.dir <- "/home/jason/science/servers/FUSE2/"
-work.dir <- serv.dir %&% "wtsa/enhancer_driven/first_round/"
-oligo.file <- work.dir %&% "newOligofile_shortNames_modified.txt"
+work.dir <- serv.dir %&% "wtsa/promoter_driven/"
+oligo.file <- work.dir %&% "oligo-file.txt"
 param.file <- work.dir %&% "capture_compare_parameters.txt"
 
 window_dist <- 1e6 # upstream and downstream extend by this amount 
@@ -38,6 +38,7 @@ head(oligo.df)
 
 param.df <- dplyr::select(oligo.df,one_of("V1","V2","V3","V4"))
 names(param.df) <- c("viewpoint","chr","frag_start","frag_stop")
+param.df$chr <- "chr" %&% param.df$chr
 param.df$exc_start <- oligo.df$V3
 param.df$exc_stop <- oligo.df$V4
 param.df$plot_start <- (param.df$frag_start - window_dist) %>% as.integer(.)

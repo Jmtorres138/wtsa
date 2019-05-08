@@ -73,8 +73,7 @@ map_cap_to_baitid <- function(){
 ```{r}
 
 idmap.df <- map_cap_to_baitid()
-
-
+write.table(x=idmap.df,file = write.dir %&% "capture-bait-id-map.txt",sep="\t",quote=F,row.names=F)
 
 ```
 
@@ -184,28 +183,5 @@ set.seed(1)
 omega.to.use <- pick_omega() # -4.305031
 saveRDS(object = omega_to_use,file=write.dir%&%"omega.to.use.RDS")
 
-```
-
-
-
-```{r}
-
-relevant_bait = BTS[baitID==301716]
-omega_power = -5
-PKS = peaky(relevant_bait, omega_power, iterations=1e6)
-P = interpret_peaky(relevant_bait, PKS, omega_power)
-
-par(mfrow=c(3,1))
-zoom = P[abs(P$dist)<1e6]
-plot(x=zoom$dist, xlab="Distance from bait (bp)",
-     y=zoom$residual, ylab="Adjusted readcount")
-
-plot(x=zoom$dist, xlab="Distance from bait (bp)",
-     y=zoom$beta_mean, ylab="Mean contact strength",
-     col="green")
-
-plot(x=zoom$dist, xlab="Distance from bait (bp)",
-     y=zoom$rjmcmc_pos, ylab="MPPC",
-     col="blue")
 ```
 

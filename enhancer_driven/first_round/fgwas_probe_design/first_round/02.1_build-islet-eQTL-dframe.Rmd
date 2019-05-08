@@ -21,7 +21,7 @@ library("dplyr")
 #biocLite("EnsDb.Hsapiens.v75")
 library("EnsDb.Hsapiens.v75")
 
-serv.dir <- "/Users/jtorres/FUSE/"
+serv.dir <- "/home/jason/science/servers/FUSE/" #"/Users/jtorres/FUSE/"
 
 work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
 rds.dir <- work.dir %&% "RDS/"
@@ -60,7 +60,7 @@ ensid2gene <- function(){
     setTxtProgressBar(pb, i) 
     e <- e.df$ENSID[i]
     name <- strsplit(x=e,split=".",fixed=TRUE)[[1]][1]
-    gene <- filter(ensref.df,ENSID==name)$GENE
+    gene <- dplyr::filter(ensref.df,ENSID==name)$GENE
     return(gene)
   }))
   close(pb)
@@ -78,7 +78,8 @@ e.df <- cbind(e.df,SNPID)
 e.df$SNPID <- as.character(e.df$SNPID)
 eqtl.df <- e.df 
 saveRDS(eqtl.df,file=rds.dir%&%"eqtl.fdr05.df.RDS")
-fdr1.df <- filter(eqtl.df,Q<=0.01)
+names(eqtl.df)[10] <- "GENE1"
+fdr1.df <- dplyr::filter(eqtl.df,Q<=0.01)
 saveRDS(fdr1.df,file=rds.dir%&%"eqtl.fdr01.df.RDS")
 
 ```
@@ -115,7 +116,7 @@ ensid2gene <- function(){
     setTxtProgressBar(pb, i) 
     e <- e.df$ENSID[i]
     name <- strsplit(x=e,split=".",fixed=TRUE)[[1]][1]
-    gene <- filter(ensref.df,ENSID==name)$GENE
+    gene <- dplyr::filter(ensref.df,ENSID==name)$GENE
     return(gene)
   }))
   close(pb)

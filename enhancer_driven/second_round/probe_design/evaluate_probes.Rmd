@@ -15,7 +15,8 @@ knitr::opts_chunk$set(echo = TRUE)
 "%&%" <- function(a,b) paste0(a,b)
 library("data.table");library("tidyverse")
 work.dir <- "/home/jason/science/projects/wtsa/enhancer_driven/second_round/probe_design/"
-fname <- work.dir %&% "FinalListEnhancerCapture2ndRound_2019-01-25.txt"
+#fname <- work.dir %&% "archive/FinalListEnhancerCapture2ndRound_2019-01-25.txt"
+fname <- work.dir %&% "from_Vibe/2019.02.21_probes_2nd_enhancer.txt"
 
 serv.dir <- "/home/jason/science/servers/FUSE/"
 serv.dir2 <- "/home/jason/science/servers/FUSE5/"
@@ -33,14 +34,6 @@ df$chrom <- map(df$chr,function(s){
 }) %>% as.integer(.)
 names(df)[2:3] <- c("bp.start","bp.end")
 df <- arrange(df,chr,bp.start)
-df$chr[1:2] <- rep("chr10",2)
-df$chrom[1:2] <- rep(10,2)
-df <- arrange(df,chr,bp.start)
-df$bp.start[29] <- 87862954
-df$bp.end[29] <- 87863074
-df$bp.start[30] <- 87864373
-df$bp.end[30] <- 87864493
-df <- arrange(df,chr,bp.start)
 
 
 names(df)[8] <- "ProbeID"
@@ -51,20 +44,23 @@ df$frag <- map(df$ProbeID,function(s){
 View(select(df,one_of("ProbeID","frag")))
 
 sub.df <- select(df,one_of("ProbeID","Sequence"))
-write.table(x=sub.df,file=work.dir%&%"Probes-to-order.txt",sep="\t",quote=F,row.names=F)
+#write.table(x=sub.df,file=work.dir%&%"Probes-to-order.txt",sep="\t",quote=F,row.names=F)
 
+#View(dplyr::select(sub.df,one_of("ProbeID","frag")))
 
-df$frag[19:22] <- c("PTEN","PTEN","RNLS","RNLS")
+df$frag[c(13,44,45,48,99,240,241,272,291,292)] <- c("10_CAMK1D_eQTL_rs11257655",
+                             "11_MADD_eQTL_rs7944584","11_MADD_eQTL_rs7944584",
+                             "11_FADS1_eQTL_rs174550","14_WARS_eQTL_rs3783347",
+                             "5_CTD-2260A17.2_eQTL_rs4869272","5_CTD-2260A17.2_eQTL_rs4869272",
+                             "7_DGKB_eQTL_rs17168486","8_NKX6-3_eQTL_rs12549902","8_NKX6-3_eQTL_rs12549902")
 
 df$probe.type <- map(df$frag,function(f){
   sub <- filter(df,frag==f)
   ifelse(dim(sub)[1]==1,"single","paired")
 }) %>% as.character(.)
 
-df$frag[4] <- "1_214150445_PROX1"
-df$probe.type[3:4] <- "paired"
 
-View(filter(df,probe.type=="single"))
+#View(filter(df,probe.type=="single"))
 
 ```
 
@@ -146,18 +142,16 @@ write.table(x=df,file=work.dir%&%"probe-file-expanded-info.txt",sep="\t",row.nam
 ```{r}
 
 sub.df <- select(df,one_of("chr","frag.start","frag.end","frag","probe.type"))
-# 218 probes 
+# 313 probes 
 filter(sub.df,probe.type=="single") %>% dim(.)
-# 38 of these are single probes 
-(218-38)/2
-# there are 90 pairs of probes 
+# 55 of these are single probes 
+(313-55)/2
+# there are 129 pairs of probes 
 
 sub.df <- sub.df[!duplicated(sub.df),]
-# There are 128 captures (i.e. at unique DpnII fragments) to be completed 
+# There are 184 captures (i.e. at unique DpnII fragments) to be completed 
 table(sub.df$probe.type)
-# 90 paired captures and 38 single captures 
-
-
+# 129 paired captures and 55 single captures 
 
 ```
 
@@ -170,55 +164,37 @@ table(sub.df$probe.type)
 library("GenomicRanges")
 
 snp.dir <- serv.dir2 %&% "projects/wtsa/enhancer_driven/second_round/probe_design/"
-t2d.full <- fread(snp.dir %&% "second-round_T2D-SNPs_PPA10_withFirstRound.txt")
-t2d.sub <- fread(snp.dir %&% "second-round_T2D-SNPs_PPA10.txt")
-eng.full <- fread(snp.dir %&% "second-round_ENGAGE-SNPs_PPA10_withFirstRound.txt")
-eng.sub <- fread(snp.dir %&% "second-round_ENGAGE-SNPs_PPA10.txt")
+cv.df <- fread(snp.dir %&% "second-round-credible-SNPs-to-capture.txt") # 220 SNPs 
+eq.df <- fread(snp.dir %&% "eqtls_mvdb_2015_to-capture.txt") %>% filter(.,eqtl.captured.in.first==FALSE)
+eq.df$SNPID <- eq.df$CHR %&% ":" %&% eq.df$POS
+
+comb.df <- rbind(dplyr::select(cv.df,one_of("SNPID","CHR","POS")),
+                 dplyr::select(eq.df,one_of("SNPID","CHR","POS")))
+comb.df <- comb.df[!duplicated(comb.df),]
+str(comb.df)
+
+# 233 unique SNPs (220 from prioritisation pipeline, 13 are additional eQTLs manually included)
+# cv.df$locus %>% unique(.) %>% length(.) # 112 loci 
+both.vec <- filter(cv.df,t2d.ppa >= 0.05, fg.ppa >= 0.05)$SNPID
+filter(cv.df,t2d.ppa >= 0.05, !(SNPID %in% both.vec)) %>% dim(.) # 205 SNPs at 
+filter(cv.df,t2d.ppa >= 0.05, !(SNPID %in% both.vec))$locus %>% unique(.) %>% length(.) # 107 loci 
+filter(cv.df,fg.ppa >= 0.05, !(SNPID %in% both.vec)) %>% dim(.) # 9 SNPs at 
+filter(cv.df,fg.ppa >= 0.05, !(SNPID %in% both.vec))$locus %>% unique(.) %>% length(.) # 6 loci 
 
 ```
 
 
+
+
 ```{r}
 
-t2d.full$capture <- map(1:(dim(t2d.full)[1]),function(i){
-  row.df <- t2d.full[i,]
+comb.df$capture <- map(1:(dim(comb.df)[1]),function(i){
+  row.df <- comb.df[i,]
   sub <- filter(sub.df,chr==row.df$CHR,frag.start<=row.df$POS,frag.end>=row.df$POS)
   ifelse(dim(sub)[1]!=0,TRUE,FALSE)
 }) %>% as.logical(.)
-t2d.full$probe.type <- map(1:(dim(t2d.full)[1]),function(i){
-  row.df <- t2d.full[i,]
-  val <- filter(sub.df,chr==row.df$CHR,frag.start<=row.df$POS,frag.end>=row.df$POS)$probe.type
-  ifelse(length(val)>0,val,NA)
-}) %>% as.character(.)
-t2d.sub$capture <- map(1:(dim(t2d.sub)[1]),function(i){
-  row.df <- t2d.sub[i,]
-  sub <- filter(sub.df,chr==row.df$CHR,frag.start<=row.df$POS,frag.end>=row.df$POS)
-  ifelse(dim(sub)[1]!=0,TRUE,FALSE)
-}) %>% as.logical(.)
-t2d.sub$probe.type <- map(1:(dim(t2d.sub)[1]),function(i){
-  row.df <- t2d.sub[i,]
-  val <- filter(sub.df,chr==row.df$CHR,frag.start<=row.df$POS,frag.end>=row.df$POS)$probe.type
-  ifelse(length(val)>0,val,NA)
-}) %>% as.character(.)
-
-
-eng.full$capture <- map(1:(dim(eng.full)[1]),function(i){
-  row.df <- eng.full[i,]
-  sub <- filter(sub.df,chr==row.df$CHR,frag.start<=row.df$POS,frag.end>=row.df$POS)
-  ifelse(dim(sub)[1]!=0,TRUE,FALSE)
-}) %>% as.logical(.)
-eng.full$probe.type <- map(1:(dim(eng.full)[1]),function(i){
-  row.df <- eng.full[i,]
-  val <- filter(sub.df,chr==row.df$CHR,frag.start<=row.df$POS,frag.end>=row.df$POS)$probe.type
-  ifelse(length(val)>0,val,NA)
-}) %>% as.character(.)
-eng.sub$capture <- map(1:(dim(eng.sub)[1]),function(i){
-  row.df <- eng.sub[i,]
-  sub <- filter(sub.df,chr==row.df$CHR,frag.start<=row.df$POS,frag.end>=row.df$POS)
-  ifelse(dim(sub)[1]!=0,TRUE,FALSE)
-}) %>% as.logical(.)
-eng.sub$probe.type <- map(1:(dim(eng.sub)[1]),function(i){
-  row.df <- eng.sub[i,]
+comb.df$probe.type <- map(1:(dim(comb.df)[1]),function(i){
+  row.df <- comb.df[i,]
   val <- filter(sub.df,chr==row.df$CHR,frag.start<=row.df$POS,frag.end>=row.df$POS)$probe.type
   ifelse(length(val)>0,val,NA)
 }) %>% as.character(.)
@@ -230,117 +206,10 @@ eng.sub$probe.type <- map(1:(dim(eng.sub)[1]),function(i){
 
 ```{r}
 
-dim(t2d.full)[1] # 159 SNPs prioritized in total for T2D
-t2d.full$capture %>% sum(.) # 120 can be captured by DpnII fragments 
-table(t2d.full$probe.type) # 86 can be captured by paired and 34 by single probes
-
-dim(t2d.sub)[1] # 139 SNPs prioritized in total for T2D
-t2d.sub$capture %>% sum(.) # 120 can be captured by DpnII fragments (all)
-table(t2d.sub$probe.type) # 86 can be captured by paired and 34 by single probes (same as above)
-
-```
-
-
-```{r}
-
-dim(eng.full)[1] # 16 SNPs prioritized in total for FG
-eng.full$capture %>% sum(.) # 13 can be captured by DpnII fragments 
-table(eng.full$probe.type) # 6 can be captured by paired and 7 by single probes
-
-dim(eng.sub)[1] # 13 SNPs prioritized in total for FG
-eng.sub$capture %>% sum(.) # 13 can be captured by DpnII fragments (all)
-table(eng.sub$probe.type) # 6 can be captured by paired and 7 by single probes (same as above)
-
-```
-
-
-# Total 
-
-```{r}
-
-sub1a <- dplyr::select(t2d.full,one_of("CHR","POS","capture","probe.type"))
-sub1b <- dplyr::select(eng.full,one_of("CHR","POS","capture","probe.type"))
-sub1 <- rbind(sub1a,sub1b) # 175 total with duplicates
-sub1 <- sub1[!duplicated(sub1),] # 167 unique SNPs (8 SNPs were present in both sets)
-sub1$capture %>% sum(.) # 128 of 167 can be captured 
-sub1$probe.type %>% table(.) # 91 by paired and 37 by single probes 
-
-
-
-sub2a <- dplyr::select(t2d.sub,one_of("CHR","POS","capture","probe.type"))
-sub2b <- dplyr::select(eng.sub,one_of("CHR","POS","capture","probe.type"))
-sub2 <- rbind(sub2a,sub2b) # 152 total with duplicates
-sub2 <- sub2[!duplicated(sub2),] # 147 unique SNPs (5 SNPs were present in both sets)
-sub2$capture %>% sum(.) # 128 of 147 can be captured by DpnII fragment probes  
-sub2$probe.type %>% table(.) # 91 by paired and 37 by single probes 
-
-# 152 total with duplicates
-# 147 unique SNPs (5 SNPs were present in both sets)
-# 128 of 152 can be captured by DpnII fragment probes
-# 91 by paried and 37 by single probes
+dim(comb.df)[1] # 233 SNPs prioritized in total for T2D (including 13 eQTLs)
+comb.df$capture %>% sum(.) # 199 can be captured by DpnII fragments 
+table(comb.df$probe.type) # 142 can be captured by paired and 57 by single probes
 
 
 ```
-
-
-# Checking with all SNPs of interest from First Round 
-
-```{r}
-
-work.dir2 <- serv.dir2 %&% "projects/wtsa/enhancer_driven/first_round/fgwas_probe_design/first_round/output_files/"
-
-firstsnps.full <- fread(work.dir2%&%"All_SNPs_of_interest.csv") 
-firstsnps.df <- fread(work.dir2%&%"All_SNPs_of_interest.csv") %>% select(.,one_of("Chrom","Start","End"))
-firstsnps.df <- firstsnps.df[!duplicated(firstsnps.df),]
-firstfrag.df <- fread(work.dir2%&%"Pruned_oligo_probeset.csv") %>% select(.,one_of("fragment"))
-firstfrag.df$chr <- map(firstfrag.df$fragment,function(s){
-  strsplit(s,split=":")[[1]][1]
-}) %>% as.character(.)
-firstfrag.df$frag.start <- map(firstfrag.df$fragment,function(s){
-  (strsplit(s,split=":")[[1]][2] %>% strsplit(.,split="-"))[[1]][1]
-}) %>% as.integer(.)
-firstfrag.df$frag.end <- map(firstfrag.df$fragment,function(s){
-  (strsplit(s,split=":")[[1]][2] %>% strsplit(.,split="-"))[[1]][2]
-}) %>% as.integer(.)
-
-firstfrag.gr <- GRanges(seqnames=firstfrag.df$chr,
-                        IRanges(firstfrag.df$frag.start,firstfrag.df$frag.end)) %>% unique(.)
-firstsnps.gr <- GRanges(seqnames=firstsnps.df$Chrom,
-                        IRanges(firstsnps.df$Start,firstsnps.df$End)) %>% unique(.)
-secondfrag.gr <- GRanges(seqnames=sub.df$chr,
-                        IRanges(sub.df$frag.start,sub.df$frag.end)) %>% unique(.)
-secondsnps.gr <- GRanges(seqnames=sub1$CHR,
-                        IRanges(sub1$POS,sub1$POS)) %>% unique(.) %>% unique(.)
-
-firstsnps.gr %over% firstfrag.gr %>% sum(.) # 222/283 first round SNPs captured by first round fragments
-firstsnps.gr %over% secondfrag.gr %>% sum(.) # 7/283 first round SNPs captured by second round fragments
-overlap.first <- firstsnps.gr[firstsnps.gr %over% secondfrag.gr] %>% as.data.frame(.)
-overlap.first$id <- map(1:dim(overlap.first)[1],function(i){
-  row.df <- overlap.first[i,]
-  filter(firstsnps.full,Chrom==row.df$seqnames,Start==row.df$start)$ID %>% paste0(.,collapse=",")
-}) %>% as.character(.) # These 7 SNPs correspond to these first round loci ADCY5, GNPDA2, GNPDA2, RREB1, DGKB, DCAF, GPSM1
-
-secondsnps.gr %over% secondfrag.gr %>% sum(.) # 128/167 second round SNPs captured by second round fragments
-secondsnps.gr %over% firstfrag.gr %>% sum(.) # 24/167 second round SNPs captured by first round fragments
-overlap.second <- secondsnps.gr[secondsnps.gr %over% firstfrag.gr] %>% as.data.frame(.)
-s1 <- t2d.full %>% select(.,one_of("Locus.ID","symbol","CHR","POS"))
-s2 <- eng.full %>% select(.,one_of("Locus.ID","symbol","CHR","POS"))
-sfull <- rbind(s1,s2)
-sfull <- sfull[!duplicated(sfull),]
-
-overlap.second$id <- map(1:dim(overlap.second)[1],function(i){
-  row.df <- overlap.second[i,]
-  filter(sfull,CHR==row.df$seqnames,POS==row.df$start)$symbol %>% unique(.) %>% paste0(.,collapse=",")
-}) %>% as.character(.) # These 24 SNPs correspond to these first round loci 
-# [1] "BCL11A"       "ADCY5"        "LPP"          "GNPDA2"       "GNPDA2"       "GNPDA2"       "ZBED3"     
-#[8] "DGKB"         "GCK,GCK_1st"  "TP53INP1"     "UBAP2"        "ZMIZ1"        "TCF7L2"       "KCNQ1"     
-#[15] "KCNQ1"        "KCNQ1"        "MAP3K11"      "MAP3K11"      "CCND1"        "CENTD2-ARAP1" "MTNR1B"    
-#[22] "FBRSL1"       "FBRSL1"       "FBRSL1"
-
-
-firstfrag.gr %over% secondfrag.gr %>% sum(.) # 7/191 fragments overlap from first to second round 
-secondfrag.gr %over% firstfrag.gr %>% sum(.) # 7/128 fragments overlap from second to first round 
-
-```
-
 

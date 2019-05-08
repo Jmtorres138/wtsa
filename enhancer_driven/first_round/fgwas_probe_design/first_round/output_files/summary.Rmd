@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 "%&%" <- function(a,b) paste0(a,b)
 library("data.table");library("tidyverse")
 library("GenomicRanges")
+got2d.dir <- "/home/jason/science/servers/FUSE/"
 serv.dir <- "/home/jason/science/servers/FUSE5/"
 work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/first_round/fgwas_probe_design/first_round/output_files/"
 
@@ -37,7 +38,38 @@ sub.df <- sub.df[!duplicated(sub.df),]
 table(sub.df$Capture.Status)
 
 
+
 ```
+
+
+# Get SNP counts 
+
+
+```{r}
+
+outfile.dir <- got2d.dir %&% "projects/wtsa_archive/wtsa/enhancer_driven/" %&%
+  "fgwas_probe_design/first_round/"
+
+df <- readRDS(outfile.dir%&%"RDS/first.round.full.df.RDS")
+sdf <- filter(df,SNPID%in%allsnp.df$snp)
+sdf <- filter(sdf, !grepl("offset",SNPID))
+filter(allsnp.df,!(snp %in% sdf$SNPID))$ID
+dup.vec <- sdf$SNP %>% duplicated(.)
+sdf[dup.vec,] # DUPLICATED SNPS 
+cv.df <- filter(sdf,grepl("DF",SEGNUMBER) | SEGNUMBER %in%
+                  c("9QTL")) # "1QTL","4QTL","6TG", "12QTL", ,"5TG" is redundant 
+cv.df$SNPID %>% unique(.) %>% length(.) # 248 unique SNPs
+cv.df$SEGNUMBER %>% unique(.) %>% length(.) # 26 loci 
+filter(cv.df,Type=="upstream.control")$SEGNUMBER %>% unique(.) %>% length(.) # 24 loci 
+filter(cv.df,Type=="downstream.control")$SEGNUMBER %>% unique(.) %>% length(.) # 25 loci 
+
+
+compdf <- readRDS(outfile.dir%&%"RDS/round1.loci.df.RDS")
+
+
+
+```
+
 
 
 ```{r}
@@ -50,6 +82,9 @@ filter(sub.df,type=="single")$quality %>% table(.)
 
 ```
 
+
+
+# Output from bioinformatic capture anlaysis (CCAnalyser CM5)
 
 ```{r}
 
@@ -79,4 +114,18 @@ goodsnp.df$snp %>% unique(.) %>% length(.)
 
 ```
 
+I found out that only 191 of the 238 fragments were actually captured in the experiment whereas JT mistakenly included all 238 fragments in the oligofile for CCanalyser 
+
+
+```{r}
+redund.vec <- c("1QTL","3QTL","4QTL","6TG","12QTL","5TG")
+success.df <- dplyr::select(goodsnp.df,one_of("snp","SEGNUMBER")) %>% 
+  filter(.,!(SEGNUMBER %in% redund.vec))
+success.df <- success.df[!duplicated(success.df),] # 257 snps 
+success.df$SEGNUMBER %>% unique(.) %>% length(.)                          
+
+# "9QTL" ,"1QTL","4QTL","6TG", "12QTL", ,"5TG" is redundant 
+
+
+```
 

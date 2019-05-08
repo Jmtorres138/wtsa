@@ -18,7 +18,7 @@ library("dplyr")
 library("data.table")
 library("ggplot2")
 
-serv.dir <- "/Users/jtorres/FUSE/"
+serv.dir <- "/home/jason/science/servers/FUSE/" #"/Users/jtorres/FUSE/"
 
 work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/fgwas_probe_design/first_round/"
 rds.dir <- work.dir %&% "RDS/"
@@ -36,7 +36,7 @@ vec <- as.integer(table(credt2d.df$SEGNUMBER))
 names(vec) <- names(table(credt2d.df$SEGNUMBER))
 
 keep.ids <- names(vec[vec <=1000])
-credt2d.df <- filter(credt2d.df,SEGNUMBER %in% keep.ids)
+credt2d.df <- dplyr::filter(credt2d.df,SEGNUMBER %in% keep.ids)
 saveRDS(credt2d.df,rds.dir%&%"credComb.1000less.df.RDS")
 
 ```
@@ -56,7 +56,7 @@ pb <- txtProgressBar(min = 0, max = length(unique(credt2d.df$SEGNUMBER)),
 for (i in 1:length(unique(credt2d.df$SEGNUMBER))){
   seg <- unique(credt2d.df$SEGNUMBER)[i]
   setTxtProgressBar(pb,i)
-  sub.df <- filter(credt2d.df,SEGNUMBER==seg)
+  sub.df <- dplyr::filter(credt2d.df,SEGNUMBER==seg)
   mn <- min(sub.df$POS); mx <- max(sub.df$POS); 
   chrom<-paste0("chr",sub.df$CHR[1]); #locus <- sub.df$LOCUS[1]
   locus <- sub.df$refGene[1] # nearest annotated refGene id to credible set SNP group 
@@ -67,7 +67,7 @@ for (i in 1:length(unique(credt2d.df$SEGNUMBER))){
   mymin <- mn-window; mymax<-mx+window
   fname <- chrom%&%"_"%&%mymin%&%"-"%&%mymax%&%"_"%&%locus%&%"_" %&%
     seg %&%  ".positions"
-  eqtl.sub <- filter(eqtl.df,CHR==chrom,POS>=mymin,POS<=mymax)
+  eqtl.sub <- dplyr::filter(eqtl.df,CHR==chrom,POS>=mymin,POS<=mymax)
   pos <- unique(c(sub.df$POS,eqtl.sub$POS))
   chr <- rep(gsub("chr","",chrom),length(pos))
   df <- data.frame(chr,pos); names(df) <- c("#chr","pos")
