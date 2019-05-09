@@ -262,7 +262,7 @@ build_interact_df <- function(){
 
 inter.df <- build_interact_df()
 
-out.dir <- serv.dir1 %&% "projects/wtsa/promoter_driven/statistical_analyses/output_files/"
+out.dir <- serv.dir1 %&% "projects/wtsa/promoter_driven/statistical_analysis/output_files/"
 write.table(x=inter.df,file=out.dir %&% "peakC-interactions-default.txt",sep="\t",quote=F,row.names=F)
 
 ```
