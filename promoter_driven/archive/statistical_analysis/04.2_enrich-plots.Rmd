@@ -72,13 +72,12 @@ enrich_plot <- function(testname="peakC-modeled_fdr0.05_win42",df){
                   aes(x=feature,y=-log(p.val,base=10))) +
     geom_point(color="black",size=3, shape=21,
              aes(fill=observed.count)) +
-    scale_fill_continuous(low="dodgerblue4",
-                          high="firebrick2",
-                          name="Count") +
+    scale_fill_viridis(option="D",name="Count") + 
     ylab("-log10(P-value)") + xlab("Feature") + theme_bw() +
     scale_y_continuous(limits=c(0,4),breaks=seq(0,4,1)) +
     theme(axis.text.x=element_text(angle=90),
-          panel.grid.minor=element_blank()) + ggtitle(testname) +
+          panel.grid.minor=element_blank(),
+          panel.grid.major.x=element_blank()) + ggtitle(testname) +
     geom_hline(yintercept=-log(0.05,base=10),linetype=2)
   plt
 }
@@ -134,9 +133,12 @@ plt6C <- enrich_plot("peakC-comparative_abscutoff-10_win60",
                      df=misc.df)
 plt6 <- grid.arrange(plt6A,plt6B,plt6C,nrow=1)
 
+ggsave(plt1,filename=plot.dir %&% "plot-enrich_win11_fdr05.png",height=3,width=10)
 ggsave(plt2,filename=plot.dir %&% "plot-enrich_win60_fdr05.png",height=3,width=10)
 ggsave(plt3,filename=plot.dir %&% "plot-enrich_win11_abscutoff140.png",height=3,width=10)
-
+ggsave(plt4,filename=plot.dir %&% "plot-enrich_win60_abscutoff140.png",height=3,width=10)
+ggsave(plt5,filename=plot.dir %&% "plot-enrich_win11_abscutoff10.png",height=3,width=10)
+ggsave(plt6,filename=plot.dir %&% "plot-enrich_win60_abscutoff10.png",height=3,width=10)
 
 #grid.arrange(plt1,plt2,plt3,plt4,nrow=4)
   

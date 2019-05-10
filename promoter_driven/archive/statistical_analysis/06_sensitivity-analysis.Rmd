@@ -423,6 +423,33 @@ get_sens_ld("peakCcomp.win60.cutoff10") # 0.727272727272727
 remain <- unique(sens.df$eqtl)[!(unique(sens.df$eqtl) %in% unique(sensLD05.sig.df$eqtl))]
 #"rs10231021_DGKB"  "rs17168486_DGKB"  "rs7903146_TCF7L2" "rs8042275_LARP6" 
 
+sub.vec <- c("rs4736819_NKX6-3","rs10231021_DGKB","rs17168486_DGKB","rs2165069_AP3S2",
+             "rs2165069_C15orf38-AP3S2","rs2146105_WARS","rs11603334_STARD10",
+             "rs11039165_MADD","rs11257658_CAMK1D","rs11708067_ADCY5")
+
+sensLD05.sub.df <- sensLD05.df %>% filter(eqtl%in%sub.vec) 
+
+get_sens_ld_sub <- function(name){ 
+  neqtls <- length(unique(sensLD05.sub.df$eqtl))
+  log.vec <- c() 
+  for (e in unique(sensLD05.sub.df$eqtl)){
+    #print(e)
+    log <- any((filter(sensLD05.sub.df,eqtl==e) %>% select(one_of(name)))==TRUE)
+    log.vec <- append(log.vec,log)
+  }
+  sens <- sum(log.vec) / neqtls
+  print("Sensitivity for " %&% name %&% " : " %&% sens)
+}
+
+get_sens_ld_sub("peakCmod.win11.fdr05") # 0.1
+get_sens_ld_sub("peakCmod.win60.fdr05") # 0.1
+get_sens_ld_sub("peakCcomp.win11.cutoff140") # 0.2
+get_sens_ld_sub("peakCcomp.win60.cutoff140") # 0.2
+get_sens_ld_sub("peakCcomp.win11.cutoff10") # 0.55
+get_sens_ld_sub("peakCcomp.win60.cutoff10") # 0.8
+
+get_sens_ld_sub(c("peakCmod.win11.fdr05","peakCmod.win60.fdr05",
+                  "peakCcomp.win11.cutoff140","peakCcomp.win60.cutoff140"))
 
 ```
 

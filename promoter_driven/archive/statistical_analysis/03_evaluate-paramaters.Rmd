@@ -19,7 +19,7 @@ library("data.table")
 library("ggplot2")
 library("gridExtra")
 
-serv.dir <- "/Users/jtorres/FUSE2/"
+serv.dir <- "/Users/jtorres/FUSE3/"
 stat.dir <- serv.dir %&% "analysis/wtsa/promoter_driven/statistical_analysis/"
 out.dir <- stat.dir %&% "output_files/"
 
@@ -102,11 +102,14 @@ plt <- grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
 ggsave(plt,filename=plot.dir%&%"optim_peakC-modeled_islet-enhancers.png",height=10,width=8)
 
 fname <- out.dir %&% "enrich_peakC-modeled_engage-fg-1000G.txt"
-pltIA <- eval_plot(fname,FDR=0.01,type="Fasting Glucose GWAS")
-pltIB <- eval_plot(fname,FDR=0.05,type="Fasting Glucose GWAS")
-pltIC <- eval_plot(fname,FDR=0.20,type="Fasting Glucose GWAS")
-plt <- grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
+pltFA <- eval_plot(fname,FDR=0.01,type="Fasting Glucose GWAS")
+pltFB <- eval_plot(fname,FDR=0.05,type="Fasting Glucose GWAS")
+pltFC <- eval_plot(fname,FDR=0.20,type="Fasting Glucose GWAS")
+plt <- grid.arrange(arrangeGrob(pltFA,pltFB,pltFC))
 ggsave(plt,filename=plot.dir%&%"optim_peakC-modeled_engage-fg-1000G.png",height=10,width=8)
+
+plt05 <- grid.arrange(arrangeGrob(plt10B,pltIB,pltFB))
+ggsave(plt05,filename=plot.dir%&%"optim_peakC-modeled_FDR05.png",height=10,width=8)
 
 ```
 
@@ -129,12 +132,17 @@ plt <- grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
 ggsave(plt,filename=plot.dir%&%"optim_peakC-comparative_islet-enhancers.png",height=10,width=8)
 
 fname <- out.dir %&% "enrich_peakC-comparative_engage-fg-1000G.txt"
-pltIA <- eval_plot_comp(fname,win=11,type="Fasting Glucose GWAS")
-pltIB <- eval_plot_comp(fname,win=60,type="Fasting Glucose GWAS")
-pltIC <- eval_plot_comp(fname,win=78,type="Fasting Glucose GWAS")
-plt <- grid.arrange(arrangeGrob(pltIA,pltIB,pltIC))
+pltFA <- eval_plot_comp(fname,win=11,type="Fasting Glucose GWAS")
+pltFB <- eval_plot_comp(fname,win=60,type="Fasting Glucose GWAS")
+pltFC <- eval_plot_comp(fname,win=78,type="Fasting Glucose GWAS")
+plt <- grid.arrange(arrangeGrob(pltFA,pltFB,pltFC))
 ggsave(plt,filename=plot.dir%&%"optim_peakC-comparative_engage-fg-1000G.png",height=10,width=8)
 
+plt60 <- grid.arrange(arrangeGrob(plt01B,pltIB,pltFB))
+ggsave(plt60,filename=plot.dir%&%"optim_peakC-comparative_win60.png",height=10,width=8)
+
+plt11 <- grid.arrange(arrangeGrob(plt01A,pltIA,pltFA))
+ggsave(plt11,filename=plot.dir%&%"optim_peakC-comparative_win11.png",height=10,width=8)
 
 ```
 
