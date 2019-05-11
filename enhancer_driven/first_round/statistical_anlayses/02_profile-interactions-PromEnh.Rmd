@@ -21,9 +21,9 @@ library("RColorBrewer")
 library("viridis")
 library(Homo.sapiens)
 
-rescomp.dir <- "/Users/jtorres/FUSE5/" #"/home/jason/science/servers/FUSE5/"
-cbrg.dir <- "/Users/jtorres/FUSE2/" #"/home/jason/science/servers/FUSE2/"
-got2d.dir <- "/Users/jtorres/FUSE/" #"/home/jason/science/servers/FUSE/" 
+rescomp.dir <- "/home/jason/science/servers/FUSE5/" # "/Users/jtorres/FUSE5/" #
+cbrg.dir <-  "/home/jason/science/servers/FUSE2/" # "/Users/jtorres/FUSE2/"
+got2d.dir <-  "/home/jason/science/servers/FUSE/" # "/Users/jtorres/FUSE/"
 
 enh1.dir <- rescomp.dir %&% "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/output_files/"
 prom.dir <- rescomp.dir %&% "projects/wtsa/promoter_driven/statistical_analysis/output_files/"
@@ -92,6 +92,8 @@ build_summary_df <- function(df){
 
 sum.df1 <- build_summary_df(prom.df) 
 summary(sum.df1$num.inter)
+write.table(x=sum.df1,file=prom.dir %&% "peakC-interaction-summary.txt",
+            sep="\t",quote=F,row.names=F)
 
 ```
 
@@ -120,6 +122,8 @@ The maximum interaction distance at a capture site is `r max(sum.df1$max.inter.d
 
 sum.df2 <- build_summary_df(enh1.df) 
 summary(sum.df2$num.inter)
+write.table(x=sum.df2,file=enh1.dir %&% "peakC-interaction-summary.txt",
+            sep="\t",quote=F,row.names=F)
 
 ```
 
@@ -147,6 +151,11 @@ The maximum interaction distance at a capture site is `r max(sum.df2$max.inter.d
 
 int.df1 <- build_interaction_df(prom.df)
 int.df2 <- build_interaction_df(enh1.df)
+
+write.table(x=int.df1,file=prom.dir %&% "peakC-interaction_loops.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=int.df2,file=enh1.dir %&% "peakC-interaction_loops.txt",
+            sep="\t",quote=F,row.names=F)
 
 
 build_overlap_check_df <- function(int.df1,int.df2){
