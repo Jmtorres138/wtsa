@@ -264,7 +264,7 @@ build_interact_df <- function(peakc="sample1"){
 }
 
 build_results_df <- function(inter.df){
-  sig.caps <- param.df$V1[param.df$V1 %in% inter.df$bait] # 162 captures with significant interactions 
+  sig.caps <- param.df$V1[param.df$V1 %in% inter.df$bait] 
   out.df <- c()
   for (cap in sig.caps){
     bait.df <- filter(param.df,V1==cap) %>% dplyr::select(.,one_of("V1","V2","V3","V4"))
