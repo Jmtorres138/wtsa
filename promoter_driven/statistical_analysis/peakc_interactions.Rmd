@@ -318,7 +318,7 @@ inter.df3 <- build_interact_df(peakc="compared")
 write.table(x=na.omit(inter.df3),
             file=out.dir %&% "peakC-comparative-default.txt",sep="\t",quote=F,row.names=F)
 res.df3 <- build_results_df(na.omit(inter.df3))
-write.table(x=res.df2,file=out.dir %&% "peakC-comparative_withBaits.txt",sep="\t",quote=F,row.names=F)
+write.table(x=res.df3,file=out.dir %&% "peakC-comparative_withBaits.txt",sep="\t",quote=F,row.names=F)
 
 ```
 

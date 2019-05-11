@@ -19,16 +19,16 @@ library("RColorBrewer")
 library("viridis")
 library(Homo.sapiens)
 
-serv.dir1 <- "/Users/jtorres/FUSE5/" #"/home/jason/science/servers/FUSE5/"
-serv.dir2 <- "/Users/jtorres/FUSE2/" #"/home/jason/science/servers/FUSE2/"
-got2d.dir <- "/Users/jtorres/FUSE/" #"/home/jason/science/servers/FUSE/" 
+serv.dir1 <- "/home/jason/science/servers/FUSE5/" #"/Users/jtorres/FUSE5/" #
+serv.dir2 <-  "/home/jason/science/servers/FUSE2/" # "/Users/jtorres/FUSE2/"
+got2d.dir <- "/home/jason/science/servers/FUSE/" #"/Users/jtorres/FUSE/" #
 source(serv.dir1 %&% "projects/wtsa/software/peakC_functions/R/reading_functions.R")
 source(serv.dir1 %&% "projects/wtsa/software/peakC_functions/R/util_functions.R")
 bg.dir <- serv.dir2 %&%
   "wtsa/promoter_driven/PromCap_cis_analysis/2_unionBedgraphs/B_normalised_counts/"
 winfile.dir <- serv.dir2 %&% 
   "wtsa/promoter_driven/PromCap_cis_analysis/4_plotting/C_windowed/"
-plot.dir <- serv.dir1 %&% "projects/wtsa/promoter_driven/statistical_anlayses/plots/"
+plot.dir <- serv.dir1 %&% "projects/wtsa/promoter_driven/statistical_analysis/plots/"
 states.dir <- got2d.dir %&% "reference/chromatin_segmentation/varshney_2016/chromatin_states/"
 parameters.file <- serv.dir2 %&% "wtsa/promoter_driven/capture_compare_parameters.txt" 
 genes.file <- serv.dir2 %&% "wtsa/enhancer_driven/first_round/RefSeqGenes_hg19.bed"
@@ -256,8 +256,6 @@ capc_plot <- function(bdg.df, d,to.exclude,params,peakc.res,plotwin=1e5){
               aes(xmin=Frag_start, xmax=Frag_stop), ymin=-25, 
               ymax=max(d$mean)+max(d$sd), col="grey", fill="grey") + 
     labs(x="Genomic Position", y="Mean Interaction") + 
-    #coord_cartesian(xlim=c(viewp$Plot_Region_Start, viewp$Plot_Region_Stop),
-    #              ylim=c(0,plotmax)) + 
     coord_cartesian(xlim=c(params$Frag_start-(plotwin/2), 
                            params$Frag_stop+(plotwin/2)),
                   ylim=c(0,plotmax)) + 
@@ -365,18 +363,14 @@ chromHMM_plot <- function(state.df,params,plotwin){
                                    ifelse(sub.df$Tissue=="ES-HUES64",2,NA)))
   plt <- ggplot(data=sub.df) + 
     geom_rect(data=sub.df,aes(xmin=START,xmax=END,ymin=Y-0.5,ymax=Y+0.5),color=sub.df$COL,fill=sub.df$COL) + 
-    #coord_cartesian(ylim=c(-2,8),expand = TRUE) + 
     theme_clear() + 
-    theme(#axis.title = element_blank(),
-          axis.text.y = element_blank(),
+    theme(axis.text.y = element_blank(),
           axis.ticks.y=element_blank()) + 
-    #annotate("text",x=params$Frag_start,y=6.7,label="Islet") + 
-    #annotate("text",x=params$Frag_start,y=4.7,label="ES-HUES6") + 
-    #annotate("text",x=params$Frag_start,y=2.7,label="ES-HUES64") + 
-    annotate("rect",xmin=params$Frag_start-plotwin,
-             xmax=params$Frag_start+plotwin,
+    annotate("rect",xmin=params$Frag_start-(plotwin),
+             xmax=params$Frag_start+(plotwin),
              ymin=1,ymax=1.4,fill="white") + 
-    ylab("Chr. States")
+    ylab("Chr. States") + 
+    coord_cartesian(expand = F)
              
   return(plt)
 }
@@ -417,7 +411,8 @@ save_plot <- function(id,plotwin=500000){
   peakc.res <- run_peakC(bdg.df,vp,region.size = 1e6,winsize=11,abscutoff = 100)
   
   plt1 <- capc_plot(bdg.df=bdg.df,d=plt.list[[1]],to.exclude=plt.list[[2]],
-                 params=plt.list[[3]], peakc.res=peakc.res, plotwin) + scale_x_sequnit(unit="kb")
+                 params=plt.list[[3]], peakc.res=peakc.res, plotwin) +
+    scale_x_sequnit(unit="kb")
 
   plt2 <- gene_plot(plt.list[[3]],plotwin) + scale_x_sequnit(unit="kb")
 
@@ -456,13 +451,12 @@ state.df <- get_state_df()
 
 ```{r}
 
-gene.vec <- c("ADCY5")#,"COBLL","HHEX","DGKB","RREB1")
+gene.vec <- c("ADCY5")
 file.vec <- list.files(bg.dir)
 id.vec  <- c()
 for (g in gene.vec){
   for (f in file.vec){
     if (grepl(g,f)==TRUE){
-      
       id.vec <- append(id.vec,strsplit(x=f,split="_normalised.unionbdg")[[1]][1])
     }
   }
