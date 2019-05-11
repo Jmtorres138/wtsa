@@ -17,7 +17,7 @@ library("tidyverse")
 library("ggbio")
 library("RColorBrewer")
 library("viridis")
-library(Homo.sapiens)
+library("Homo.sapiens")
 
 serv.dir1 <- "/home/jason/science/servers/FUSE5/"
 serv.dir2 <- "/home/jason/science/servers/FUSE2/"
@@ -29,9 +29,10 @@ bg.dir <- serv.dir2 %&%
 winfile.dir <- serv.dir2 %&% 
   "wtsa/enhancer_driven/first_round/capture_compare_cis_analysis/4_plotting/C_windowed/"
 parameters.file <- serv.dir2 %&% "wtsa/enhancer_driven/first_round/capture_compare_parameters_pruned_chr.txt" 
-#gencred.df <- fread(serv.dir1 %&% "datasets/diamante_hrc/gencred.txt")
 dpn.file <- got2d.dir %&% "reference/DpnII/hg19_DpnII-sites.bed.gz"
 dpn.df <- fread("cat " %&% dpn.file %&% " | zmore")
+param.df <- fread(parameters.file)
+out.dir <- serv.dir1 %&% "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/output_files/"
 
 ```
 
@@ -143,13 +144,14 @@ run_peakC <- function(bg.df,vp,region.size=1e6,winsize=11,fdr=0.05,abscutoff=100
   # second list object is a data frame from comparative analysis
   l1 <- prepare_input_list(bg.df,vp,region.size,keep.cols=c(4,5,6)) # Endos 
   m1 <- mean_mat(bg.df,vp,region.size,keep.cols=c(4,5,6))
-  l2 <- prepare_input_list(bg.df,vp,region.size,keep.cols=c(7,8,9)) # hESC
+  l2 <- prepare_input_list(bg.df,vp,region.size,keep.cols=c(7,8,9)) # Blymph
   m2 <- mean_mat(bg.df,vp,region.size,keep.cols=c(7,8,9))
-  results.modeled <- combined.analysis(data=l1,num.exp=3,vp.pos=vp,wSize=winsize,alphaFDR=fdr)#PeakC modeled 
+  results.modeled.samp1 <- combined.analysis(data=l1,num.exp=3,vp.pos=vp,wSize=winsize,alphaFDR=fdr)
+  results.modeled.samp2 <- combined.analysis(data=l2,num.exp=3,vp.pos=vp,wSize=winsize,alphaFDR=fdr)
   results.compared <- compare.data(x1=m1,# EndoC
-                                    x2=m2, # hESC 
+                                    x2=m2, # Blymp 
                                     wSize=winsize, vp.pos=vp, abs.cut.off=abscutoff)  # PeakC comparative
-  return(list(results.modeled,results.compared))
+  return(list(results.modeled.samp1,results.compared,results.modeled.samp2))
 }
 
 
@@ -200,7 +202,7 @@ prepare_plot_list <- function(id){
 
 library(GenomicRanges)
 
-get_peakc_df <- function(id){
+get_peakc_df <- function(id,peakc="sample1"){
   vec <- strsplit(id,split="__")[[1]]  #chrom <- vec[length(vec)-1]
   chrom <- (vec[grepl(x=vec,pattern="chr")] %>% strsplit(.,split="_"))[[1]][1]
   plt.list <- prepare_plot_list(id)
@@ -208,7 +210,15 @@ get_peakc_df <- function(id){
   bdg.df <- fread(bg.dir %&% id %&% "_normalised.unionbdg") %>% as.data.frame(.)
   vp = plt.list[[3]]$Frag_start
   peakc.res <- run_peakC(bdg.df,vp,region.size = 1e6,winsize=11,abscutoff = 100)
-  pstart <- peakc.res[[1]]$peak
+  if (peakc=="sample1"){
+    pstart <- peakc.res[[1]]$peak
+  } else if (peakc=="compared"){
+    pstart <- peakc.res[[2]]$pos
+  } else if (peakc=="sample2"){
+    pstart <- peakc.res[[3]]$peak
+  } else{
+    print("peakc must be either sample1, compared, or sample2")
+  }
   if (length(pstart)==0){
     out.df <- data.frame(bait=NA,chrom=NA,peak.start=NA,peak.end=NA,width=NA)
     names(out.df) <- c("bait","chrom","peak.start","peak.end","width")
@@ -228,8 +238,7 @@ get_peakc_df <- function(id){
   return(out.df)
 }
 
-
-build_interact_df <- function(){
+build_interact_df <- function(peakc="sample1"){
   file.vec <- list.files(bg.dir)
   id.vec <- map(file.vec,function(f){
     strsplit(f,split = "_normalised.unionbdg")[[1]][1]
@@ -240,42 +249,17 @@ build_interact_df <- function(){
   out.df <- c()
   pb <- txtProgressBar(min=0,max=length(id.vec),style=3)
   for (i in 1:length(id.vec)){
-  #for (i in 150:length(id.vec)){ # testing 
     print(i)
     id <- id.vec[i]
     setTxtProgressBar(pb,i)
-    build.df <- get_peakc_df(id)
+    build.df <- get_peakc_df(id,peakc)
     out.df <- rbind(out.df,build.df)
   }
   return(out.df)
 }
 
-
-```
-
-
-```{r}
-
-
-
-inter.df <- build_interact_df()
-
-out.dir <- serv.dir1 %&% "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/output_files/"
-write.table(x=inter.df,file=out.dir %&% "peakC-interactions-default.txt",sep="\t",quote=F,row.names=F)
-
-```
-
-
-# Build full direcotry 
-
-
-
-```{r}
-
-
-build_results_df <- function(){
-param.df <- fread(parameters.file)
-  sig.caps <- param.df$V1[param.df$V1 %in% inter.df$bait] # 162 captures with significant interactions 
+build_results_df <- function(inter.df){
+  sig.caps <- param.df$V1[param.df$V1 %in% inter.df$bait] 
   out.df <- c()
   for (cap in sig.caps){
     bait.df <- filter(param.df,V1==cap) %>% dplyr::select(.,one_of("V1","V2","V3","V4"))
@@ -294,11 +278,41 @@ param.df <- fread(parameters.file)
 
 ```
 
+### Sample 1 Modeled PeakC dataframe 
 
 ```{r}
 
-res.df <- build_results_df()
-write.table(x=res.df,file=out.dir %&% "peakC-interactions-default_withBaits.txt",sep="\t",quote=F,row.names=F)
+inter.df <- build_interact_df()
+write.table(x=na.omit(inter.df),file=out.dir %&% "peakC-modeled-default_EndoC.txt",sep="\t",quote=F,row.names=F)
+res.df <- build_results_df(na.omit(inter.df))
+write.table(x=res.df,file=out.dir %&% "peakC-modeled-default_EndoC_withBaits.txt",sep="\t",quote=F,row.names=F)
 
 ```
+
+
+### Sample 2 Modeled PeakC dataframe 
+
+```{r}
+
+inter.df2 <- build_interact_df(peakc="sample2")
+write.table(x=na.omit(inter.df2),
+            file=out.dir %&% "peakC-modeled-default_hESC.txt",sep="\t",quote=F,row.names=F)
+res.df2 <- build_results_df(na.omit(inter.df2))
+write.table(x=res.df2,file=out.dir %&% "peakC-modeled-default_hESC_withBaits.txt",sep="\t",quote=F,row.names=F)
+
+```
+
+
+### PeakC Comparative dataframe 
+
+```{r}
+
+inter.df3 <- build_interact_df(peakc="compared")
+write.table(x=na.omit(inter.df3),
+            file=out.dir %&% "peakC-comparative-default.txt",sep="\t",quote=F,row.names=F)
+res.df3 <- build_results_df(na.omit(inter.df3))
+write.table(x=res.df3,file=out.dir %&% "peakC-comparative_withBaits.txt",sep="\t",quote=F,row.names=F)
+
+```
+
 
