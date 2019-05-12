@@ -19,6 +19,7 @@ library("ggbio")
 library("RColorBrewer")
 library("viridis")
 library("Homo.sapiens")
+library("GenomicRanges")
 
 serv.dir1 <- "/home/jason/science/servers/FUSE5/"
 serv.dir2 <- "/home/jason/science/servers/FUSE2/"
@@ -40,6 +41,9 @@ ref.gwas.df <- cbrg.dir.prom %&%
   "reference_files/gwas-index.bed" %>% fread(.)
 
 data(genesymbol, package = "biovizBase")
+
+plot.dir <-  serv.dir1 %&%
+  "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/plots/"
 
 ```
 
@@ -112,7 +116,6 @@ prepare_plot_list <- function(id,experiment="promoter"){
 }
 
 ```
-
 
 ```{r}
 
@@ -199,9 +202,6 @@ capc_plot <- function(id,experiment,plotwin=5e5,plotmax=NULL){
 
 ```
 
-
-
-
 ```{r}
 
 gene_plot <- function(id,experiment,plotwin=5e5){
@@ -257,13 +257,14 @@ credset_plot <- function(id,experiment,plotwin=5e5,
                                 y=1.12,yend=1.02,arrow=arrow(),color=viridis(20)[15])
     }
   }
+  plt = plt + theme_bw()
   return(plt)
 }
-#p + annotate("segment", x = 2, xend = 4, y = 15, yend = 25, colour = "pink", size=3, alpha=0.6, arrow=arrow())
+
 ```
 
 
-# Testing plotting functions, looks good 
+ Testing plotting functions, looks good 
 
 ```{r}
 
@@ -279,5 +280,282 @@ plt <- tracks(cplt,plt1,plt2,gplt,heights=c(0.8,1,1,1.5)) +
 ```
 
 
+# Promoter analysis 
+
+21 eQTL/GWAS colocalized signal eGene promoters captured 
+
+```{r}
+
+check_for_snpoverlap <- function(par.df,peakc.df,gene.vec,win=0){
+  param.sub <- filter(par.df,V1 %in% gene.vec) # 
+  peakc.sub <- filter(peakc.df,bait %in% gene.vec)
+  out.df <- c()
+  for (i in 1:dim(peakc.sub)[1]){
+    row.df <- peakc.sub[i,]
+    eqtls <- filter(ref.eqtl.df,V1==row.df$chrom,
+                    V2>=(row.df$peak.start-win),V2<=(row.df$peak.end+win)) %>% 
+      dplyr::select(.,one_of("V2","V4"))
+    names(eqtls) <- c("eqtl.pos","eqtl.name")
+    if (dim(eqtls)[1]>0){
+      build.df <- cbind(row.df,eqtls)
+      out.df <- rbind(out.df,build.df)
+    }
+  }
+  return(out.df)
+}
+
+```
+
+
+```{r}
+
+param.df1 <- fread(param.file.prom)
+peakc.mod.df <- rescomp.dir.prom %&% 
+  "peakC-modeled-default_EndoC.txt" %>% fread(.)
+# Subset of eGene promoters that overlap MVD Bunt 2015 Plot Genet, 
+# Supp Table 2, 21 colocalized eQTLS
+mvdb.egenes <- c("ABO","NKX6-3","AP3S2","STARD10","CAMK1D", #"C15orf38-ap3s2",
+                 "DGKB","ACP2","MADD","WARS","ADCY5","RBM6","FADS1",
+                 "MTNR1B","CTD-2260A17.2","MGAT5","LINC00927","ZMIZ") # 
+
+direct.overlap <- check_for_snpoverlap(param.df1,
+                                       peakc.mod.df,mvdb.egenes)
+oneKb.overlap <- check_for_snpoverlap(param.df1,peakc.mod.df,
+                                      mvdb.egenes,win=1000)
+fiveKb.overlap <- check_for_snpoverlap(param.df1,peakc.mod.df,
+                                       mvdb.egenes,win=5000)
+tenKb.overlap <- check_for_snpoverlap(param.df1,peakc.mod.df,
+                                      mvdb.egenes,win=10000)
+
+```
+
+
+
+```{r}
+
+plt1a <- capc_plot(id="ADCY5",experiment="promoter",plotwin=2.1e5)
+plt2a <- capc_plot(id="CAMK1D",experiment="promoter",plotwin=2.5e5)
+plt3a <- capc_plot(id="STARD10",experiment="promoter",plotwin=2.5e5)
+
+plt1b <- credset_plot(id="ADCY5",experiment="promoter",
+                     plotwin=2.1e5,promrefsnps=TRUE)
+plt2b <- credset_plot(id="CAMK1D",experiment="promoter",
+                     plotwin=2.5e5,promrefsnps=TRUE)
+plt3b <- credset_plot(id="STARD10",experiment="promoter",
+                     plotwin=2.5e5,promrefsnps=TRUE)
+
+plt1c <- gene_plot(id="ADCY5",experiment="promoter",plotwin=2.1e5)
+plt2c <- gene_plot(id="CAMK1D",experiment="promoter",plotwin=2.5e5)
+plt3c <- gene_plot(id="STARD10",experiment="promoter",plotwin=2.5e5)
+
+p1 <- tracks(plt1b,plt1a,plt1c,heights=c(0.2,1,0.5)) +
+  scale_x_sequnit(unit="Mb") 
+ggsave(plot=p1,filename = plot.dir %&% "tracks_prom_ADCY5.png",
+       height=10,width=10)
+ggsave(plot=p1,filename = plot.dir %&% "tracks_prom_ADCY5.pdf",
+       height=10,width=10)
+
+p2 <- tracks(plt2b,plt2a,plt2c,heights=c(0.2,1,0.5)) +
+  scale_x_sequnit(unit="Mb") 
+ggsave(plot=p2,filename = plot.dir %&% "tracks_prom_CAMK1D.png",
+       height=10,width=10)
+ggsave(plot=p2,filename = plot.dir %&% "tracks_prom_CAMK1D.pdf",
+       height=10,width=10)
+
+p3 <- tracks(plt3b,plt3a,plt3c,heights=c(0.2,1,0.5)) +
+  scale_x_sequnit(unit="Mb") 
+ggsave(plot=p3,filename = plot.dir %&% "tracks_prom_STARD10.png",
+       height=10,width=10)
+ggsave(plot=p3,filename = plot.dir %&% "tracks_prom_STARD10.pdf",
+       height=10,width=10)
+
+# Just checking NKX6-3 out of curiosity 
+plt4a <- capc_plot(id="NKX6-3",experiment="promoter",plotwin=2.5e5)
+plt4b <- credset_plot(id="NKX6-3",experiment="promoter",
+                     plotwin=2.5e5,promrefsnps=TRUE)
+plt4c <- gene_plot(id="NKX6-3",experiment="promoter",plotwin=2.5e5)
+p4 <- tracks(plt4b,plt4a,plt4c,heights=c(0.2,1,0.5)) +
+  scale_x_sequnit(unit="Mb") 
+
+```
+
+Look up distance of interactions to bait 
+
+```{r}
+
+ref.eqtl.df$distToBait <- map(1:dim(ref.eqtl.df)[1],function(i){
+  row.df <- ref.eqtl.df[i,]
+  egene <- strsplit(row.df$V4,split="_")[[1]][2]
+  egene <- ifelse(egene=="C15orf38-AP3S2","C15orf38-ap3s2",egene)
+  sub <- filter(param.df1,V1==egene)
+  gr1 <- GRanges(seqnames=row.df$V1,
+                 IRanges(row.df$V2,row.df$V3))
+  gr2 <- GRanges(seqnames=sub$V2,
+                 IRanges(sub$V3,sub$V4))
+  dist <- distance(gr1,gr2)
+}) %>% as.integer(.)
+
+ref.eqtl.df$egene <- map(1:dim(ref.eqtl.df)[1],function(i){
+  row.df <- ref.eqtl.df[i,]
+  egene <- strsplit(row.df$V4,split="_")[[1]][2]
+}) %>% as.character(.)
+
+```
+
+
+```{r}
+
+ref.eqtl.df$egene %>% length(.)
+ref.eqtl.df$egene %>% unique(.) %>% length(.)
+# Captured 21 eGenes corresponding to 27 eQTLs 
+egene.vec <- ref.eqtl.df$egene %>% unique(.)
+
+direct.overlap2 <- check_for_snpoverlap(param.df1,peakc.mod.df,
+                                       egene.vec)
+oneKb.overlap2 <- check_for_snpoverlap(param.df1,peakc.mod.df,
+                                       egene.vec,win=1000)
+tenKb.overlap2 <- check_for_snpoverlap(param.df1,peakc.mod.df,
+                                       egene.vec,win=10000)
+
+
+summary(ref.eqtl.df$distToBait) # med dist 30Kb, 3rd Qu. 76.5Kb
+
+# 72-101Kb for three that sig overlap 
+# Larp about 30Kb away 
+
+```
+
+```{r}
+
+plt5a <- capc_plot(id="LARP6",experiment="promoter",plotwin=2.5e5)
+plt5b <- credset_plot(id="LARP6",experiment="promoter",
+                     plotwin=2.5e5,promrefsnps=TRUE)
+plt5c <- gene_plot(id="LARP6",experiment="promoter",plotwin=2.5e5)
+p5 <- tracks(plt5a,plt5c,heights=c(1,1)) +
+  scale_x_sequnit(unit="Mb") 
+
+```
+
+
+# Now see if sig interactions reciprocated from enhancer capture 
+
+```{r}
+
+# find enhancer baits that overlap eQTLs from promoter capture interactions
+
+find_out_enh_bait <- function(dirover,param.df){
+  out.df <- c()
+  for (i in 1:dim(direct.overlap2)[1]){
+    row.df <- dirover[i,]
+    sub <- filter(param.df2,V2==row.df$chrom,V3<=row.df$eqtl.pos,V4>=row.df$eqtl.pos) %>% 
+      dplyr::select(.,one_of("V1","V3","V4"))
+    names(sub) <- c("enh.bait","enh.bait.start","enh.bait.end")
+    if (dim(sub)[1]>0){
+      build.df <- cbind(row.df,sub)
+      out.df <- rbind(out.df,build.df)
+    }
+  } 
+  return(out.df)
+}
+
+get_recip_inter <- function(enh.cap.df,enh.peakc.df,prom.param.df){
+  out.df <- c()
+  for (i in 1:dim(enh.cap.df)[1]){
+    row.df <- enh.cap.df[i,]
+    prom.bait.start <- filter(prom.param.df,V1==row.df$bait)$V3
+    prom.bait.end <- filter(prom.param.df,V1==row.df$bait)$V4
+    prom.bait.gr <- GRanges(seqnames=row.df$chrom,
+                            IRanges(prom.bait.start,prom.bait.end))
+    sub <- filter(enh.peakc.df,bait==row.df$enh.bait)
+    inter.gr <- GRanges(seqnames = sub$chrom,
+                        IRanges(sub$peak.start,sub$peak.end))
+    over.df <- findOverlapPairs(prom.bait.gr,inter.gr) %>% as.data.frame(.) %>% 
+      dplyr::select(.,one_of("second.start","second.end"))
+    names(over.df) <- c("enh.peak.start","enh.peak.end")
+    if (dim(over.df)[1]>0){
+      build.df <- cbind(row.df,over.df)
+      out.df <- rbind(out.df,build.df)
+    }
+  }
+  return(out.df)
+}
+
+
+```
+
+
+```{r}
+
+enh.cap.df <- find_out_enh_bait(direct.overlap2,fread(param.file.enh))
+
+enh.peakc.df <- rescomp.dir.enh %&% 
+    "peakC-modeled-default_EndoC.txt" %>% fread(.)
+prom.param.df <- param.df1
+
+recip.df <- get_recip_inter(enh.cap.df,enh.peakc.df,prom.param.df) # 
+
+```
+
+
+```{r}
+
+#enh.peakc.df2 <- rescomp.dir.enh %&% 
+#    "peakC-modeled-default_hESC.txt" %>% fread(.)
+#get_recip_inter(enh.cap.df,enh.peakc.df2,prom.param.df) # 
+# Save when use hESC instead of EndoC
+
+```
+
+
+```{r}
+
+plt6a <- credset_plot(id="ADCY5",experiment="promoter",
+                     plotwin=2.5e5,promrefsnps=TRUE)
+plt6b <- capc_plot(id="ADCY5",experiment="promoter",plotwin=2.5e5)
+plt6c <- capc_plot(id="ADCY5__24DF__cv__chr3_123065778",experiment="enhancer",plotwin=2.5e5)
+plt6d <- gene_plot(id="ADCY5",experiment="promoter",plotwin=2.5e5)
+p6 <- tracks(plt6a,plt6b,plt6c,plt6d,heights=c(0.2,1,1,0.5)) +
+  scale_x_sequnit(unit="Mb") 
+ggsave(plot=p6,filename = plot.dir %&% "tracks_PromEnh_ADCY5.png",
+       height=10,width=15)
+ggsave(plot=p6,filename = plot.dir %&% "tracks_PromEnh_ADCY5.pdf",
+       height=10,width=15)
+```
+
+
+```{r}
+
+plt7a <- credset_plot(id="CAMK1D",experiment="promoter",
+                     plotwin=2.5e5,promrefsnps=TRUE)
+plt7b <- capc_plot(id="CAMK1D",experiment="promoter",plotwin=2.5e5)
+plt7c <- capc_plot(id="rs11257658_CAMK1D__5QTL__eQTL__chr10_12309268",experiment="enhancer",plotwin=2.5e5)
+plt7d <- gene_plot(id="CAMK1D",experiment="promoter",plotwin=2.5e5)
+p7 <- tracks(plt7a,plt7b,plt7c,plt7d,heights=c(0.2,1,1,0.5)) +
+  scale_x_sequnit(unit="Mb") 
+ggsave(plot=p7,filename = plot.dir %&% "tracks_PromEnh_CAMK1D.png",
+       height=10,width=15)
+ggsave(plot=p7,filename = plot.dir %&% "tracks_PromEnh_CAMK1D.pdf",
+       height=10,width=15)
+# NOTE CAMK1D was poorly captured in experiment 
+
+```
+
+```{r}
+
+plt8a <- credset_plot(id="STARD10",experiment="promoter",
+                     plotwin=2.5e5,promrefsnps=TRUE)
+plt8b <- capc_plot(id="STARD10",experiment="promoter",plotwin=2.5e5)
+plt8c <- capc_plot(id="ARAP1__99DF__cv__chr11_72432985",experiment="enhancer",plotwin=2.5e5)
+plt8d <- gene_plot(id="STARD10",experiment="promoter",plotwin=2.5e5)
+p8 <- tracks(plt8a,plt8b,plt8c,plt8d,heights=c(0.2,1,1,0.5)) +
+  scale_x_sequnit(unit="Mb") 
+ggsave(plot=p8,filename = plot.dir %&% "tracks_PromEnh_STARD10.png",
+       height=10,width=15)
+ggsave(plot=p8,filename = plot.dir %&% "tracks_PromEnh_STARD10.pdf",
+       height=10,width=15)
+
+# Can make a case for STARD10 being replicated, just not quite with peakC
+
+```
 
 
