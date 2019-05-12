@@ -32,8 +32,14 @@ rescomp.dir.enh <- serv.dir1 %&%
 param.file.prom <- cbrg.dir.prom %&% "capture_compare_parameters.txt"
 param.file.enh <- cbrg.dir.enh %&% "capture_compare_parameters_pruned_chr.txt"
 
-data(genesymbol, package = "biovizBase")
+gencred.df <- fread(serv.dir1 %&% "datasets/diamante_hrc/gencred.txt")
 
+ref.eqtl.df <- cbrg.dir.prom %&%
+  "reference_files/eQTL-index.bed" %>% fread(.)
+ref.gwas.df <- cbrg.dir.prom %&%
+  "reference_files/gwas-index.bed" %>% fread(.)
+
+data(genesymbol, package = "biovizBase")
 
 ```
 
@@ -165,9 +171,8 @@ capc_plot <- function(id,experiment,plotwin=5e5,plotmax=NULL){
     theme_bw() + science_theme +  
     theme(panel.grid = element_blank())	 
   
-  peakc.mod <- peakc.mod.df$peak.start #peakc.res[[1]]$peak
-  peakc.comp <- peakc.comp.df$peak.start #peakc.res[[1]]$peak
-  
+  peakc.mod <- peakc.mod.df$peak.start
+  peakc.comp <- peakc.comp.df$peak.start 
   peakc.df <- filter(bdg.df,V2 %in% peakc.mod) %>% 
     dplyr::select(.,one_of("V1","V2","V3")) %>% 
     filter(.,V3<to.exclude$Exclusion_Start |
@@ -220,6 +225,42 @@ gene_plot <- function(id,experiment,plotwin=5e5){
 
 ```
 
+```{r}
+
+credset_plot <- function(id,experiment,plotwin=5e5,
+                         promrefsnps=FALSE){
+  plt.list <- prepare_plot_list(id,experiment)
+  plt.list[[3]] <- plt.list[[3]][grepl(id,plt.list[[3]]$Viewpoint),]
+  params <- plt.list[[3]]
+  sub <- filter(gencred.df,
+                CHR==params$Chr,
+                POS>=params$Frag_start-(plotwin),
+                POS<=params$Frag_stop+(plotwin))
+  plt <- ggplot(data=sub,aes(x=POS,y=PPA)) + 
+    geom_point(shape=21,color=inferno(20)[2],
+               fill=inferno(20)[8],size=1.5) + 
+    scale_y_continuous(breaks=seq(0,1,0.2),limits=c(0,1.15)) +
+    theme(panel.grid.major = element_blank())
+  if (promrefsnps==TRUE){
+    s1 <- filter(ref.eqtl.df,V1==params$Chr,
+                 V2>=params$Frag_start-(plotwin),
+                 V2<=params$Frag_stop+(plotwin))
+    s2 <- filter(ref.gwas.df,V1==params$Chr,
+                 V2>=params$Frag_start-(plotwin),
+                 V2<=params$Frag_stop+(plotwin))
+    if (dim(s1)[1]>0){
+      plt <- plt + geom_segment(data=s1,aes(x=V2,xend=V2),
+                                y=1.15,yend=1.05,arrow=arrow(),color=viridis(20)[6])
+    }
+    if (dim(s2)[1]>0){
+      plt <- plt + geom_segment(data=s2,aes(x=V2,xend=V2),
+                                y=1.12,yend=1.02,arrow=arrow(),color=viridis(20)[15])
+    }
+  }
+  return(plt)
+}
+#p + annotate("segment", x = 2, xend = 4, y = 15, yend = 25, colour = "pink", size=3, alpha=0.6, arrow=arrow())
+```
 
 
 # Testing plotting functions, looks good 
@@ -229,11 +270,10 @@ gene_plot <- function(id,experiment,plotwin=5e5){
 plt1 <- capc_plot(id="ADCY5",experiment="promoter",plotwin=5e5)
 plt2 <- capc_plot(id="ADCY5__1TG__te__chr3_123054770",
                   experiment="enhancer",plotwin=5e5)
+cplt <- credset_plot(id="ADCY5",experiment="promoter",plotwin=5e5,promrefsnps=TRUE)
 gplt <- gene_plot(id="ADCY5",experiment="promoter",plotwin=5e5)
-
-plt <- tracks(plt1,plt2,gplt) + 
-  scale_x_sequnit(unit="Mb") + 
-  ylim(0,200)
+plt <- tracks(cplt,plt1,plt2,gplt,heights=c(0.8,1,1,1.5)) + 
+  scale_x_sequnit(unit="Mb") # + ylim(0,200)
 
 
 ```
