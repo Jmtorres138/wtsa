@@ -119,7 +119,8 @@ prepare_plot_list <- function(id,experiment="promoter"){
 
 ```{r}
 
-capc_plot <- function(id,experiment,plotwin=5e5,plotmax=NULL){
+capc_plot <- function(id,experiment,plotwin=5e5,plotmax=NULL,endoOnly=FALSE,
+                      promrefsnps=FALSE){
   plt.list <- prepare_plot_list(id,experiment)
   plt.list[[3]] <- plt.list[[3]][grepl(id,plt.list[[3]]$Viewpoint),]
   vp = plt.list[[3]]$Frag_start
@@ -143,6 +144,10 @@ capc_plot <- function(id,experiment,plotwin=5e5,plotmax=NULL){
       "peakC-comparative-default.txt" %>% fread(.)
   } else{
     print("Experiment can either be 'promoter' or 'enhancer'")
+  }
+  
+  if (endoOnly==TRUE){
+    d <- filter(d,grepl("Endo",condition))
   }
 
   bdg.df <- fread(bg.dir %&% id %&% "_normalised.unionbdg") %>% as.data.frame(.)
@@ -196,7 +201,7 @@ capc_plot <- function(id,experiment,plotwin=5e5,plotmax=NULL){
   }
   p <- p + coord_cartesian(xlim=c(params$Frag_start-(plotwin), 
                            params$Frag_stop+(plotwin)),
-                  ylim=c(0,plotmax)) 
+                  ylim=c(0,plotmax))
   return(p)
 }
 
@@ -249,12 +254,16 @@ credset_plot <- function(id,experiment,plotwin=5e5,
                  V2>=params$Frag_start-(plotwin),
                  V2<=params$Frag_stop+(plotwin))
     if (dim(s1)[1]>0){
-      plt <- plt + geom_segment(data=s1,aes(x=V2,xend=V2),
-                                y=1.15,yend=1.05,arrow=arrow(),color=viridis(20)[6])
+      plt <- plt + 
+        geom_segment(data=s1,
+                     aes(x=V2,xend=V2),y=1.15,yend=1.05,
+                     arrow=arrow(),color=viridis(20)[6])
     }
     if (dim(s2)[1]>0){
-      plt <- plt + geom_segment(data=s2,aes(x=V2,xend=V2),
-                                y=1.12,yend=1.02,arrow=arrow(),color=viridis(20)[15])
+      plt <- plt + 
+        geom_segment(data=s2,
+                     aes(x=V2,xend=V2),y=1.12,yend=1.02,
+                     arrow=arrow(),color=viridis(20)[15])
     }
   }
   plt = plt + theme_bw()
@@ -268,9 +277,9 @@ credset_plot <- function(id,experiment,plotwin=5e5,
 
 ```{r}
 
-plt1 <- capc_plot(id="ADCY5",experiment="promoter",plotwin=5e5)
+plt1 <- capc_plot(id="ADCY5",experiment="promoter",plotwin=5e5,endoOnly = TRUE)
 plt2 <- capc_plot(id="ADCY5__1TG__te__chr3_123054770",
-                  experiment="enhancer",plotwin=5e5)
+                  experiment="enhancer",plotwin=5e5,endoOnly = TRUE)
 cplt <- credset_plot(id="ADCY5",experiment="promoter",plotwin=5e5,promrefsnps=TRUE)
 gplt <- gene_plot(id="ADCY5",experiment="promoter",plotwin=5e5)
 plt <- tracks(cplt,plt1,plt2,gplt,heights=c(0.8,1,1,1.5)) + 
@@ -310,8 +319,12 @@ check_for_snpoverlap <- function(par.df,peakc.df,gene.vec,win=0){
 ```{r}
 
 param.df1 <- fread(param.file.prom)
+param.df2 <- fread(param.file.enh)
+
 peakc.mod.df <- rescomp.dir.prom %&% 
   "peakC-modeled-default_EndoC.txt" %>% fread(.)
+peakc.comp.df <- rescomp.dir.prom %&% 
+  "peakC-comparative-default.txt" %>% fread(.)
 # Subset of eGene promoters that overlap MVD Bunt 2015 Plot Genet, 
 # Supp Table 2, 21 colocalized eQTLS
 mvdb.egenes <- c("ABO","NKX6-3","AP3S2","STARD10","CAMK1D", #"C15orf38-ap3s2",
@@ -320,22 +333,21 @@ mvdb.egenes <- c("ABO","NKX6-3","AP3S2","STARD10","CAMK1D", #"C15orf38-ap3s2",
 
 direct.overlap <- check_for_snpoverlap(param.df1,
                                        peakc.mod.df,mvdb.egenes)
+direct.overlap.comp <- check_for_snpoverlap(param.df1,
+                                       peakc.comp.df,mvdb.egenes)
 oneKb.overlap <- check_for_snpoverlap(param.df1,peakc.mod.df,
                                       mvdb.egenes,win=1000)
-fiveKb.overlap <- check_for_snpoverlap(param.df1,peakc.mod.df,
-                                       mvdb.egenes,win=5000)
-tenKb.overlap <- check_for_snpoverlap(param.df1,peakc.mod.df,
-                                      mvdb.egenes,win=10000)
 
 ```
 
+NOTE: NKX6-3 Promoter physically interacts with eQTL from comparative interaction 
 
 
 ```{r}
 
-plt1a <- capc_plot(id="ADCY5",experiment="promoter",plotwin=2.1e5)
-plt2a <- capc_plot(id="CAMK1D",experiment="promoter",plotwin=2.5e5)
-plt3a <- capc_plot(id="STARD10",experiment="promoter",plotwin=2.5e5)
+plt1a <- capc_plot(id="ADCY5",experiment="promoter",plotwin=2.1e5,endoOnly = TRUE)
+plt2a <- capc_plot(id="CAMK1D",experiment="promoter",plotwin=2.5e5,endoOnly = TRUE)
+plt3a <- capc_plot(id="STARD10",experiment="promoter",plotwin=2.5e5,endoOnly = TRUE)
 
 plt1b <- credset_plot(id="ADCY5",experiment="promoter",
                      plotwin=2.1e5,promrefsnps=TRUE)
@@ -376,6 +388,22 @@ plt4b <- credset_plot(id="NKX6-3",experiment="promoter",
 plt4c <- gene_plot(id="NKX6-3",experiment="promoter",plotwin=2.5e5)
 p4 <- tracks(plt4b,plt4a,plt4c,heights=c(0.2,1,0.5)) +
   scale_x_sequnit(unit="Mb") 
+ggsave(plot=p4,filename = plot.dir %&% "tracks_prom_NKX6-3.png",
+       height=10,width=10)
+ggsave(plot=p4,filename = plot.dir %&% "tracks_prom_NKX6-3.pdf",
+       height=10,width=10)
+
+# Just checking KCNK17 out of curiosity 
+plt8a <- capc_plot(id="DNLZ",experiment="promoter",plotwin=6e4)
+plt8b <- credset_plot(id="DNLZ",experiment="promoter",
+                     plotwin=6e4,promrefsnps=TRUE)
+plt8c <- gene_plot(id="DNLZ",experiment="promoter",plotwin=6e4)
+p8 <- tracks(plt8b,plt8a,plt8c,heights=c(0.2,1,0.5)) +
+  scale_x_sequnit(unit="Mb") 
+ggsave(plot=p8,filename = plot.dir %&% "tracks_prom_DNLZ.png",
+       height=10,width=10)
+ggsave(plot=p8,filename = plot.dir %&% "tracks_prom_DNLZ.pdf",
+       height=10,width=10)
 
 ```
 
@@ -414,8 +442,10 @@ direct.overlap2 <- check_for_snpoverlap(param.df1,peakc.mod.df,
                                        egene.vec)
 oneKb.overlap2 <- check_for_snpoverlap(param.df1,peakc.mod.df,
                                        egene.vec,win=1000)
-tenKb.overlap2 <- check_for_snpoverlap(param.df1,peakc.mod.df,
-                                       egene.vec,win=10000)
+direct.comp.overlap2 <- check_for_snpoverlap(param.df1,peakc.comp.df,
+                                       egene.vec)
+oneKb.comp.overlap2 <- check_for_snpoverlap(param.df1,peakc.comp.df,
+                                       egene.vec,win=1000)
 
 
 summary(ref.eqtl.df$distToBait) # med dist 30Kb, 3rd Qu. 76.5Kb
@@ -425,14 +455,21 @@ summary(ref.eqtl.df$distToBait) # med dist 30Kb, 3rd Qu. 76.5Kb
 
 ```
 
+#1    DNLZ  chr9  139233724 139257349 23626 139248082 rs28642213_GPSM1
+#2    DNLZ  chr9  139233724 139257349 23626 139246594  rs28679497_DNLZ
+#3    DNLZ  chr9  139233724 139257349 23626 139246768 rs61386106_CARD9
+#37 KCNK17  chr6   39283118  39292854  9737  39290834 rs3807042_KCNK17
+#48 NKX6-3  chr8   41505686  41512695  7010  41509915 rs4736819_NKX6-3
+
+
 ```{r}
 
 plt5a <- capc_plot(id="LARP6",experiment="promoter",plotwin=2.5e5)
 plt5b <- credset_plot(id="LARP6",experiment="promoter",
                      plotwin=2.5e5,promrefsnps=TRUE)
 plt5c <- gene_plot(id="LARP6",experiment="promoter",plotwin=2.5e5)
-p5 <- tracks(plt5a,plt5c,heights=c(1,1)) +
-  scale_x_sequnit(unit="Mb") 
+#p5 <- tracks(plt5a,plt5c,heights=c(1,1)) +
+#  scale_x_sequnit(unit="Mb") 
 
 ```
 
@@ -486,12 +523,12 @@ get_recip_inter <- function(enh.cap.df,enh.peakc.df,prom.param.df){
 
 ```{r}
 
-enh.cap.df <- find_out_enh_bait(direct.overlap2,fread(param.file.enh))
 
+
+enh.cap.df <- find_out_enh_bait(direct.overlap2,fread(param.file.enh))
 enh.peakc.df <- rescomp.dir.enh %&% 
     "peakC-modeled-default_EndoC.txt" %>% fread(.)
 prom.param.df <- param.df1
-
 recip.df <- get_recip_inter(enh.cap.df,enh.peakc.df,prom.param.df) # 
 
 ```
@@ -511,8 +548,8 @@ recip.df <- get_recip_inter(enh.cap.df,enh.peakc.df,prom.param.df) #
 
 plt6a <- credset_plot(id="ADCY5",experiment="promoter",
                      plotwin=2.5e5,promrefsnps=TRUE)
-plt6b <- capc_plot(id="ADCY5",experiment="promoter",plotwin=2.5e5)
-plt6c <- capc_plot(id="ADCY5__24DF__cv__chr3_123065778",experiment="enhancer",plotwin=2.5e5)
+plt6b <- capc_plot(id="ADCY5",experiment="promoter",plotwin=2.5e5,endoOnly=TRUE)
+plt6c <- capc_plot(id="ADCY5__24DF__cv__chr3_123065778",experiment="enhancer",plotwin=2.5e5,endoOnly=TRUE)
 plt6d <- gene_plot(id="ADCY5",experiment="promoter",plotwin=2.5e5)
 p6 <- tracks(plt6a,plt6b,plt6c,plt6d,heights=c(0.2,1,1,0.5)) +
   scale_x_sequnit(unit="Mb") 
@@ -527,8 +564,8 @@ ggsave(plot=p6,filename = plot.dir %&% "tracks_PromEnh_ADCY5.pdf",
 
 plt7a <- credset_plot(id="CAMK1D",experiment="promoter",
                      plotwin=2.5e5,promrefsnps=TRUE)
-plt7b <- capc_plot(id="CAMK1D",experiment="promoter",plotwin=2.5e5)
-plt7c <- capc_plot(id="rs11257658_CAMK1D__5QTL__eQTL__chr10_12309268",experiment="enhancer",plotwin=2.5e5)
+plt7b <- capc_plot(id="CAMK1D",experiment="promoter",plotwin=2.5e5,endoOnly=TRUE)
+plt7c <- capc_plot(id="rs11257658_CAMK1D__5QTL__eQTL__chr10_12309268",experiment="enhancer",plotwin=2.5e5,endoOnly=TRUE)
 plt7d <- gene_plot(id="CAMK1D",experiment="promoter",plotwin=2.5e5)
 p7 <- tracks(plt7a,plt7b,plt7c,plt7d,heights=c(0.2,1,1,0.5)) +
   scale_x_sequnit(unit="Mb") 
@@ -544,8 +581,8 @@ ggsave(plot=p7,filename = plot.dir %&% "tracks_PromEnh_CAMK1D.pdf",
 
 plt8a <- credset_plot(id="STARD10",experiment="promoter",
                      plotwin=2.5e5,promrefsnps=TRUE)
-plt8b <- capc_plot(id="STARD10",experiment="promoter",plotwin=2.5e5)
-plt8c <- capc_plot(id="ARAP1__99DF__cv__chr11_72432985",experiment="enhancer",plotwin=2.5e5)
+plt8b <- capc_plot(id="STARD10",experiment="promoter",plotwin=2.5e5,endoOnly=TRUE)
+plt8c <- capc_plot(id="ARAP1__99DF__cv__chr11_72432985",experiment="enhancer",plotwin=2.5e5,endoOnly=TRUE)
 plt8d <- gene_plot(id="STARD10",experiment="promoter",plotwin=2.5e5)
 p8 <- tracks(plt8a,plt8b,plt8c,plt8d,heights=c(0.2,1,1,0.5)) +
   scale_x_sequnit(unit="Mb") 
