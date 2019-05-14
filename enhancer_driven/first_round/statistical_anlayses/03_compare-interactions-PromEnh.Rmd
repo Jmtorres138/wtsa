@@ -283,7 +283,7 @@ plt2 <- capc_plot(id="ADCY5__1TG__te__chr3_123054770",
 cplt <- credset_plot(id="ADCY5",experiment="promoter",plotwin=5e5,promrefsnps=TRUE)
 gplt <- gene_plot(id="ADCY5",experiment="promoter",plotwin=5e5)
 plt <- tracks(cplt,plt1,plt2,gplt,heights=c(0.8,1,1,1.5)) + 
-  scale_x_sequnit(unit="Mb") # + ylim(0,200)
+  scale_x_sequnit(unit="Mb") 
 
 
 ```
@@ -554,9 +554,9 @@ plt6d <- gene_plot(id="ADCY5",experiment="promoter",plotwin=2.5e5)
 p6 <- tracks(plt6a,plt6b,plt6c,plt6d,heights=c(0.2,1,1,0.5)) +
   scale_x_sequnit(unit="Mb") 
 ggsave(plot=p6,filename = plot.dir %&% "tracks_PromEnh_ADCY5.png",
-       height=10,width=15)
+       height=10,width=20)
 ggsave(plot=p6,filename = plot.dir %&% "tracks_PromEnh_ADCY5.pdf",
-       height=10,width=15)
+       height=10,width=20)
 ```
 
 
@@ -595,4 +595,22 @@ ggsave(plot=p8,filename = plot.dir %&% "tracks_PromEnh_STARD10.pdf",
 
 ```
 
+
+
+```{r}
+
+plt9a <- credset_plot(id="FBRSL1__109DF__cv__chr12_133069698",experiment="enhancer",
+                     plotwin=7e5,promrefsnps=TRUE)
+plt9b <- capc_plot(id="FBRSL1__109DF__cv__chr12_133069698",experiment="enhancer",plotwin=7e5,endoOnly=TRUE)
+plt9c <- capc_plot(id="FBRSL1__109DF__cv__chr12_133066392",experiment="enhancer",plotwin=7e5,endoOnly=TRUE)
+plt9d <- gene_plot(id="FBRSL1__109DF__cv__chr12_133069698",experiment="enhancer",plotwin=7e5)
+p9 <- tracks(plt9a,plt9b,plt9c,plt9d,heights=c(0.2,1,1,0.5)) +
+  scale_x_sequnit(unit="Mb") 
+ggsave(plot=p9,filename = plot.dir %&% "tracks_CVEnh_FBRSL1.png",
+       height=10,width=15)
+ggsave(plot=p9,filename = plot.dir %&% "tracks_CVEnh_FBRSL1.pdf",
+       height=10,width=15)
+
+
+```
 
