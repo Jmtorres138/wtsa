@@ -293,3 +293,22 @@ filter(pg.nocontrols,eqtl.support==TRUE,type!="bait")$Gene.name %>% unique(.)
 
 ```
 
+
+
+# Gene output table
+
+
+```{r}
+
+locus <- pg.nocontrols$locus %>% unique(.)
+genes <- map(locus,function(g){
+  vec <- filter(pg.nocontrols,locus==g)$Gene.name %>% unique(.)
+  paste0(vec,collapse=",")
+}) %>% as.character(.)
+
+out.df <- data.frame(locus,genes,stringsAsFactors = F)
+write.table(x=out.df,file=out.dir%&%"peaks-to-genes_simpleTable.txt",sep="\t",quote=F,row.names=F)
+
+```
+
+

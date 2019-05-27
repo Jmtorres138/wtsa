@@ -3,8 +3,8 @@ title: "Untitled"
 author: "Jason Torres"
 date: "5/9/2019"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -152,9 +152,9 @@ write.table(x=sum.df2,file=enh1.dir %&% "peakC-interaction-summary.txt",
 There are `r dim(sum.df2)[1]` captures with at least one significant peakC interaction 
 
 The total number of peakC interactions from this experiment is  `r sum.df2$num.inter %>% sum(.)`
-The total number of "modeled" peakC interactions from this experiment is  `r sum.df1$num.mod %>% sum(.)`
-The total number of "comparative" peakC interactions from this experiment is  `r sum.df1$num.comp %>% sum(.)`
-The proportion of "modeled" peakC interactions from this experiment is  `r (sum.df1$num.mod %>% sum(.))/(sum.df1$num.inter %>% sum(.))`
+The total number of "modeled" peakC interactions from this experiment is  `r sum.df2$num.mod %>% sum(.)`
+The total number of "comparative" peakC interactions from this experiment is  `r sum.df2$num.comp %>% sum(.)`
+The proportion of "modeled" peakC interactions from this experiment is  `r (sum.df2$num.mod %>% sum(.))/(sum.df2$num.inter %>% sum(.))`
 
 
 The median number of interactions at a capture site is `r median(sum.df2$num.inter)` 
@@ -259,6 +259,26 @@ There are `r sum.df$num.gene.inter %>% median(.)` interactions with gene TSS per
 
 
 
+Append SNP PPA 
+
+```{r}
+
+
+cred.df <- fread(rescomp.dir %&% "projects/t2d_classification/revamp/genetic_credible_sets/gencred.txt")
+
+s <- "PTGFRN__4DF__cv__chr1_117529458"
+
+sum.df$SNP.PPA <- map(sum.df$capture,function(s){
+  vec <- (strsplit(s,split="__")[[1]][4] %>% strsplit(.,split="_"))[[1]]
+  filter(cred.df,CHR==vec[1],POS==vec[2])$PPA %>% max(.)
+}) %>% as.numeric(.)
+
+
+
+
+
+```
+
 
 
 # Compare controls vs T2D SNPs 
@@ -269,6 +289,11 @@ There are `r sum.df$num.gene.inter %>% median(.)` interactions with gene TSS per
 
 boxplot(data=sum.df,num.inter ~ status)
 
+boxplot(filter(sum.df,status=="Control.SNP")$num.inter,
+        filter(sum.df,SNP.PPA>0.50,status=="T2D.SNP")$num.inter)
+
+#boxplot(data=sum.df,eqtl.support ~ status)
+
 hist(filter(sum.df,status=="Control.SNP")$num.inter)
 median(filter(sum.df,status=="Control.SNP")$num.inter)
 
@@ -277,6 +302,10 @@ median(filter(sum.df,status=="T2D.SNP")$num.inter)
 
 wilcox.test(filter(sum.df,status=="Control.SNP")$num.inter,
        filter(sum.df,status=="T2D.SNP")$num.inter) # P-value 0.15
+wilcox.test(filter(sum.df,status=="Control.SNP")$num.inter,
+        filter(sum.df,SNP.PPA>0.50,status=="T2D.SNP")$num.inter) # P-value = 0.7899
+wilcox.test(filter(sum.df,status=="Control.SNP")$eqtl.support,
+        filter(sum.df,SNP.PPA>0.50,status=="T2D.SNP")$eqtl.support) # P-value = 0.6151
 
 ```
 
@@ -342,6 +371,9 @@ lookupCap("DDX51")
 #[3] "FBRSL1__109DF__cv__chr12_133072767" PPA = NA
 #"FBRSL1__109DF__cv__chr12_133080449" PPA = 0.16
 #[5] "FBRSL1__109DF__cv__chr12_133087707" PPA = 0.02
+
+lookupCap("PDE8B")
+
 
 ```
 
