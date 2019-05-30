@@ -1,0 +1,447 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("ggbio")
+library("RColorBrewer")
+library("viridis")
+library("Homo.sapiens")
+library("GenomicRanges")
+
+serv.dir1 <- "/home/jason/science/servers/FUSE5/"
+serv.dir2 <- "/home/jason/science/servers/FUSE2/"
+got2d.dir <- "/home/jason/science/servers/FUSE/" 
+cbrg.dir.prom <- serv.dir2 %&% "wtsa/promoter_driven/" 
+cbrg.dir.enh <- serv.dir2 %&% "wtsa/enhancer_driven/first_round/" 
+rescomp.dir.prom <- serv.dir1 %&%
+  "projects/wtsa/promoter_driven/statistical_analysis/output_files/"
+rescomp.dir.enh <- serv.dir1 %&%
+  "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/output_files/"
+param.file.prom <- cbrg.dir.prom %&% "capture_compare_parameters.txt"
+param.file.enh <- cbrg.dir.enh %&% "capture_compare_parameters_pruned_chr.txt"
+
+gencred.df <- fread(serv.dir1 %&% "datasets/diamante_hrc/gencred.txt")
+
+ref.eqtl.df <- cbrg.dir.prom %&%
+  "reference_files/eQTL-index.bed" %>% fread(.)
+ref.gwas.df <- cbrg.dir.prom %&%
+  "reference_files/gwas-index.bed" %>% fread(.)
+
+data(genesymbol, package = "biovizBase")
+
+plot.dir <-  serv.dir1 %&%
+  "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/plots/"
+
+```
+
+
+```{r}
+
+
+science_theme <- theme(
+  panel.grid.major = element_line(size = 0.5, color = "grey"),
+  panel.grid.minor = element_blank(),
+  plot.title = element_text(hjust = 0.5),
+  text = element_text(size = 14),  axis.line = element_line(color="black", size = 0.7),
+  axis.line.x = element_line(color="black", size = 0.7),
+  axis.line.y = element_line(color="black", size = 0.7),
+  # plot.margin = unit(c(0.7,0.7,0.7,0.7), "lines"),
+  panel.border=element_blank(),
+  strip.background = element_blank()
+)
+
+```
+
+
+# Plotting Functions 
+
+```{r}
+
+prepare_plot_list <- function(id,experiment="promoter"){
+  # Experiment can either be "promoter" or "enhancer"
+  if (experiment=="promoter"){
+    winfile.dir <- cbrg.dir.prom %&% "PromCap_cis_analysis/4_plotting/C_windowed/"
+    parameters.file <- param.file.prom
+  } else if (experiment=="enhancer"){
+    winfile.dir <- cbrg.dir.enh %&% "capture_compare_cis_analysis/4_plotting/C_windowed/"
+    parameters.file <- param.file.enh
+  } else{
+    print("Experiment can either be 'promoter' or 'enhancer'")
+  }
+  data.file <- winfile.dir %&% id %&% "_window.tab"
+  data <- as.tibble(read.table(data.file, header=T))
+  parameters <- as.tibble(read.table(parameters.file))
+  names(parameters) <- c("Viewpoint", "Chr", "Frag_start", "Frag_stop", "Exclusion_Start",
+                         "Exclusion_Stop", "Plot_Region_Start",
+                         "Plot_Region_Stop", "Bin_Size", "Window_size")  
+  # select viewpoint from parameters file
+  viewp <- parameters %>% filter(Viewpoint == id)
+  # select exclusion fragments within plotting region
+  parameters <- parameters %>%
+  filter(Frag_stop >= viewp$Plot_Region_Start & Frag_start <= viewp$Plot_Region_Stop)
+  # add window size to exclusion zone only for viewpoint
+  parameters <- parameters %>%
+    mutate(Exclusion_Start = if_else(Viewpoint == id, (Exclusion_Start - Window_size),
+                                     Exclusion_Start)) %>%
+  mutate(Exclusion_Stop = if_else(Viewpoint == id, (Exclusion_Stop + Window_size),
+                                  Exclusion_Stop))
+  to.exclude <- parameters %>% filter(Viewpoint == id)
+  # Gather Data =================================================================
+  # 1 gather in long format
+  d <- data %>% gather(key, value, -c(BinNum, Chr, Start, Stop))
+  # 2 extract condition and replicate
+  d <- d %>% 
+    mutate(condition = sub('_.+', "", key, perl=T)) %>%
+    mutate(replicate = sub('.+_', "", key, perl=T)) %>%
+    mutate(pos = Start + (Stop - Start)/2)
+  # Calculate Mean and STDEV ====================================================
+  d <- d %>%
+    group_by(BinNum, Chr, Start, Stop, pos, condition) %>%
+  summarize(mean = mean(value), sd = sd(value)) %>%
+  ungroup()  
+  return(list(d,to.exclude,parameters))
+}
+
+```
+
+```{r}
+
+capc_plot <- function(id,experiment,plotwin=5e5,plotmax=NULL,endoOnly=FALSE,
+                      promrefsnps=FALSE){
+  plt.list <- prepare_plot_list(id,experiment)
+  plt.list[[3]] <- plt.list[[3]][grepl(id,plt.list[[3]]$Viewpoint),]
+  vp = plt.list[[3]]$Frag_start
+  d <- plt.list[[1]]; to.exclude <- plt.list[[2]]; 
+  params <- plt.list[[3]]
+  if (experiment=="promoter"){
+    d$condition <- factor(d$condition,levels=c("EndoB","Blymph"))
+    bg.dir <- cbrg.dir.prom %&%
+      "PromCap_cis_analysis/2_unionBedgraphs/B_normalised_counts/"
+    peakc.mod.df <- rescomp.dir.prom %&% 
+      "peakC-modeled-default_EndoC.txt" %>% fread(.)
+    peakc.comp.df <- rescomp.dir.prom %&% 
+      "peakC-comparative-default.txt" %>% fread(.)
+  } else if(experiment=="enhancer"){
+    d$condition <- factor(d$condition,levels=c("Endo","hESC"))
+    bg.dir <- cbrg.dir.enh %&%
+      "capture_compare_cis_analysis/2_unionBedgraphs/B_normalised_counts/"
+    peakc.mod.df <- rescomp.dir.enh %&% 
+      "peakC-modeled-default_EndoC.txt" %>% fread(.)
+    peakc.comp.df <- rescomp.dir.enh %&% 
+      "peakC-comparative-default.txt" %>% fread(.)
+  } else{
+    print("Experiment can either be 'promoter' or 'enhancer'")
+  }
+  
+  if (endoOnly==TRUE){
+    d <- filter(d,grepl("Endo",condition))
+  }
+
+  bdg.df <- fread(bg.dir %&% id %&% "_normalised.unionbdg") %>% as.data.frame(.)
+  
+  if (is.null(plotmax)==TRUE){
+    plotmax <- filter(d,Stop<to.exclude$Exclusion_Start |
+                      Start>to.exclude$Exclusion_Stop)$mean %>% 
+                      max(.) %>% mean(.) %>% round(.)
+    plotmax <- plotmax+50    
+  }
+
+
+  p <- ggplot(filter(d,Stop<to.exclude$Exclusion_Start |
+                      Start>to.exclude$Exclusion_Stop),
+              aes(x=pos, y=mean, col = condition, fill = condition)) +
+    geom_ribbon(inherit.aes = F, 
+                aes(x=pos, ymin=mean-sd, ymax=mean+sd, fill=condition), alpha=.35) + 
+    geom_line() + 
+    scale_fill_manual(values=viridis(20)[c(3,9)],name="Cell Type") +
+    scale_color_manual(values=viridis(20)[c(3,9)],name="Cell Type") +
+    geom_rect(data=to.exclude, inherit.aes=F, 
+              aes(xmin=Exclusion_Start, xmax=Exclusion_Stop), 
+              ymin=-25, ymax=max(d$mean)+max(d$sd), col="lightgrey", fill="white") + 
+    geom_rect(data=params, inherit.aes=F, 
+              aes(xmin=Frag_start, xmax=Frag_stop), ymin=-25, 
+              ymax=max(d$mean)+max(d$sd), col="grey", fill="grey") + 
+    labs(x="Genomic Position", y="Mean Interaction") + 
+    ggtitle(id) +
+    theme_bw() + science_theme +  
+    theme(panel.grid = element_blank())	 
+  
+  peakc.mod <- peakc.mod.df$peak.start
+  peakc.comp <- peakc.comp.df$peak.start 
+  peakc.df <- filter(bdg.df,V2 %in% peakc.mod) %>% 
+    dplyr::select(.,one_of("V1","V2","V3")) %>% 
+    filter(.,V3<to.exclude$Exclusion_Start |
+                      V3>to.exclude$Exclusion_Stop)
+  comp.df <- filter(bdg.df,V2 %in% peakc.comp) %>% 
+    dplyr::select(.,one_of("V1","V2","V3")) %>% 
+    filter(.,V3<to.exclude$Exclusion_Start |
+                      V3>to.exclude$Exclusion_Stop)
+  if (dim(peakc.df)[1]>0){
+    p = p + geom_rect(data=peakc.df,inherit.aes=F,aes(xmin=V2,xmax=V3),
+                ymin=-(plotmax/50),ymax=(plotmax/50),size=0.1,
+                color="firebrick3",fill="firebrick1")
+  }
+  if (dim(comp.df)[1]>0){
+    p = p + geom_rect(data=comp.df,inherit.aes=F,aes(xmin=V2,xmax=V3),
+                ymin=-(plotmax/50),ymax=(plotmax/50),size=0.1,
+                color=viridis(20)[20],fill=viridis(20)[15])    
+  }
+  p <- p + coord_cartesian(xlim=c(params$Frag_start-(plotwin), 
+                           params$Frag_stop+(plotwin)),
+                  ylim=c(0,plotmax))
+  return(p)
+}
+
+```
+
+```{r}
+
+gene_plot <- function(id,experiment,plotwin=5e5){
+  plt.list <- prepare_plot_list(id,experiment)
+  plt.list[[3]] <- plt.list[[3]][grepl(id,plt.list[[3]]$Viewpoint),]
+  params <- plt.list[[3]]
+  reg.gr <- GRanges(seqnames=params$Chr,
+                 IRanges(params$Frag_start-(plotwin),
+                 params$Frag_stop+(plotwin)))
+  wh <- genesymbol[genesymbol %over% reg.gr] 
+  wh <- range(wh, ignore.strand = TRUE)
+  p <- autoplot(Homo.sapiens, which = wh,
+                color=cividis(20)[1],
+                fill=cividis(20)[4]) 
+  p = p + theme_bw() + 
+    theme(panel.grid=element_blank()) +
+    ylab("Transcripts") + 
+    xlab("Genomic Position")
+  return(p)
+}
+
+```
+
+```{r}
+
+credset_plot <- function(id,experiment,plotwin=5e5,
+                         promrefsnps=FALSE){
+  plt.list <- prepare_plot_list(id,experiment)
+  plt.list[[3]] <- plt.list[[3]][grepl(id,plt.list[[3]]$Viewpoint),]
+  params <- plt.list[[3]]
+  sub <- filter(gencred.df,
+                CHR==params$Chr,
+                POS>=params$Frag_start-(plotwin),
+                POS<=params$Frag_stop+(plotwin))
+  plt <- ggplot(data=sub,aes(x=POS,y=PPA)) + 
+    geom_point(shape=21,color=inferno(20)[2],
+               fill=inferno(20)[8],size=1.5) + 
+    scale_y_continuous(breaks=seq(0,1,0.2),limits=c(0,1.15)) +
+    theme(panel.grid.major = element_blank())
+  if (promrefsnps==TRUE){
+    s1 <- filter(ref.eqtl.df,V1==params$Chr,
+                 V2>=params$Frag_start-(plotwin),
+                 V2<=params$Frag_stop+(plotwin))
+    s2 <- filter(ref.gwas.df,V1==params$Chr,
+                 V2>=params$Frag_start-(plotwin),
+                 V2<=params$Frag_stop+(plotwin))
+    if (dim(s1)[1]>0){
+      plt <- plt + 
+        geom_segment(data=s1,
+                     aes(x=V2,xend=V2),y=1.15,yend=1.05,
+                     arrow=arrow(),color=viridis(20)[6])
+    }
+    if (dim(s2)[1]>0){
+      plt <- plt + 
+        geom_segment(data=s2,
+                     aes(x=V2,xend=V2),y=1.12,yend=1.02,
+                     arrow=arrow(),color=viridis(20)[15])
+    }
+  }
+  plt = plt + theme_bw()
+  return(plt)
+}
+
+```
+
+
+# Bring in Jorge significant peaks 
+
+
+```{r}
+
+
+pc.df <- fread(serv.dir1 %&% "datasets/from_Jorge/Islet_pcHiC_washU.txt",sep="\t")
+pc.df$bait.chrom <- map(pc.df$V1, function(s){
+  strsplit(s,split=",")[[1]][1]
+}) %>% as.character(.)
+pc.df$bait.start <- map(pc.df$V1, function(s){
+  strsplit(s,split=",")[[1]][2]
+}) %>% as.integer(.)
+pc.df$bait.end <- map(pc.df$V1, function(s){
+  strsplit(s,split=",")[[1]][3]
+}) %>% as.integer(.)
+pc.df$int.chrom <- map(pc.df$V2, function(s){
+  strsplit(s,split=",")[[1]][1]
+}) %>% as.character(.)
+pc.df$int.start <- map(pc.df$V2, function(s){
+  strsplit(s,split=",")[[1]][2]
+}) %>% as.integer(.)
+pc.df$int.end <- map(pc.df$V2, function(s){
+  strsplit(s,split=",")[[1]][3]
+}) %>% as.integer(.)
+
+```
+
+
+
+pcHiC Plot 
+
+```{r}
+
+pcHiC_plot <- function(id,experiment,plotwin=5e5){
+  plt.list <- prepare_plot_list(id,experiment)
+  plt.list[[3]] <- plt.list[[3]][grepl(id,plt.list[[3]]$Viewpoint),]
+  vp = plt.list[[3]]$Frag_start
+  d <- plt.list[[1]]; to.exclude <- plt.list[[2]]; 
+  params <- plt.list[[3]]
+  start <- params$Frag_start-(plotwin)
+  end <- params$Frag_stop+(plotwin)
+  sub.df <- filter(pc.df,bait.chrom==plt.list[[3]]$Chr,
+                   bait.start>=start|int.start>=start,
+                   bait.end<=end|int.end<=end)
+  p <- ggplot(data=sub.df,aes(xmin=int.start,xmax=int.end)) + 
+    geom_rect(ymin=0,ymax=5,color="firebrick2",fill="firebrick1",size=2) +
+    geom_rect(data=sub.df,aes(xmin=bait.start,xmax=bait.end),
+              ymin=0,ymax=5,color="grey80",fill="grey60") + 
+    geom_curve(aes(x=bait.start,xend=int.start,
+                               y=5,yend=5),
+               curvature = 0.2,
+               angle=90,
+               arrow = arrow(length = unit(0.07, "npc"))) + 
+    coord_cartesian(xlim=c(start,end)) + 
+    theme(axis.title=element_blank(),
+          axis.text=element_blank(),
+          axis.ticks=element_blank())
+  return(p)
+}
+
+```
+
+
+
+HiC Data from Greenwald 2019 
+
+```{r}
+
+hic.df <- fread(serv.dir1 %&% "datasets/Greenwald2019/TSTFF938730.bedpe.gz",sep="\t")
+names(hic.df)[1:6] <- c("bait.chrom","bait.start","bait.end",
+                        "int.chrom","int.start","int.end")
+
+
+HiC_plot <- function(id,experiment,plotwin=5e5){
+  plt.list <- prepare_plot_list(id,experiment)
+  plt.list[[3]] <- plt.list[[3]][grepl(id,plt.list[[3]]$Viewpoint),]
+  vp = plt.list[[3]]$Frag_start
+  d <- plt.list[[1]]; to.exclude <- plt.list[[2]]; 
+  params <- plt.list[[3]]
+  start <- params$Frag_start-(plotwin)
+  end <- params$Frag_stop+(plotwin)
+  sub.df <- filter(hic.df,bait.chrom==plt.list[[3]]$Chr,
+                   bait.start>=start|int.start>=start,
+                   bait.end<=end|int.end<=end)
+  p <- ggplot(data=sub.df,aes(xmin=int.start,xmax=int.end)) + 
+    geom_rect(ymin=0,ymax=5,color="firebrick2",fill="firebrick1",size=2) +
+    geom_rect(data=sub.df,aes(xmin=bait.start,xmax=bait.end),
+              ymin=0,ymax=5,color="grey80",fill="grey60") + 
+    geom_curve(aes(x=bait.start,xend=int.start,
+                               y=5,yend=5),
+               curvature = 0.2,
+               angle=90,
+               arrow = arrow(length = unit(0.07, "npc"))) + 
+    coord_cartesian(xlim=c(start,end)) + 
+    theme(axis.title=element_blank(),
+          axis.text=element_blank(),
+          axis.ticks=element_blank())
+  return(p)
+}
+
+```
+
+
+# ADCY5
+
+
+```{r}
+
+plt1 <- capc_plot(id="ADCY5",experiment="promoter",plotwin=5e5,endoOnly = TRUE)
+plt2 <- capc_plot(id="ADCY5__1TG__te__chr3_123054770",
+                  experiment="enhancer",plotwin=5e5,endoOnly = TRUE)
+pcplt <- pcHiC_plot(id="ADCY5",experiment="promoter",plotwin=5e5)
+hicplt <- HiC_plot(id="ADCY5",experiment="promoter",plotwin=5e5)
+cplt <- credset_plot(id="ADCY5",experiment="promoter",plotwin=5e5,promrefsnps=TRUE)
+gplt <- gene_plot(id="ADCY5",experiment="promoter",plotwin=5e5)
+plt <- tracks(cplt,plt1,pcplt,hicplt,plt2,gplt,heights=c(0.8,1,0.5,0.5,1,1.5)) + 
+  scale_x_sequnit(unit="Mb") 
+
+ggsave(plot=plt,filename = plot.dir %&% "tracks_methComp_ADCY5.png",
+       height=12,width=10)
+ggsave(plot=plt,filename = plot.dir %&% "tracks_methComp_ADCY5.pdf",
+       height=12,width=10)
+
+
+```
+
+
+
+# CAMK1D 
+
+
+```{r}
+
+
+plt2a <- credset_plot(id="CAMK1D",experiment="promoter",
+                     plotwin=2.5e5,promrefsnps=TRUE)
+plt2b <- capc_plot(id="CAMK1D",experiment="promoter",plotwin=2.5e5,endoOnly=TRUE)
+plt2c <- pcHiC_plot(id="CAMK1D",experiment="promoter",plotwin=2.5e5)
+plt2d <- HiC_plot(id="CAMK1D",experiment="promoter",plotwin=2.5e5) 
+plt2e <- capc_plot(id="rs11257658_CAMK1D__5QTL__eQTL__chr10_12309268",experiment="enhancer",plotwin=2.5e5,endoOnly=TRUE)
+plt2f <- gene_plot(id="CAMK1D",experiment="promoter",plotwin=2.5e5)
+p2 <- tracks(plt2a,plt2b,plt2c,plt2d,plt2e,plt2f,heights=c(0.8,1,0.5,0.5,1,1.5)) +
+  scale_x_sequnit(unit="Mb") 
+ggsave(plot=p2,filename = plot.dir %&% "tracks_methComp_CAMK1D.png",
+       height=12,width=15)
+ggsave(plot=p2,filename = plot.dir %&% "tracks_methComp_CAMK1D.pdf",
+       height=12,width=15)
+
+```
+
+
+# STARD10 
+
+```{r}
+
+plt3a <- credset_plot(id="STARD10",experiment="promoter",
+                     plotwin=2.5e5,promrefsnps=TRUE)
+plt3b <- capc_plot(id="STARD10",experiment="promoter",plotwin=2.5e5,endoOnly=TRUE)
+plt3c <- pcHiC_plot(id="STARD10",experiment="promoter",plotwin=2.5e5)
+plt3d <- HiC_plot(id="STARD10",experiment="promoter",plotwin=2.5e5) 
+plt3e <- capc_plot(id="ARAP1__99DF__cv__chr11_72432985",experiment="enhancer",plotwin=2.5e5,endoOnly=TRUE)
+plt3f <- gene_plot(id="STARD10",experiment="promoter",plotwin=2.5e5)
+p3 <- tracks(plt3a,plt3b,plt3c,plt3d,plt3e,plt3f,heights=c(0.8,1,0.5,0.5,1,1.5)) +
+  scale_x_sequnit(unit="Mb") 
+ggsave(plot=p3,filename = plot.dir %&% "tracks_methComp_STARD10.png",
+       height=12,width=15)
+ggsave(plot=p3,filename = plot.dir %&% "tracks_methComp_STARD10.pdf",
+       height=12,width=15)
+
+```
+
