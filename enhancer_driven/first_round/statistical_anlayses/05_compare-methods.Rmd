@@ -1,0 +1,297 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("ggbio")
+library("RColorBrewer")
+library("viridis")
+library("Homo.sapiens")
+library("GenomicRanges")
+
+serv.dir1 <- "/home/jason/science/servers/FUSE5/"
+file.dir <- serv.dir1 %&%
+  "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/output_files/"
+gencred.df <- fread(serv.dir1 %&% "datasets/diamante_hrc/gencred.txt")
+plot.dir <-  serv.dir1 %&%
+  "projects/wtsa/enhancer_driven/first_round/statistical_anlayses/plots/"
+
+loop.df <- fread(file.dir %&% "peakC-interaction_loops.txt")
+ptg.df <- fread(file.dir %&% "peaks-to-genes_all.txt")
+
+```
+
+
+
+```{r}
+
+pc.df <- fread(serv.dir1 %&% "datasets/from_Jorge/Islet_pcHiC_washU.txt",sep="\t")
+pc.df$bait.chrom <- map(pc.df$V1, function(s){
+  strsplit(s,split=",")[[1]][1]
+}) %>% as.character(.)
+pc.df$bait.start <- map(pc.df$V1, function(s){
+  strsplit(s,split=",")[[1]][2]
+}) %>% as.integer(.)
+pc.df$bait.end <- map(pc.df$V1, function(s){
+  strsplit(s,split=",")[[1]][3]
+}) %>% as.integer(.)
+pc.df$int.chrom <- map(pc.df$V2, function(s){
+  strsplit(s,split=",")[[1]][1]
+}) %>% as.character(.)
+pc.df$int.start <- map(pc.df$V2, function(s){
+  strsplit(s,split=",")[[1]][2]
+}) %>% as.integer(.)
+pc.df$int.end <- map(pc.df$V2, function(s){
+  strsplit(s,split=",")[[1]][3]
+}) %>% as.integer(.)
+
+```
+
+
+HiC Data from Greenwald 2019 
+
+```{r}
+hic.df <- fread(serv.dir1 %&% "datasets/Greenwald2019/TSTFF938730.bedpe.gz",sep="\t")
+names(hic.df)[1:6] <- c("bait.chrom","bait.start","bait.end",
+                        "int.chrom","int.start","int.end")
+```
+
+
+
+# Compare NG capC with interaction from hiC and pcHiC
+
+```{r}
+
+mod.df <- filter(loop.df,inter.type=="modeled",!grepl("__uc__",capture),
+                 !grepl("__dc__",capture)) # 592 interactions excluding control SNP interactions 
+# Note median interaction width is 5Kb
+#  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#    49    2210    5081    6018    7974   53584 
+
+win <- 50000
+i <- 331
+
+viz_inspect <- function(row,win=50000){
+  sub <- mod.df[row,]
+  chrom <- sub$chrom
+  min.pos <- min(sub$bait.start,sub$bait.end,sub$inter.start,sub$inter.end) - win
+  max.pos <- max(sub$bait.start,sub$bait.end,sub$inter.start,sub$inter.end) + win
+  sub1 <- filter(mod.df,chrom==chrom,bait.start>=min.pos,bait.start<=max.pos)
+  sub2 <- filter(hic.df,bait.chrom==chrom,bait.start>= min.pos, bait.start<=max.pos)
+  sub3 <- filter(pc.df,bait.chrom==chrom,bait.start>= min.pos, bait.start<=max.pos)
+  
+  p <- ggplot(data=sub,aes(xmin=bait.start,xmax=bait.end)) + 
+    geom_rect(ymin=0,ymax=1,color="grey",fill="grey80",size=1.2) + 
+    geom_rect(data=sub,aes(xmin=inter.start,xmax=inter.end),ymin=0,ymax=1,
+              color="red2",fill="red")+
+    geom_rect(data=sub2,aes(xmin=bait.start,xmax=bait.end),
+              ymin=1,ymax=2,color="grey",fill="grey80",size=1.2) +
+    geom_rect(data=sub2,aes(xmin=int.start,xmax=int.end),
+              ymin=1,ymax=2,color="red2",fill="red") + 
+    geom_rect(data=sub3,aes(xmin=bait.start,xmax=bait.end),
+              ymin=2,ymax=3,color="grey",fill="grey80",size=1.2) +
+    geom_rect(data=sub3,aes(xmin=int.start,xmax=int.end),
+              ymin=2,ymax=3,color="red2",fill="red") + 
+    coord_cartesian(ylim=c(0,3))  
+  return(p)
+}
+
+
+viz_inspect(331)
+  
+
+append_to_mod <- function(mod.df,extens=0){
+  loop.hiC <- c()
+  width.hiC <- c()
+  b.gr.hic <- GRanges(seqnames=hic.df$bait.chrom,IRanges(hic.df$bait.start,hic.df$bait.end))
+  i.gr.hic <- GRanges(seqnames=hic.df$int.chrom,IRanges(hic.df$int.start,hic.df$int.end))
+  for (i in 1:dim(mod.df)[1]){
+    sub <- mod.df[i,]
+    b.gr <- GRanges(seqnames=sub$chrom,IRanges(sub$bait.start-extens,sub$bait.end+extens))
+    i.gr <- GRanges(seqnames=sub$chrom,IRanges(sub$inter.start-extens,sub$inter.end+extens))
+    if (b.gr %over% i.gr.hic){
+      check1 <- i.gr.hic[i.gr.hic%over%b.gr] %>% unique(.) %>% as.data.frame(.)
+      c <- check1$seqnames %>% as.character(.); s <- check1$start; e <- check1$end
+      df <- filter(hic.df,bait.chrom==c,int.start==s,int.end==e)
+      gr <- GRanges(seqnames=df$bait.chrom,IRanges(df$bait.start,df$bait.end))
+      check2 <- i.gr[i.gr %over% gr] %>% unique(.) %>% as.data.frame(.)
+      if (dim(check2)[1]>0){
+        w <- (check1$end - check1$start)[1]
+        width.hiC <- append(width.hiC,w)
+        loop.hiC <- append(loop.hiC,TRUE)      
+      } else{
+          width.hiC <- append(width.hiC,NA)
+          loop.hiC <- append(loop.hiC,FALSE)         
+      }
+    } else if(b.gr %over% b.gr.hic){
+      check1 <- b.gr.hic[b.gr.hic%over%b.gr] %>% unique(.) %>% as.data.frame(.)
+      c <- check1$seqnames %>% as.character(.); s <- check1$start; e <- check1$end
+      df <- filter(hic.df,bait.chrom==c,bait.start==s,bait.end==e)
+      gr <- GRanges(seqnames=df$bait.chrom,IRanges(df$int.start,df$int.end))
+      check2 <- i.gr[i.gr %over% gr] %>% unique(.) %>% as.data.frame(.)  
+      if (dim(check2)[1]>0){
+        w <- (check1$end - check1$start)[1]
+        width.hiC <- append(width.hiC,w)
+        loop.hiC <- append(loop.hiC,TRUE)      
+      } else{
+          width.hiC <- append(width.hiC,NA)
+          loop.hiC <- append(loop.hiC,FALSE)         
+      }
+    } else{
+      width.hiC <- append(width.hiC,NA)
+      loop.hiC <- append(loop.hiC,FALSE)      
+    }
+  }  
+  
+  loop.pchiC <- c()
+  width.pchiC <- c()
+  b.gr.pc <- GRanges(seqnames=pc.df$bait.chrom,IRanges(pc.df$bait.start,pc.df$bait.end))
+  i.gr.pc <- GRanges(seqnames=pc.df$int.chrom,IRanges(pc.df$int.start,pc.df$int.end))
+  for (i in 1:dim(mod.df)[1]){
+    sub <- mod.df[i,]
+    b.gr <- GRanges(seqnames=sub$chrom,IRanges(sub$bait.start-extens,sub$bait.end+extens))
+    i.gr <- GRanges(seqnames=sub$chrom,IRanges(sub$inter.start-extens,sub$inter.end+extens))
+    if (b.gr %over% i.gr.pc){
+      check1 <- i.gr.pc[i.gr.pc%over%b.gr] %>% unique(.) %>% as.data.frame(.)
+      c <- check1$seqnames %>% as.character(.); s <- check1$start; e <- check1$end
+      df <- filter(pc.df,bait.chrom==c,int.start==s,int.end==e)
+      gr <- GRanges(seqnames=df$bait.chrom,IRanges(df$bait.start,df$bait.end))
+      check2 <- i.gr[i.gr %over% gr] %>% unique(.) %>% as.data.frame(.)
+      if (dim(check2)[1]>0){
+        w <- (check1$end - check1$start)[1]
+        width.pchiC <- append(width.pchiC,w)
+        loop.pchiC <- append(loop.pchiC,TRUE)      
+      } else{
+          width.pchiC <- append(width.pchiC,NA)
+          loop.pchiC <- append(loop.pchiC,FALSE)         
+      }
+    } else if(b.gr %over% b.gr.pc){
+      check1 <- b.gr.pc[b.gr.pc%over%b.gr] %>% unique(.) %>% as.data.frame(.)
+      c <- check1$seqnames %>% as.character(.); s <- check1$start; e <- check1$end
+      df <- filter(pc.df,bait.chrom==c,bait.start==s,bait.end==e)
+      gr <- GRanges(seqnames=df$bait.chrom,IRanges(df$int.start,df$int.end))
+      check2 <- i.gr[i.gr %over% gr] %>% unique(.) %>% as.data.frame(.)  
+      if (dim(check2)[1]>0){
+        w <- (check1$end - check1$start)[1]
+        width.pchiC <- append(width.pchiC,w)
+        loop.pchiC <- append(loop.pchiC,TRUE)      
+      } else{
+          width.pchiC <- append(width.pchiC,NA)
+          loop.pchiC <- append(loop.pchiC,FALSE)         
+      }
+    } else{
+      width.pchiC <- append(width.pchiC,NA)
+      loop.pchiC <- append(loop.pchiC,FALSE)      
+    }
+  }  
+  out.df <- mod.df
+  out.df$loop.hiC <- loop.hiC
+  out.df$width.hiC <- width.hiC
+  out.df$loop.pchiC <- loop.pchiC
+  out.df$width.pchiC <- width.pchiC  
+  return(out.df)
+}
+
+```
+
+
+```{r}
+
+mod.full <- append_to_mod(mod.df)
+sum(mod.full$loop.pchiC)/dim(mod.df)[1] # 0.04
+sum(mod.full$loop.hiC)/dim(mod.df)[1] # 0.037
+viz_inspect(95)
+
+mod.full2 <- append_to_mod(mod.df,extens = 5000)
+sum(mod.full2$loop.pchiC)/dim(mod.df)[1] # 0.076
+sum(mod.full2$loop.hiC)/dim(mod.df)[1] # 0.081
+
+mod.full3 <- append_to_mod(mod.df,extens = 12500)
+sum(mod.full3$loop.pchiC)/dim(mod.df)[1] # 0.147
+sum(mod.full3$loop.hiC)/dim(mod.df)[1] # 0.147
+
+viz_inspect(148)
+
+```
+
+
+
+hiC interactions overlapping pcHiC interactions 
+
+```{r}
+
+append_to_hic <- function(hic.df,extens=0){
+  loop.pchiC <- c()
+  width.pchiC <- c()
+  b.gr.pc <- GRanges(seqnames=pc.df$bait.chrom,IRanges(pc.df$bait.start,pc.df$bait.end))
+  i.gr.pc <- GRanges(seqnames=pc.df$int.chrom,IRanges(pc.df$int.start,pc.df$int.end))
+  for (i in 1:dim(hic.df)[1]){
+    sub <- hic.df[i,]
+    b.gr <- GRanges(seqnames=sub$bait.chrom,IRanges(sub$bait.start-extens,sub$bait.end+extens))
+    i.gr <- GRanges(seqnames=sub$bait.chrom,IRanges(sub$int.start-extens,sub$int.end+extens))
+    if (b.gr %over% i.gr.pc){
+      check1 <- i.gr.pc[i.gr.pc%over%b.gr] %>% unique(.) %>% as.data.frame(.)
+      c <- check1$seqnames %>% as.character(.); s <- check1$start; e <- check1$end
+      df <- filter(pc.df,bait.chrom==c,int.start==s,int.end==e)
+      gr <- GRanges(seqnames=df$bait.chrom,IRanges(df$bait.start,df$bait.end))
+      check2 <- i.gr[i.gr %over% gr] %>% unique(.) %>% as.data.frame(.)
+      if (dim(check2)[1]>0){
+        w <- (check1$end - check1$start)[1]
+        width.pchiC <- append(width.pchiC,w)
+        loop.pchiC <- append(loop.pchiC,TRUE)      
+      } else{
+          width.pchiC <- append(width.pchiC,NA)
+          loop.pchiC <- append(loop.pchiC,FALSE)         
+      }
+    } else if(b.gr %over% b.gr.pc){
+      check1 <- b.gr.pc[b.gr.pc%over%b.gr] %>% unique(.) %>% as.data.frame(.)
+      c <- check1$seqnames %>% as.character(.); s <- check1$start; e <- check1$end
+      df <- filter(pc.df,bait.chrom==c,bait.start==s,bait.end==e)
+      gr <- GRanges(seqnames=df$bait.chrom,IRanges(df$int.start,df$int.end))
+      check2 <- i.gr[i.gr %over% gr] %>% unique(.) %>% as.data.frame(.)  
+      if (dim(check2)[1]>0){
+        w <- (check1$end - check1$start)[1]
+        width.pchiC <- append(width.pchiC,w)
+        loop.pchiC <- append(loop.pchiC,TRUE)      
+      } else{
+          width.pchiC <- append(width.pchiC,NA)
+          loop.pchiC <- append(loop.pchiC,FALSE)         
+      }
+    } else{
+      width.pchiC <- append(width.pchiC,NA)
+      loop.pchiC <- append(loop.pchiC,FALSE)      
+    }
+  }  
+  out.df <- hic.df
+  out.df$loop.pchiC <- loop.pchiC
+  out.df$width.pchiC <- width.pchiC  
+  return(out.df)
+}
+
+
+```
+
+
+```{r}
+
+mod.full$loc <- map(mod.full$capture,function(s){
+  loc <- strsplit(s,split="__")[[1]][1]
+  loc <- ifelse(grepl("_",loc),strsplit(loc,split="_")[[1]][2],loc)  
+}) %>% as.character(.)
+mod.full$loc %>% unique(.) %>% length(.)
+
+```
+
+
