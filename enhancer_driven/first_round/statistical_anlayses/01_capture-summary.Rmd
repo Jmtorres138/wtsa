@@ -165,23 +165,23 @@ cis.table.v2 <- function(df){
 
 ```{r}
  
-#enh.df <- build_input_df(input.dir=input.dir.enhan,
-#                     input.vec=c("Endo_A","Endo_B","Endo_C",
-#                                 "hESC_A","hESC_B","hESC_C"))
 enh.df <- build_input_df(input.dir=input.dir.enhan,
-                     input.vec=c("Endo_A","Endo_B","Endo_C"))
-#tot.plt <- total.count.plot(enh.df,yscale="1M",input.vec=c("Endo_A","Endo_B","Endo_C",
-#                                                           "hESC_A","hESC_B","hESC_C"))
-tot.plt <- total.count.plot(enh.df,yscale="1M",input.vec=c("Endo_A","Endo_B","Endo_C"))
+                     input.vec=c("Endo_A","Endo_B","Endo_C",
+                                "hESC_A","hESC_B","hESC_C"))
+#enh.df <- build_input_df(input.dir=input.dir.enhan,
+#                     input.vec=c("Endo_A","Endo_B","Endo_C"))
+tot.plt <- total.count.plot(enh.df,yscale="1M",input.vec=c("Endo_A","Endo_B","Endo_C",
+                                                           "hESC_A","hESC_B","hESC_C"))
+#tot.plt <- total.count.plot(enh.df,yscale="1M",input.vec=c("Endo_A","Endo_B","Endo_C"))
 
-ggsave(plot=tot.plt,filename=plot.dir%&%"summary_counts_enh1st.png",width=3.5,height=5)
-ggsave(plot=tot.plt,filename=plot.dir%&%"summary_counts_enh1st.pdf",width=3.5,height=5)
+ggsave(plot=tot.plt,filename=plot.dir%&%"summary_counts_enh1st.png",width=5,height=5)
+ggsave(plot=tot.plt,filename=plot.dir%&%"summary_counts_enh1st.pdf",width=5,height=5)
 
 cishist.plt1 <- cis.hist.v1(enh.df)
 ggsave(plot=cishist.plt1,filename=plot.dir%&%"hist_enh1st.png",
-       width=3.5,height=3)
+       width=5,height=3)
 ggsave(plot=cishist.plt1,filename=plot.dir%&%"hist_enh1st.pdf",
-       width=3.5,height=3)
+       width=5,height=3)
 
 cistab1 <- tableGrob(cis.table.v1(enh.df))
 ggsave(plot=cistab1,filename=plot.dir%&%"table_enh1st.png",
@@ -208,19 +208,19 @@ ggsave(plot=cistab2,filename=plot.dir%&%"tableAll_enh1st.pdf",
 ```{r}
 
 prom.df <- build_input_df(input.dir=input.dir.prom,
-                     input.vec=c("EndoBA","EndoBC","EndoBD"))#,
-                                 #"BlymphA","BlymphB","BlymphC"))
+                     input.vec=c("EndoBA","EndoBC","EndoBD",
+                                 "BlymphA","BlymphB","BlymphC"))
 tot.plt <- total.count.plot(prom.df,yscale="10K",
-                            input.vec=c("EndoBA","EndoBC","EndoBD"))#,
-                                 #"BlymphA","BlymphB","BlymphC"))
-ggsave(plot=tot.plt,filename=plot.dir%&%"summary_counts_prom.png",width=3.5,height=5)
-ggsave(plot=tot.plt,filename=plot.dir%&%"summary_counts_prom.pdf",width=3.5,height=5)
+                            input.vec=c("EndoBA","EndoBC","EndoBD",
+                                 "BlymphA","BlymphB","BlymphC"))
+ggsave(plot=tot.plt,filename=plot.dir%&%"summary_counts_prom.png",width=5,height=5)
+ggsave(plot=tot.plt,filename=plot.dir%&%"summary_counts_prom.pdf",width=5,height=5)
 
 cishist.plt1 <- cis.hist.v1(prom.df,enh=FALSE)
 ggsave(plot=cishist.plt1,filename=plot.dir%&%"hist_prom.png",
-       width=3.5,height=3)
+       width=5,height=3)
 ggsave(plot=cishist.plt1,filename=plot.dir%&%"hist_prom.pdf",
-       width=3.5,height=3)
+       width=5,height=3)
 
 cistab1 <- tableGrob(cis.table.v1(prom.df,enh=FALSE))
 ggsave(plot=cistab1,filename=plot.dir%&%"table_prom.png",
