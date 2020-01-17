@@ -16,8 +16,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library("data.table");library("tidyverse")
 
 serv.dir <- "/home/jason/science/servers/FUSE2/"
-work.dir <- serv.dir %&% "wtsa/enhancer_driven/first_round/"
-oligo.file <- work.dir %&% "newOligofile_shortNames_modified.txt"
+work.dir <- serv.dir %&% "wtsa/enhancer_driven/second_round/"
+oligo.file <- work.dir %&% "OligoFile.txt"
 param.file <- work.dir %&% "capture_compare_parameters.txt"
 
 window_dist <- 1e6 # upstream and downstream extend by this amount 
