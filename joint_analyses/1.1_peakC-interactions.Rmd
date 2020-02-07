@@ -14,11 +14,188 @@ knitr::opts_chunk$set(echo = TRUE)
 "%&%" <- function(a,b) paste0(a,b)
 library("data.table")
 library("tidyverse")
+library("GenomicRanges")
 
 local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
 rescomp.dir <- "/home/jason/science/servers/FUSE5/"
 cbrg.dir <- "/home/jason/science/servers/FUSE2/"
+plot.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/peakC_plots/"
+output.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/peakC_interactions/"
+
+```
+
+Capture Compare output files 
+
+```{r}
+
+# promoter capture files 
+prom.dir <- cbrg.dir %&% "wtsa/promoter_driven/"
+prom.cc.file  <- prom.dir %&% "capture_compare_parameters.txt"
+prom.cc.dir  <- prom.dir %&% "PromCap_cis_analysis/"
+# enhancer capture first round  
+e1.dir <- cbrg.dir %&% "wtsa/enhancer_driven/first_round/"
+e1.cc.file  <- e1.dir %&% "capture_compare_parameters_pruned_chr.txt"
+e1.cc.dir  <- e1.dir %&% "capture_compare_cis_analysis/"
+# enhancer capture second round  
+e2.dir <- cbrg.dir %&% "wtsa/enhancer_driven/second_round/"
+e2.cc.file  <- e2.dir %&% "capture_compare_parameters_pruned_chr.txt"
+e2.cc.dir  <- e2.dir %&% "troubleshoot_cis_analysis/"
+
+```
+
+peakC: a flexible, non-parametric peak calling package for 4C and Capture-C data
+
+```{r}
+#library("devtools")
+#install_github("deWitLab/peakC")
+library("peakC")
+
+```
+
+
+# Development code 
+
+```{r}
+
+write_unionbg_to_wigfiles <- function(bg.df,out.dir=local.dir%&%"temp/"){
+  samp.vec <- names(bg.df)[4:length(names(bg.df))]
+  for (samp in samp.vec){
+    sub.df <- dplyr::select(bg.df,one_of("start",samp)) 
+    write.table(x=sub.df,file=out.dir%&%samp%&%".wig",sep="\t",quote=F,row.names = F,col.names = F)
+  }
+}
+
+consolidate_peaks <- function(bg.df,peak.vec){
+  # Returns a data frame of contiguous fragments of sig interactions 
+  # and a second data frame with a extention of 1Kb to merge proximal interaction 
+  sub.df <- filter(bg.df,start%in%peak.vec)
+  sub.df$start.expand1K <- sub.df$start - 1000
+  sub.df$end.expand1K <- sub.df$end + 1000
+  sub.gr <- GRanges(seqnames=sub.df$chrom,IRanges(start=sub.df$start,end=sub.df$end))
+  sub.expand.gr <- GRanges(seqnames=sub.df$chrom,IRanges(start=sub.df$start.expand1K,end=sub.df$end.expand1K))
+  red.gr <- reduce(sub.gr);red.expand.gr <- reduce(sub.expand.gr)
+  out.df1 <- as.data.frame(red.gr); out.df2 <- as.data.frame(red.expand.gr)
+  return(list(out.df1,out.df2))
+}
+
+build_interaction_dfs <- function(experiment.name,experiment.dir,capture,vp,celltype="Endo"){
+  # celltype is a pattern string that is checked in the union bedgraph file used for extraction
+  bg.file <- experiment.dir %&% "2_unionBedgraphs/A_raw_counts/" %&% capture %&% "_raw.unionbdg"
+  bg.df <- fread(bg.file)  
+  if (dim(bg.df)[1]>=1000){ # Capture must contain at least 1000 fragments in unionbedgraph 
+    write_unionbg_to_wigfiles(bg.df)
+    file.names <- names(bg.df)[grepl(celltype,names(bg.df))] %&% ".wig"
+    file.vec <- local.dir%&%"temp/" %&% file.names 
+    data <- readMultiple(file.vec, vp.pos=vp, window = 3e+05) # 300 kb window 
+    res <- combined.analysis(data=data,num.exp=3,vp.pos=vp,wSize=5,alphaFDR=0.1)
+    plot.name <- plot.dir %&% experiment.name %&% "_" %&% capture %&% "_" %&% celltype %&% ".png"
+    png(filename = plot.name)
+    plot_C(res)
+    dev.off()
+    peak.vec <- as.integer(res$peak)
+    if (length(peak.vec)>0){
+      out.list <- consolidate_peaks(bg.df,peak.vec)
+      out.df1 <- out.list[[1]]; out.df2 <- out.list[[2]]
+      out.df1$experiment <- experiment.name; out.df1$celltype <- celltype; out.df1$capture <- capture
+      out.df2$experiment <- experiment.name; out.df2$celltype <- celltype; out.df2$capture <- capture
+      out.df1 <- dplyr::select(out.df1,one_of("experiment","celltype",
+                                              "capture","seqnames","start","end","width"))
+      out.df2 <- dplyr::select(out.df2,one_of("experiment","celltype",
+                                              "capture","seqnames","start","end","width"))
+      return(list(out.df1,out.df2))    
+    } else{
+      return(NULL)
+    }    
+  } else{
+    print("FAILED CAPTURE: " %&% capture)
+    return(NULL)
+  }
+}
+
+```
+
+
+```{r}
+
+
+build_experiment_interaction_dfs <- function(experiment.name="promoter",experiment.dir=prom.cc.dir,
+                                             experiment.file=prom.cc.file,celltype="Endo"){
+  ex.df <- fread(experiment.file)
+  out.df1 <- c()
+  out.df2 <- c()
+  pb <- txtProgressBar(min=0,max=dim(ex.df)[1],style=3)
+  for (i in 1:dim(ex.df)[1]){
+    #print(i)
+    capture <- ex.df$V1[i]
+    vp <- ex.df$V3[i]
+    build.list <- build_interaction_dfs(experiment.name,experiment.dir,capture,vp,celltype)
+    if (!is.null(build.list)){
+      out.df1 <- rbind(out.df1,build.list[[1]]); out.df2 <- rbind(out.df2,build.list[[2]]); 
+    }
+    setTxtProgressBar(pb,i)
+  }
+  return(list(out.df1,out.df2))
+}
+
+
 
 
 ```
+
+
+
+# Promoter Capture 
+
+```{r}
+
+prom.list <- build_experiment_interaction_dfs(experiment.name="promoter",experiment.dir=prom.cc.dir,
+                                             experiment.file=prom.cc.file,celltype="Endo")
+prom.df1 <- prom.list[[1]]
+prom.df2 <- prom.list[[2]]
+write.table(x=prom.df1,file=output.dir%&%"promoter_endo_peakC-interactions.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=prom.df2,file=output.dir%&%"promoter_endo_peakC-interactions_merge1K.txt",
+            sep="\t",quote=F,row.names=F)
+
+```
+
+# Enhancer Capture (first round)
+
+```{r}
+
+e1.list <- build_experiment_interaction_dfs(experiment.name="enhancer.1st",experiment.dir=e1.cc.dir,
+                                             experiment.file=e1.cc.file,celltype="Endo")
+e1.df1 <- e1.list[[1]]
+e1.df2 <- e1.list[[2]]
+write.table(x=e1.df1,file=output.dir%&%"enhancer-firstRound_endo_peakC-interactions.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=e1.df2,file=output.dir%&%"enhancer-firstRound_endo_peakC-interactions_merge1K.txt",
+            sep="\t",quote=F,row.names=F)
+
+```
+
+
+FAILED CAPTURE: CDC123__86DF__cv__chr10_12307894
+FAILED CAPTURE: rs11257658_CAMK1D__5QTL__eQTL__chr10_12309268
+FAILED CAPTURE: CDKAL1__50DF__cv__chr6_20673880
+FAILED CAPTURE: CDKAL1__50DF__cv__chr6_20686573
+FAILED CAPTURE: CDKAL1__50DF__cv__chr6_20688121
+FAILED CAPTURE: LINC01512__55DF__cv__chr6_43814625
+
+
+# Enhancer Capture (second round)
+
+```{r}
+
+e2.list <- build_experiment_interaction_dfs(experiment.name="enhancer.2nd",experiment.dir=e2.cc.dir,
+                                             experiment.file=e2.cc.file,celltype="Endo")
+e2.df1 <- e2.list[[1]]
+e2.df2 <- e2.list[[2]]
+write.table(x=e2.df1,file=output.dir%&%"enhancer-secondRound_endo_peakC-interactions.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=e2.df2,file=output.dir%&%"enhancer-secondRound_endo_peakC-interactions_merge1K.txt",
+            sep="\t",quote=F,row.names=F)
+
+```
+
 
