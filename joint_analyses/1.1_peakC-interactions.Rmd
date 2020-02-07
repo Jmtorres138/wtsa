@@ -89,9 +89,9 @@ build_interaction_dfs <- function(experiment.name,experiment.dir,capture,vp,cell
     data <- readMultiple(file.vec, vp.pos=vp, window = 3e+05) # 300 kb window 
     res <- combined.analysis(data=data,num.exp=3,vp.pos=vp,wSize=5,alphaFDR=0.1)
     plot.name <- plot.dir %&% experiment.name %&% "_" %&% capture %&% "_" %&% celltype %&% ".png"
-    png(filename = plot.name)
-    plot_C(res)
-    dev.off()
+    #png(filename = plot.name) # Must run in R not RStudio 
+    #plot_C(res) # Must run in R not RStudio
+    #dev.off() # Must run in R not RStudio
     peak.vec <- as.integer(res$peak)
     if (length(peak.vec)>0){
       out.list <- consolidate_peaks(bg.df,peak.vec)
