@@ -1,0 +1,141 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+library("DESeq2")
+
+
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/"
+cbrg.dir <- "/home/jason/science/servers/FUSE2/"
+output.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/peakC_interactions/"
+
+```
+
+Capture Compare output files 
+
+```{r}
+
+# promoter capture files 
+prom.dir <- cbrg.dir %&% "wtsa/promoter_driven/"
+prom.cc.dir  <- prom.dir %&% "PromCap_cis_analysis/"
+# enhancer capture first round  
+e1.dir <- cbrg.dir %&% "wtsa/enhancer_driven/first_round/"
+e1.cc.dir  <- e1.dir %&% "capture_compare_cis_analysis/"
+# enhancer capture second round  
+e2.dir <- cbrg.dir %&% "wtsa/enhancer_driven/second_round/"
+e2.cc.dir  <- e2.dir %&% "troubleshoot_cis_analysis/"
+
+```
+
+
+```{r}
+
+prom.df1 <- fread(output.dir %&% "promoter_endo_peakC-interactions.txt")
+prom.df2 <- fread(output.dir %&% "promoter_endo_peakC-interactions_merge1K.txt")
+e1.df1 <- fread(output.dir %&% "enhancer-firstRound_endo_peakC-interactions.txt")
+e1.df2 <- fread(output.dir %&% "enhancer-firstRound_endo_peakC-interactions_merge1K.txt")
+e2.df1 <- fread(output.dir %&% "enhancer-secondRound_endo_peakC-interactions.txt")
+e2.df2 <- fread(output.dir %&% "enhancer-secondRound_endo_peakC-interactions_merge1K.txt")
+
+
+```
+
+
+
+# Functions
+
+```{r}
+
+build_full_count_df <- function(experiment.dir,interaction.df){
+  out.df <- c()
+  pb <- txtProgressBar(min=0,max=dim(interaction.df)[1],style=3)
+  for (i in 1:dim(interaction.df)[1]){
+    row.df <- interaction.df[i,]
+    capture <- row.df$capture
+    bg.file <- experiment.dir %&% "2_unionBedgraphs/A_raw_counts/" %&% capture %&% "_raw.unionbdg"
+    bg.df <- fread(bg.file)
+    sub.df <- filter(bg.df,chrom==row.df$seqnames,start>=row.df$start,end<=row.df$end)
+    count.df <- sub.df[,4:9] %>% as.matrix(.) %>% colSums(.) %>% t(.) %>% as.data.frame(.)
+    build.df <- cbind(row.df,count.df)
+    out.df <- rbind(out.df,build.df)
+    setTxtProgressBar(pb,i)
+  }  
+  return(out.df)
+}
+
+
+run_deseq2 <- function(full.df,celltype1="Endo",celltype2="Blymph"){
+  a.df <- dplyr::select(full.df,contains(celltype1))
+  b.df <- dplyr::select(full.df,contains(celltype2))
+  data.mat <- cbind(a.df,b.df) %>% as.matrix(.)
+  celltype <- c(rep(celltype1,dim(a.df)[2]),rep(celltype2,dim(b.df)[2]))
+  pheno.df <- as.data.frame(celltype)
+  row.names(pheno.df) <- c(names(a.df),names(b.df))
+  ddsFullCountTable <- DESeqDataSetFromMatrix(
+    countData = data.mat,
+    colData = pheno.df,
+    design = ~ celltype )
+  dds <- suppressMessages(DESeq(ddsFullCountTable))
+  res <- results(dds, contrast = c("celltype",celltype1,celltype2))
+  res.df <- as.data.frame(res)
+  out.df <- cbind(full.df,res.df)
+  return(out.df)
+}
+
+run_all <- function(experiment.dir,interaction.df,celltype1="Endo",celltype2="Blymph"){
+  full.df <- build_full_count_df(experiment.dir,interaction.df)
+  out.df <- run_deseq2(full.df,celltype1,celltype2)
+  return(out.df)
+}
+
+
+```
+
+
+```{r}
+
+prom.out.df1 <- run_all(prom.cc.dir,prom.df1,celltype1="Endo",celltype2="Blymph")
+prom.out.df2 <- run_all(prom.cc.dir,prom.df2,celltype1="Endo",celltype2="Blymph")
+write.table(x=prom.out.df1,file=output.dir%&%"promoter_endo_peakC-interactions_DESeq2-info.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=prom.out.df2,file=output.dir%&%"promoter_endo_peakC-interactions_DESeq2-info_merge1K.txt",
+            sep="\t",quote=F,row.names=F)
+
+
+e1.out.df1 <- run_all(e1.cc.dir,e1.df1,celltype1="Endo",celltype2="hESC")
+e1.out.df2 <- run_all(e1.cc.dir,e1.df2,celltype1="Endo",celltype2="hESC")
+write.table(x=e1.out.df1,
+            file=output.dir%&%"enhancer-firstRound_endo_peakC-interactions_DESeq2-info.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=e1.out.df2,
+            file=output.dir%&%"enhancer-firstRound_endo_peakC-interactions_DESeq2-info_merge1K.txt",
+            sep="\t",quote=F,row.names=F)
+
+
+e2.out.df1 <- run_all(e2.cc.dir,e2.df1,celltype1="Endo",celltype2="hESC")
+e2.out.df2 <- run_all(e2.cc.dir,e2.df2,celltype1="Endo",celltype2="hESC")
+write.table(x=e2.out.df1,
+            file=output.dir%&%"enhancer-secondRound_endo_peakC-interactions_DESeq2-info.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=e2.out.df2,
+            file=output.dir%&%"enhancer-secondRound_endo_peakC-interactions_DESeq2-info_merge1K.txt",
+            sep="\t",quote=F,row.names=F)
+
+```
+
+
