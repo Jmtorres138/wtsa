@@ -1,0 +1,326 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/"
+cbrg.dir <- "/home/jason/science/servers/FUSE2/"
+peakc.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/peakC_interactions/"
+deseq2.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/DESeq2_interactions/"
+
+cred.df <- fread(rescomp.dir %&% "projects/t2d_classification/revamp/genetic_credible_sets/gencred.txt")
+
+```
+
+
+```{r}
+
+# promoter capture files 
+prom.dir <- cbrg.dir %&% "wtsa/promoter_driven/"
+prom.cc.file  <- prom.dir %&% "capture_compare_parameters.txt"
+# enhancer capture first round  
+e1.dir <- cbrg.dir %&% "wtsa/enhancer_driven/first_round/"
+e1.cc.file  <- e1.dir %&% "capture_compare_parameters_pruned_chr.txt"
+# enhancer capture second round  
+e2.dir <- cbrg.dir %&% "wtsa/enhancer_driven/second_round/"
+e2.cc.file  <- e2.dir %&% "capture_compare_parameters_pruned_chr.txt"
+
+```
+
+
+```{r}
+
+eqtl.df <- fread(rescomp.dir %&% "datasets/INSPIRE_2019/media-2.txt")
+eqtl.df$chrSNP <- "chr" %&% eqtl.df$chrSNP
+
+library(GenomicFeatures)
+hg19.ens.db <- makeTxDbFromUCSC(genome="hg19", table="ensGene")
+ens.genes<- genes(hg19.ens.db)
+
+ens.df <- fread(rescomp.dir %&% "datasets/Ensembl_HumanGenes_GRCh37-p13.txt")
+names(ens.df) <- c("ensGene","ensTranscript","chrom","Gene.name" ,
+                   "Gene.start","Gene.end","TSS","Transcript.length")
+
+```
+
+Make TSS data objects 
+
+```{r}
+
+tss.df <- c()
+pb <- txtProgressBar(min=0,max=length(ens.genes),style=3)
+for (i in 1:length(ens.genes)){
+  sub.gr <- ens.genes[i]
+  tss <- ifelse(strand(sub.gr)=="+"|strand(sub.gr)=="*",start(sub.gr),end(sub.gr))
+  upstream2kb <- ifelse(strand(sub.gr)=="+"|strand(sub.gr)=="*",tss-2000,tss+2000)
+  downstream5kb <- ifelse(strand(sub.gr)=="+"|strand(sub.gr)=="*",tss+5000,tss-5000)
+  strand <- strand(sub.gr) %>% as.character(.)
+  ensgene <- names(sub.gr)
+  chrom <- seqnames(sub.gr) %>% as.character(.)
+  gene.name <- filter(ens.df,ensGene==ensgene)$Gene.name %>% unique(.) %>% paste0(.,collapse=",")
+  build.df <- data.frame(ensgene,gene.name,chrom,tss,strand,upstream2kb,downstream5kb,stringsAsFactors = F)
+  tss.df <- rbind(tss.df,build.df)
+  setTxtProgressBar(pb,i)
+}
+tss.df$upstream2kb <- tss.df$upstream2kb %>% as.integer(.)
+tss.df$downstream5kb <- tss.df$downstream5kb %>% as.integer(.)
+
+tss.df$start <- map(1:dim(tss.df)[1],function(i){
+  min(tss.df[i,]$upstream2kb,tss.df[i,]$downstream5kb)
+}) %>% as.integer(.)
+tss.df$end <- map(1:dim(tss.df)[1],function(i){
+  max(tss.df[i,]$upstream2kb,tss.df[i,]$downstream5kb)
+}) %>% as.integer(.)
+
+write.table(x=tss.df,file=rescomp.dir %&% "projects/wtsa/joint_analyses/tss_reference_GRCh37.txt",
+            sep="\t",quote=F,row.names=F)
+
+tss.expand.gr <- GRanges(seqnames=tss.df$chrom,IRanges(start=tss.df$start,end=tss.df$end))
+#names(tss.expand.gr) <- tss.df$gene.name
+
+tss.gr <- GRanges(seqnames=tss.df$chrom,IRanges(start=tss.df$tss,end=tss.df$tss))
+names(tss.gr) <- tss.df$gene.name
+
+```
+
+
+# Functions 
+
+```{r}
+
+append_mahajan2018b_info <- function(int.df,cc.df){
+  # int.df is input dataframe of called interactions from 1.1-1.3 scripts 
+  # cc.df is input dataframe of parameter file for capture compare pipeline
+  out.df <- c()
+  pb <- txtProgressBar(min=0,max=dim(int.df)[1],style = 3)
+  for (i in 1:dim(int.df)[1]){
+    row.df <- int.df[i,]
+    cap.df <- filter(cc.df,V1==row.df$capture)
+    capture.df <- dplyr::select(cap.df,one_of("V2","V3","V4"))
+    names(capture.df) <- c("seqnames","start","end")
+    sub.df1 <- filter(cred.df,CHR==capture.df$seqnames,POS>=capture.df$start,POS<=capture.df$end)
+    capture.locus <- sub.df1$symbol %>% unique(.) %>% paste0(.,collapse = ",")
+    capture.signal <- sub.df1$CondID %>% unique(.) %>% paste0(.,collapse = ",")
+    capture.snpid <- sub.df1$SNPID %>% unique(.) %>% paste0(.,collapse = ",")
+    capture.ppa <- sub.df1$PPA %>% unique(.) %>% paste0(.,collapse = ",")
+    build.df1 <- data.frame(capture.locus,capture.signal,capture.snpid,capture.ppa,stringsAsFactors = F)
+    inter.df <- dplyr::select(row.df,one_of("seqnames","start","end"))
+    sub.df2 <- filter(cred.df,CHR==inter.df$seqnames,POS>=inter.df$start,POS<=inter.df$end)
+    inter.locus <- sub.df2$symbol %>% unique(.) %>% paste0(.,collapse = ",")
+    inter.signal <- sub.df2$CondID %>% unique(.) %>% paste0(.,collapse = ",")
+    inter.snpid <- sub.df2$SNPID %>% unique(.) %>% paste0(.,collapse = ",")
+    inter.ppa <- sub.df2$PPA %>% unique(.) %>% paste0(.,collapse = ",")
+    build.df2 <- data.frame(inter.locus,inter.signal,inter.snpid,inter.ppa,stringsAsFactors = F)
+    build.df <- cbind(row.df,build.df1,build.df2)
+    out.df <- rbind(out.df,build.df)
+    setTxtProgressBar(pb,i)
+  }  
+  return(out.df)
+}
+
+append_inspire_eqtl_info <- function(int.df,cc.df){
+  # int.df is input dataframe of called interactions from 1.1-1.3 scripts 
+  # cc.df is input dataframe of parameter file for capture compare pipeline
+  out.df <- c()
+  pb <- txtProgressBar(min=0,max=dim(int.df)[1],style = 3)
+  for (i in 1:dim(int.df)[1]){
+    row.df <- int.df[i,]
+    cap.df <- filter(cc.df,V1==row.df$capture)
+    capture.df <- dplyr::select(cap.df,one_of("V2","V3","V4"))
+    names(capture.df) <- c("seqnames","start","end")
+    sub.df1 <- filter(eqtl.df,chrSNP==capture.df$seqnames,StartSNP>=capture.df$start,StartSNP<=capture.df$end)
+    capture.eSNP <- ifelse(dim(sub.df1)[1]==0,"",(sub.df1$SNPid %&% "_" %&% sub.df1$A1 %&% 
+                                                    "_" %&% sub.df1$A2 %&% "_" %&%
+                     sub.df1$chrSNP%&%":"%&%sub.df1$StartSNP) %>% unique(.) %>% paste0(.,collapse = ","))
+    capture.eGene <- sub.df1$GeneName %>% unique(.) %>% paste0(.,collapse = ",")
+    capture.Slope <- sub.df1$Slope %>% unique(.) %>% paste0(.,collapse = ",")
+    capture.adjP <- sub.df1$BetaAdjustedPval %>% unique(.) %>% paste0(.,collapse = ",")
+    build.df1 <- data.frame(capture.eSNP,capture.eGene,capture.Slope,capture.adjP,stringsAsFactors = F)
+    inter.df <- dplyr::select(row.df,one_of("seqnames","start","end"))
+    sub.df2 <- filter(eqtl.df,chrSNP==inter.df$seqnames,StartSNP>=inter.df$start,StartSNP<=inter.df$end)
+    inter.eSNP <- ifelse(dim(sub.df2)[1]==0,"",(sub.df2$SNPid %&% "_" %&% sub.df2$A1 %&% 
+                                                  "_" %&% sub.df2$A2 %&% "_" %&%
+                     sub.df2$chrSNP%&%":"%&%sub.df2$StartSNP) %>% unique(.) %>% paste0(.,collapse = ","))
+    inter.eGene <- sub.df2$GeneName %>% unique(.) %>% paste0(.,collapse = ",")
+    inter.Slope <- sub.df2$Slope %>% unique(.) %>% paste0(.,collapse = ",")
+    inter.adjP <- sub.df2$BetaAdjustedPval %>% unique(.) %>% paste0(.,collapse = ",")
+    build.df2 <- data.frame(inter.eSNP,inter.eGene,inter.Slope,inter.adjP,stringsAsFactors = F)
+    build.df <- cbind(row.df,build.df1,build.df2)
+    out.df <- rbind(out.df,build.df)
+    setTxtProgressBar(pb,i)
+  }  
+  return(out.df)
+}
+
+
+append_gene_info <- function(int.df){
+  # int.df is input dataframe of called interactions from 1.1-1.3 scripts 
+  t.gr <- GRanges(seqnames=)
+  out.df <- c()
+  pb <- txtProgressBar(min=0,max=dim(int.df)[1],style = 3)
+  for (i in 1:dim(int.df)[1]){
+    #print(i)
+    row.df <- int.df[i,]
+    inter.df <- dplyr::select(row.df,one_of("seqnames","start","end"))
+    inter.gr <- GRanges(seqnames = inter.df$seqnames,IRanges(inter.df$start,inter.df$end))
+    # inter.gr <- GRanges("chrX",IRanges(99889988,99896988))
+    ov <- findOverlapPairs(inter.gr,tss.expand.gr) %>% as.data.frame(.)
+    if (dim(ov)[1]>0){
+      if (dim(ov)[1]==0){
+        sub <- filter(tss.df,chrom==ov$second.seqnames,start==ov$second.start,end==ov$second.end)     
+      } else{
+        sub <- filter(tss.df,chrom%in%ov$second.seqnames,start%in%ov$second.start,
+                      end%in%ov$second.end)     
+      }
+      genes <- sub$gene.name %>% unique(.) %>% paste0(.,collapse = ",")
+      tss <- sub$tss %>% unique(.) %>% paste0(.,collapse = ",")
+      dist.to.nearest <- (distanceToNearest(inter.gr,tss.gr) %>% 
+                            as.data.frame())$distance %>% as.integer(.)
+      build.df1 <- data.frame(genes,tss,dist.to.nearest,stringsAsFactors = F)
+    } else{
+      build.df1 <- data.frame(genes="",tss="",dist.to.nearest="",stringsAsFactors = F)
+    }
+    build.df <- cbind(row.df,build.df1)
+    out.df <- rbind(out.df,build.df)
+    setTxtProgressBar(pb,i)
+  }  
+  return(out.df)
+}
+
+
+```
+
+
+```{r}
+
+append_all_info <- function(int.df,cc.df){
+  a.df <- append_mahajan2018b_info(int.df,cc.df)
+  b.df <- append_inspire_eqtl_info(a.df,cc.df)
+  c.df <- append_gene_info(b.df)
+  return(c.df)
+}
+
+
+```
+
+
+# Promoter 
+
+```{r}
+
+df1 <- fread(peakc.dir %&% "promoter_endo_peakC-interactions_DESeq2-info.txt")
+df2 <- fread(prom.cc.file)
+prom.peakc.df <- append_all_info(df1,df2)
+write.table(x=prom.peakc.df,
+            file=peakc.dir%&%"promoter_endo_peakC-interactions_ALL-info.txt",
+            sep="\t",quote=F,row.names=F)
+
+df1 <- fread(peakc.dir %&% "promoter_endo_peakC-interactions_DESeq2-info_merge1K.txt")
+df2 <- fread(prom.cc.file)
+prom.peakc.df2 <- append_all_info(df1,df2)
+write.table(x=prom.peakc.df2,
+            file=peakc.dir%&%"promoter_endo_peakC-interactions_ALL-info_merge1K.txt",
+            sep="\t",quote=F,row.names=F)
+
+df1 <- fread(deseq2.dir %&% "promoter_endo_DESeq2-interactions.txt")
+df2 <- fread(prom.cc.file)
+prom.deseq2.df <- append_all_info(df1,df2)
+write.table(x=prom.deseq2.df,
+            file=deseq2.dir%&%"promoter_endo_DESeq2-interactions_ALL-info.txt",
+            sep="\t",quote=F,row.names=F)
+
+df1 <- fread(deseq2.dir %&% "promoter_endo_DESeq2-interactions_merge1K.txt")
+df2 <- fread(prom.cc.file)
+prom.deseq2.df2 <- append_all_info(df1,df2)
+write.table(x=prom.deseq2.df2,
+            file=deseq2.dir%&%"promoter_endo_DESeq2-interactions_ALL-info_merge1K.txt",
+            sep="\t",quote=F,row.names=F)
+
+
+```
+
+
+# Enhancer Capture (First Round)
+
+```{r}
+
+df1 <- fread(peakc.dir %&% "enhancer-firstRound_endo_peakC-interactions_DESeq2-info.txt")
+df2 <- fread(e1.cc.file)
+e1.peakc.df <- append_all_info(df1,df2)
+write.table(x=e1.peakc.df,
+            file=peakc.dir%&%"enhancer-firstRound_endo_peakC-interactions_ALL-info.txt",
+            sep="\t",quote=F,row.names=F)
+
+df1 <- fread(peakc.dir %&% "enhancer-firstRound_endo_peakC-interactions_DESeq2-info_merge1K.txt")
+df2 <- fread(e1.cc.file)
+e1.peakc.df2 <- append_all_info(df1,df2)
+write.table(x=e1.peakc.df2,
+            file=peakc.dir%&%"enhancer-firstRound_endo_peakC-interactions_ALL-info_merge1K.txt",
+            sep="\t",quote=F,row.names=F)
+
+df1 <- fread(deseq2.dir %&% "enhancer-firstRound_endo_DESeq2-interactions.txt")
+df2 <- fread(e1.cc.file)
+e1.deseq2.df <- append_all_info(df1,df2)
+write.table(x=e1.deseq2.df,
+            file=deseq2.dir%&%"enhancer-firstRound_endo_DESeq2-interactions_ALL-info.txt",
+            sep="\t",quote=F,row.names=F)
+
+df1 <- fread(deseq2.dir %&% "enhancer-firstRound_endo_DESeq2-interactions_merge1K.txt")
+df2 <- fread(e1.cc.file)
+e1.deseq2.df2 <- append_all_info(df1,df2)
+write.table(x=e1.deseq2.df2,
+            file=deseq2.dir%&%"enhancer-firstRound_endo_DESeq2-interactions_ALL-info_merge1K.txt",
+            sep="\t",quote=F,row.names=F)
+
+
+```
+
+
+# Enhancer Capture (Second Round)
+
+```{r}
+
+df1 <- fread(peakc.dir %&% "enhancer-secondRound_endo_peakC-interactions_DESeq2-info.txt")
+df2 <- fread(e2.cc.file)
+e2.peakc.df <- append_all_info(df1,df2)
+write.table(x=e2.peakc.df,
+            file=peakc.dir%&%"enhancer-secondRound_endo_peakC-interactions_ALL-info.txt",
+            sep="\t",quote=F,row.names=F)
+
+df1 <- fread(peakc.dir %&% "enhancer-secondRound_endo_peakC-interactions_DESeq2-info_merge1K.txt")
+df2 <- fread(e2.cc.file)
+e2.peakc.df2 <- append_all_info(df1,df2)
+write.table(x=e2.peakc.df2,
+            file=peakc.dir%&%"enhancer-secondRound_endo_peakC-interactions_ALL-info_merge1K.txt",
+            sep="\t",quote=F,row.names=F)
+
+df1 <- fread(deseq2.dir %&% "enhancer-secondRound_DESeq2_peakC-interactions.txt")
+df2 <- fread(e2.cc.file)
+e2.deseq2.df <- append_all_info(df1,df2)
+write.table(x=e2.deseq2.df,
+            file=deseq2.dir%&%"enhancer-secondRound_endo_DESeq2-interactions_ALL-info.txt",
+            sep="\t",quote=F,row.names=F)
+
+df1 <- fread(deseq2.dir %&% "enhancer-secondRound_DESeq2_peakC-interactions_merge1K.txt")
+df2 <- fread(e2.cc.file)
+e2.deseq2.df2 <- append_all_info(df1,df2)
+write.table(x=e2.deseq2.df2,
+            file=deseq2.dir%&%"enhancer-secondRound_endo_DESeq2-interactions_ALL-info_merge1K.txt",
+            sep="\t",quote=F,row.names=F)
+
+
+```
