@@ -322,5 +322,25 @@ write.table(x=e2.deseq2.df2,
             file=deseq2.dir%&%"enhancer-secondRound_endo_DESeq2-interactions_ALL-info_merge1K.txt",
             sep="\t",quote=F,row.names=F)
 
+```
+
+
+```{r}
+
+out.df1 <- rbind(prom.peakc.df,e1.peakc.df,use.names=FALSE) %>% rbind(.,e2.peakc.df,use.names=FALSE)
+write.table(out.df1,peakc.dir%&%"all_peakC-interactions.txt",sep="\t",quote=F,row.names=F)
+
+out.df2 <- rbind(prom.peakc.df2,e1.peakc.df2,use.names=FALSE) %>%
+  rbind(.,e2.peakc.df2,use.names=FALSE)
+write.table(out.df2,peakc.dir%&%"all_peakC-interactions_merge1K.txt",sep="\t",quote=F,row.names=F)
+
+out.df3 <- rbind(prom.deseq2.df,e1.deseq2.df,use.names=FALSE) %>%
+  rbind(.,e2.deseq2.df,use.names=FALSE)
+write.table(out.df3,deseq2.dir%&%"all_deseq2-interactions.txt",sep="\t",quote=F,row.names=F)
+
+out.df4 <- rbind(prom.deseq2.df2,e1.deseq2.df2,use.names=FALSE) %>%
+  rbind(.,e2.deseq2.df2,use.names=FALSE)
+write.table(out.df4,deseq2.dir%&%"all_deseq2-interactions_merge1K.txt",sep="\t",quote=F,row.names=F)
 
 ```
+
