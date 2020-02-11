@@ -57,10 +57,11 @@ library("peakC")
 
 ```{r}
 
-write_unionbg_to_wigfiles <- function(bg.df,out.dir=local.dir%&%"temp/"){
+write_unionbg_to_wigfiles <- function(bg.df,chromo,out.dir=local.dir%&%"temp/"){
   samp.vec <- names(bg.df)[4:length(names(bg.df))]
   for (samp in samp.vec){
-    sub.df <- dplyr::select(bg.df,one_of("start",samp)) 
+    sub.df <- filter(bg.df,chrom==chromo)
+    sub.df <- dplyr::select(sub.df,one_of("start",samp)) 
     write.table(x=sub.df,file=out.dir%&%samp%&%".wig",sep="\t",quote=F,row.names = F,col.names = F)
   }
 }
@@ -78,17 +79,19 @@ consolidate_peaks <- function(bg.df,peak.vec){
   return(list(out.df1,out.df2))
 }
 
-build_interaction_dfs <- function(experiment.name,experiment.dir,capture,vp,celltype="Endo"){
+build_interaction_dfs <- function(experiment.name,experiment.dir,capture,
+                                  vp,chromo,range=2.5e+05,celltype="Endo"){
   # celltype is a pattern string that is checked in the union bedgraph file used for extraction
   bg.file <- experiment.dir %&% "2_unionBedgraphs/A_raw_counts/" %&% capture %&% "_raw.unionbdg"
   bg.df <- fread(bg.file)  
   if (dim(bg.df)[1]>=1000){ # Capture must contain at least 1000 fragments in unionbedgraph 
-    write_unionbg_to_wigfiles(bg.df)
+    write_unionbg_to_wigfiles(bg.df,chromo)
     file.names <- names(bg.df)[grepl(celltype,names(bg.df))] %&% ".wig"
     file.vec <- local.dir%&%"temp/" %&% file.names 
-    data <- readMultiple(file.vec, vp.pos=vp, window = 3e+05) # 300 kb window 
+    data <- readMultiple(file.vec, vp.pos=vp, window = range) # specified range 
     res <- combined.analysis(data=data,num.exp=3,vp.pos=vp,wSize=5,alphaFDR=0.1)
-    plot.name <- plot.dir %&% experiment.name %&% "_" %&% capture %&% "_" %&% celltype %&% ".png"
+    plot.name <- plot.dir %&% experiment.name %&% "_" %&% capture %&% 
+      "_" %&% celltype %&% "_range-" %&% (range/1000) %&% "kb.png"
     #png(filename = plot.name) # Must run in R not RStudio 
     #plot_C(res) # Must run in R not RStudio
     #dev.off() # Must run in R not RStudio
@@ -117,6 +120,19 @@ build_interaction_dfs <- function(experiment.name,experiment.dir,capture,vp,cell
 
 ```{r}
 
+extract_distal <- function(vp,dist.df,limit=2.5e+05){
+  dist.df$distal <- map(1:dim(dist.df)[1],function(i){
+    v <- c(dist.df[i,]$start,dist.df[i,]$end)
+    min(abs(v - vp)) > limit
+  }) %>% as.logical(.)
+  out.df <- filter(dist.df,distal==TRUE) %>% dplyr::select(.,-one_of("distal"))
+  if (dim(out.df)[1]>0){
+    return(out.df)    
+  } else{
+    return(NULL)
+  }
+}
+
 
 build_experiment_interaction_dfs <- function(experiment.name="promoter",experiment.dir=prom.cc.dir,
                                              experiment.file=prom.cc.file,celltype="Endo"){
@@ -127,16 +143,49 @@ build_experiment_interaction_dfs <- function(experiment.name="promoter",experime
   for (i in 1:dim(ex.df)[1]){
     #print(i)
     capture <- ex.df$V1[i]
+    chromo <- ex.df$V2[i]
     vp <- ex.df$V3[i]
-    build.list <- build_interaction_dfs(experiment.name,experiment.dir,capture,vp,celltype)
-    if (!is.null(build.list)){
-      out.df1 <- rbind(out.df1,build.list[[1]]); out.df2 <- rbind(out.df2,build.list[[2]]); 
+    build.list.prox <- build_interaction_dfs(experiment.name,experiment.dir,
+                                        capture,vp,chromo,range=2.5e+05,celltype)
+    build.list.dist <- build_interaction_dfs(experiment.name,experiment.dir,
+                                        capture,vp,chromo,range=1e+06,celltype)
+    if (!is.null(build.list.dist)){
+      check1 <- extract_distal(vp,build.list.dist[[1]])
+      check2 <- extract_distal(vp,build.list.dist[[2]])
+      if (is.null(check1)|is.null(check2)){
+        build.list.dist <- NULL
+      } else{
+        build.list.dist <- list(check1,check2)
+      }      
+    }
+    if (!is.null(build.list.prox)){
+      build.list.prox[[1]]$type <- "proximal";build.list.prox[[2]]$type <- "proximal"
+      out.df1 <- rbind(out.df1,build.list.prox[[1]])
+      out.df2 <- rbind(out.df2,build.list.prox[[2]]) 
+    }
+    if (!is.null(build.list.dist)){
+      build.list.dist[[1]]$type <- "distal";build.list.dist[[2]]$type <- "distal"
+      out.df1 <- rbind(out.df1,build.list.dist[[1]])
+      out.df2 <- rbind(out.df2,build.list.dist[[2]]) 
     }
     setTxtProgressBar(pb,i)
   }
   return(list(out.df1,out.df2))
 }
 
+get_dist_from_vp <- function(int.df,experiment.file){
+  ex.df <- fread(experiment.file)
+  pb <- txtProgressBar(min=0,max=dim(int.df)[1],style=3)
+  dist.from.vp <- map(1:dim(int.df)[1],function(i){
+    setTxtProgressBar(pb,i)
+    row.df <- int.df[i,]
+    vp <- filter(ex.df,V1==row.df$capture)$V3
+    v <- c(row.df$start,row.df$end)
+    min(abs(v - vp))    
+  }) %>% as.integer(.)
+  int.df$dist.from.vp <- dist.from.vp
+  return(int.df)
+}
 
 
 
@@ -150,8 +199,8 @@ build_experiment_interaction_dfs <- function(experiment.name="promoter",experime
 
 prom.list <- build_experiment_interaction_dfs(experiment.name="promoter",experiment.dir=prom.cc.dir,
                                              experiment.file=prom.cc.file,celltype="Endo")
-prom.df1 <- prom.list[[1]]
-prom.df2 <- prom.list[[2]]
+prom.df1 <- prom.list[[1]] %>% get_dist_from_vp(.,experiment.file=prom.cc.file)
+prom.df2 <- prom.list[[2]] %>% get_dist_from_vp(.,experiment.file=prom.cc.file)
 write.table(x=prom.df1,file=output.dir%&%"promoter_endo_peakC-interactions.txt",
             sep="\t",quote=F,row.names=F)
 write.table(x=prom.df2,file=output.dir%&%"promoter_endo_peakC-interactions_merge1K.txt",
@@ -165,8 +214,8 @@ write.table(x=prom.df2,file=output.dir%&%"promoter_endo_peakC-interactions_merge
 
 e1.list <- build_experiment_interaction_dfs(experiment.name="enhancer.1st",experiment.dir=e1.cc.dir,
                                              experiment.file=e1.cc.file,celltype="Endo")
-e1.df1 <- e1.list[[1]]
-e1.df2 <- e1.list[[2]]
+e1.df1 <- e1.list[[1]] %>% get_dist_from_vp(.,experiment.file=e1.cc.file)
+e1.df2 <- e1.list[[2]] %>% get_dist_from_vp(.,experiment.file=e1.cc.file)
 write.table(x=e1.df1,file=output.dir%&%"enhancer-firstRound_endo_peakC-interactions.txt",
             sep="\t",quote=F,row.names=F)
 write.table(x=e1.df2,file=output.dir%&%"enhancer-firstRound_endo_peakC-interactions_merge1K.txt",
@@ -189,8 +238,8 @@ FAILED CAPTURE: LINC01512__55DF__cv__chr6_43814625
 
 e2.list <- build_experiment_interaction_dfs(experiment.name="enhancer.2nd",experiment.dir=e2.cc.dir,
                                              experiment.file=e2.cc.file,celltype="Endo")
-e2.df1 <- e2.list[[1]]
-e2.df2 <- e2.list[[2]]
+e2.df1 <- e2.list[[1]] %>% get_dist_from_vp(.,experiment.file=e2.cc.file)
+e2.df2 <- e2.list[[2]] %>% get_dist_from_vp(.,experiment.file=e2.cc.file)
 write.table(x=e2.df1,file=output.dir%&%"enhancer-secondRound_endo_peakC-interactions.txt",
             sep="\t",quote=F,row.names=F)
 write.table(x=e2.df2,file=output.dir%&%"enhancer-secondRound_endo_peakC-interactions_merge1K.txt",
