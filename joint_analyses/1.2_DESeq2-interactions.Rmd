@@ -86,7 +86,7 @@ run_deseq2 <- function(bg.df,vp,chrom,range,celltype1="Endo",celltype2="Blymph")
 }
 
 build_interaction_dfs <- function(experiment.name,experiment.dir,capture,
-                                  chrom,vp,celltype1="Endo",celltype2="Blymph",range=3e+05){
+                                  chrom,vp,celltype1="Endo",celltype2="Blymph",range=5e+05){
   # celltype is a pattern string that is checked in the union bedgraph file used for extraction
   bg.file <- experiment.dir %&% "2_unionBedgraphs/A_raw_counts/" %&% capture %&% "_raw.unionbdg"
   bg.df <- fread(bg.file)  
@@ -147,6 +147,19 @@ build_experiment_interaction_dfs <- function(experiment.name="promoter",experime
   return(list(out.df1,out.df2))
 }
 
+get_dist_from_vp <- function(int.df,experiment.file){
+  ex.df <- fread(experiment.file)
+  pb <- txtProgressBar(min=0,max=dim(int.df)[1],style=3)
+  dist.from.vp <- map(1:dim(int.df)[1],function(i){
+    setTxtProgressBar(pb,i)
+    row.df <- int.df[i,]
+    vp <- filter(ex.df,V1==row.df$capture)$V3
+    v <- c(row.df$start,row.df$end)
+    min(abs(v - vp))    
+  }) %>% as.integer(.)
+  int.df$dist.from.vp <- dist.from.vp
+  return(int.df)
+}
 
 ```
 
@@ -158,8 +171,10 @@ build_experiment_interaction_dfs <- function(experiment.name="promoter",experime
 prom.list <- build_experiment_interaction_dfs(experiment.name="promoter",experiment.dir=prom.cc.dir,
                                              experiment.file=prom.cc.file,
                                              celltype1="Endo",celltype2="Blymph")
-prom.df1 <- prom.list[[1]]
-prom.df2 <- prom.list[[2]]
+prom.df1 <- prom.list[[1]] %>% get_dist_from_vp(.,experiment.file=prom.cc.file)
+prom.df1$type <- ifelse(prom.df1$dist.from.vp <= 2.5e+05,"proximal","distal")
+prom.df2 <- prom.list[[2]] %>% get_dist_from_vp(.,experiment.file=prom.cc.file)
+prom.df2$type <- ifelse(prom.df2$dist.from.vp <= 2.5e+05,"proximal","distal")
 write.table(x=prom.df1,file=output.dir%&%"promoter_endo_DESeq2-interactions.txt",
             sep="\t",quote=F,row.names=F)
 write.table(x=prom.df2,file=output.dir%&%"promoter_endo_DESeq2-interactions_merge1K.txt",
@@ -175,8 +190,10 @@ write.table(x=prom.df2,file=output.dir%&%"promoter_endo_DESeq2-interactions_merg
 e1.list <- build_experiment_interaction_dfs(experiment.name="enhancer.1st",experiment.dir=e1.cc.dir,
                                              experiment.file=e1.cc.file,
                                             celltype1="Endo",celltype2="hESC")
-e1.df1 <- e1.list[[1]]
-e1.df2 <- e1.list[[2]]
+e1.df1 <- e1.list[[1]] %>% get_dist_from_vp(.,experiment.file=e1.cc.file)
+e1.df1$type <- ifelse(e1.df1$dist.from.vp <= 2.5e+05,"proximal","distal")
+e1.df2 <- e1.list[[2]] %>% get_dist_from_vp(.,experiment.file=e1.cc.file)
+e1.df2$type <- ifelse(e1.df2$dist.from.vp <= 2.5e+05,"proximal","distal")
 write.table(x=e1.df1,file=output.dir%&%"enhancer-firstRound_endo_DESeq2-interactions.txt",
             sep="\t",quote=F,row.names=F)
 write.table(x=e1.df2,file=output.dir%&%"enhancer-firstRound_endo_DESeq2-interactions_merge1K.txt",
@@ -200,8 +217,10 @@ FAILED CAPTURE: LINC01512__55DF__cv__chr6_43814625
 e2.list <- build_experiment_interaction_dfs(experiment.name="enhancer.2nd",experiment.dir=e2.cc.dir,
                                              experiment.file=e2.cc.file,
                                             celltype1="Endo",celltype2="hESC")
-e2.df1 <- e2.list[[1]]
-e2.df2 <- e2.list[[2]]
+e2.df1 <- e2.list[[1]] %>% get_dist_from_vp(.,experiment.file=e2.cc.file)
+e2.df1$type <- ifelse(e2.df1$dist.from.vp <= 2.5e+05,"proximal","distal")
+e2.df2 <- e2.list[[2]] %>% get_dist_from_vp(.,experiment.file=e2.cc.file)
+e2.df2$type <- ifelse(e2.df2$dist.from.vp <= 2.5e+05,"proximal","distal")
 write.table(x=e2.df1,file=output.dir%&%"enhancer-secondRound_DESeq2_peakC-interactions.txt",
             sep="\t",quote=F,row.names=F)
 write.table(x=e2.df2,file=output.dir%&%"enhancer-secondRound_DESeq2_peakC-interactions_merge1K.txt",
