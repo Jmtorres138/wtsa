@@ -1,0 +1,206 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+
+
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/"
+cbrg.dir <- "/home/jason/science/servers/FUSE2/"
+plot.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/peakC_plots/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+
+```
+
+
+Capture Compare output files 
+
+```{r}
+
+# promoter capture files 
+prom.dir <- cbrg.dir %&% "wtsa/promoter_driven/"
+prom.cc.file  <- prom.dir %&% "capture_compare_parameters.txt"
+prom.cc.dir  <- prom.dir %&% "PromCap_cis_analysis/"
+# enhancer capture first round  
+e1.dir <- cbrg.dir %&% "wtsa/enhancer_driven/first_round/"
+e1.cc.file  <- e1.dir %&% "capture_compare_parameters_pruned_chr.txt"
+e1.cc.dir  <- e1.dir %&% "capture_compare_cis_analysis/"
+# enhancer capture second round  
+e2.dir <- cbrg.dir %&% "wtsa/enhancer_driven/second_round/"
+e2.cc.file  <- e2.dir %&% "capture_compare_parameters_pruned_chr.txt"
+e2.cc.dir  <- e2.dir %&% "troubleshoot_cis_analysis/"
+
+```
+
+
+```{r}
+
+peakc.df <- fread(work.dir %&% 
+                    "/peakC_interactions/all_peakC-interactions_merge1K.txt")
+deseq2.df <- fread(work.dir %&%
+                  "DESeq2_interactions/all_deseq2-interactions_merge1K.txt")
+
+
+```
+
+
+
+# Functions
+
+```{r}
+
+library("viridis")
+
+get_capC_df <- function(cap.name,exp.dir,exp.file,celltype1,celltype2,plot.range=1e+06){
+  # Extract the mean normalized captureC counts for each of the two cell types 
+  df <- fread(exp.file) %>% filter(.,V1==cap.name)
+  chromo <- df$V2; cap.frag.start <-df$V3; cap.frag.end <-df$V4
+  plot.start <- cap.frag.start - plot.range; plot.end <- cap.frag.end + plot.range
+  bdg.file <- experiment.dir %&% "2_unionBedgraphs/B_normalised_counts/" %&% cap.name %&%
+    "_normalised.unionbdg"
+  plot.df <- fread(bdg.file) %>% filter(.,V1==chromo,V2>=plot.start,V3<=plot.end)
+  mat1 <- dplyr::select(plot.df,one_of("V4","V5","V6")) %>% as.matrix(.)
+  mat2 <- dplyr::select(plot.df,one_of("V7","V8","V9")) %>% as.matrix(.)
+  ct1.mean <- rowMeans(mat1); ct1.sd <- rowSds(mat1)
+  ct2.mean <- rowMeans(mat2); ct2.sd <- rowSds(mat2)
+  plot.df <- dplyr::select(plot.df,one_of("V1","V2","V3"))
+  names(plot.df) <- c("chrom","frag.start","frag.end")
+  a.df <- plot.df; b.df <- plot.df
+  a.df$mean <- ct1.mean; a.df$sd <- ct1.sd; a.df$celltype <- celltype1
+  b.df$mean <- ct2.mean; b.df$sd <- ct2.sd; b.df$celltype <- celltype2
+  plot.df <- rbind(a.df,b.df)
+  plot.df$celltype <- factor(x=plot.df$celltype,levels = c(celltype1,celltype2))
+  return(list(plot.df,cap.frag.start,cap.frag.end))
+}
+
+capC_plot <- function(plot.df,cap.frag.start,cap.frag.end){
+  plt <- ggplot(data=plot.df,aes(x=frag.start,y=mean,col = celltype, fill = celltype)) + 
+    geom_ribbon(inherit.aes = F,
+                aes(x=frag.start, ymin=mean-sd, 
+                    ymax=mean+sd,fill=celltype), alpha=.35) + 
+    geom_line(size=0.1) + 
+    scale_fill_manual(values=viridis(20)[c(9,5)],name="Cell Type") +
+    scale_color_manual(values=viridis(20)[c(9,5)],name="Cell Type") + 
+    geom_rect(inherit.aes=F, 
+              aes(xmin=cap.frag.start, xmax=cap.frag.end), 
+              ymin=0, ymax=max(plot.df$mean)+max(plot.df$sd),
+              col="gray50", fill="grey60",size=0.1) + 
+    geom_hline(yintercept=0,color="black") + 
+    theme_classic() + 
+    coord_cartesian(ylim=c(-(max(plot.df$mean)+max(plot.df$sd))/4,
+                           max(plot.df$mean)+max(plot.df$sd)))
+  return(list(plt,plot.df,cap.frag.start,cap.frag.end))
+}
+
+peakC_plot <- function(cap.name,plot.list,cap.plt){
+  vp <- (plot.list[[3]] + plot.list[[4]])/2
+  sub <- filter(peakc.df,capture==cap.name)
+  plot.df <- plot.list[[2]]
+  sub$max <- map(1:dim(sub)[1],function(i){
+    row.df <- sub[i,]
+    s <- filter(plot.df,frag.start>=row.df$start,frag.end<=row.df$end)
+    s$val <- s$mean + s$sd
+    max(s$val)
+  }) %>% as.numeric(.)
+  sub$de.fdr10 <- ifelse(sub$padj<=0.10,"ghostwhite","firebrick1")
+  plta <- cap.plt + 
+    geom_rect(inherit.aes = FALSE,data=sub,
+              aes(xmin=start,xmax=end,ymin=0,ymax=max),
+                  color="firebrick4",fill=sub$de.fdr10,size=0.3,alpha=0.3) 
+  pltb <- plta + 
+    geom_curve(inherit.aes=FALSE,data=filter(sub,end<vp),
+               size=0.8,color="firebrick4",
+                    aes(xend=(start+end)/2),x=vp,y=0,yend=0,curvature = -0.5) + 
+    geom_curve(inherit.aes=FALSE,data=filter(sub,start>vp),
+               size=0.8,color="firebrick4",
+                    aes(xend=(start+end)/2),x=vp,y=0,yend=0,curvature = 0.5)
+  return(pltb)
+}
+
+deseq2_plot <- function(cap.name,plot.list,cap.plt){
+  vp <- (plot.list[[3]] + plot.list[[4]])/2
+  sub <- filter(deseq2.df,capture==cap.name)
+  plot.df <- plot.list[[2]]
+  sub$max <- map(1:dim(sub)[1],function(i){
+    row.df <- sub[i,]
+    s <- filter(plot.df,frag.start>=row.df$start,frag.end<=row.df$end)
+    s$val <- s$mean + s$sd
+    max(s$val)
+  }) %>% as.numeric(.)
+  plta <- cap.plt + 
+    geom_rect(inherit.aes = FALSE,data=sub,
+              aes(xmin=start,xmax=end,ymin=0,ymax=max),
+                  color=viridis(10)[9],fill="ghostwhite",size=0.3,alpha=0.3) 
+  pltb <- plta + 
+    geom_curve(inherit.aes=FALSE,data=filter(sub,end<vp),
+               size=0.5,color=viridis(10)[9],
+                    aes(xend=(start+end)/2),x=vp,y=0,yend=0,curvature = -0.5) + 
+    geom_curve(inherit.aes=FALSE,data=filter(sub,start>vp),
+               size=0.5,color=viridis(10)[9],
+                    aes(xend=(start+end)/2),x=vp,y=0,yend=0,curvature = 0.5)
+  return(pltb)
+}
+
+
+capC_full_plots <- function(cap.name,exp.dir,exp.file,
+                           celltype1,celltype2,plot.range=1e+06){
+  plot.list1 <- get_capC_df(cap.name,exp.dir,exp.file,
+                          celltype1,celltype2,plot.range=1e+06)  
+  plot.list2 <- capC_plot(plot.list1[[1]],plot.list1[[2]],plot.list1[[3]])
+  peakc.sub <- filter(peakc.df,capture==cap.name) %>% 
+    dplyr::select(.,one_of("seqnames","start","end"))
+  deseq2.sub <- filter(deseq2.df,capture==cap.name) %>% 
+    dplyr::select(.,one_of("seqnames","start","end"))
+  sub <- rbind(peakc.sub,deseq2.sub)
+  if (dim(peakc.sub)[1]>0 & dim(deseq2.sub)[1]>0){
+    plt1 <- deseq2_plot(cap.name,plot.list2,plot.list2[[1]])
+    plt <- peakC_plot(cap.name,plot.list2,plt1)
+  } else if (dim(peakc.sub)[1]>0){
+    plt <- peakC_plot(cap.name,plot.list2,plot.list2[[1]])
+  } else{
+    plt <- deseq2_plot(cap.name,plot.list2,plot.list2[[1]])
+  }
+  plt <- plt + ylab("Mean Normalised Counts") + xlab("Genomic Position")
+  plt.zoom <- plt + 
+    xlim(c(min(sub$start)-50000),max(sub$end)+50000)
+  return(list(plt.zoom,plt))
+}
+
+
+```
+
+
+
+# Execution  
+
+```{r}
+
+exp.dir <- prom.cc.dir
+exp.file <- prom.cc.file
+celltype1 <- "Endo" # use "Endo" for enhancer captures 
+celltype2 <- "Blymph"
+
+plot.list <- capC_full_plots("DGKB",exp.dir,exp.file,"Endo","Blymph")
+
+
+
+
+```
+
+
+
+
+
