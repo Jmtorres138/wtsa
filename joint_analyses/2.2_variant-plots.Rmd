@@ -1,0 +1,179 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("genefilter")
+
+
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/"
+cbrg.dir <- "/home/jason/science/servers/FUSE2/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+save.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/plot_objects/"
+
+```
+
+
+Capture Compare output files 
+
+```{r}
+
+# promoter capture files 
+prom.dir <- cbrg.dir %&% "wtsa/promoter_driven/"
+prom.cc.file  <- prom.dir %&% "capture_compare_parameters.txt"
+# enhancer capture first round  
+e1.dir <- cbrg.dir %&% "wtsa/enhancer_driven/first_round/"
+e1.cc.file  <- e1.dir %&% "capture_compare_parameters_pruned_chr.txt"
+# enhancer capture second round  
+e2.dir <- cbrg.dir %&% "wtsa/enhancer_driven/second_round/"
+e2.cc.file  <- e2.dir %&% "capture_compare_parameters_pruned_chr.txt"
+
+```
+
+
+```{r}
+
+cred.df <- fread(rescomp.dir %&% "projects/t2d_classification/revamp/genetic_credible_sets/gencred.txt")
+
+eqtl.df <- fread(rescomp.dir %&% "datasets/INSPIRE_2019/media-2.txt")
+eqtl.df$chrSNP <- "chr" %&% eqtl.df$chrSNP
+
+```
+
+
+# Functions 
+
+```{r}
+
+make_cred_int_df <- function(c.df){
+  sig.vec <- c.df$CondID %>% unique(.)
+  out.df <- c()
+  for (sig in sig.vec){
+    sub <- filter(c.df,CondID==sig)
+    int.start <- min(sub$POS)
+    int.end <- max(sub$POS)
+    max.ppa <- max(sub$PPA)
+    sig.num <- strsplit(sig,split="_")[[1]][2]
+    int.name <- unique(sub$symbol) %&% " (" %&% unique(sub$lead.rsid) %&% ")"
+    build.df <- data.frame(int.name,sig.num,int.start,int.end,max.ppa,
+                           stringsAsFactors = F)
+    out.df <- rbind(out.df,build.df)
+  }
+  out.df$lead <- map(out.df$sig.num,function(num){
+    ifelse(num=="1","lead","non-lead")
+  }) %>% as.character(.)
+  return(out.df)
+}
+
+cred_plot <- function(cap.name,cc.df,range=1e+06){
+  row.df <- filter(cc.df,V1==cap.name)
+  chromo <- row.df$V2; frag.start <- row.df$V3; frag.end <- row.df$V4
+  plot.start <- frag.start - range; plot.end <- frag.end + range 
+  c.df <- filter(cred.df,CHR==chromo,POS>=plot.start,POS<=plot.end)
+  if (dim(c.df)[1]>0){
+    c.df <- make_cred_int_df(c.df)
+    plt <- ggplot(data=c.df) + 
+      geom_segment(aes(x=int.start,xend=int.end,
+                       y=max.ppa,yend=max.ppa,color=lead),
+                   lineend="butt",size=2) + 
+      geom_text(aes(x=(int.start+int.end)/2,y=max.ppa+0.05,
+                    label=int.name,color=lead),
+                size=2,fontface="italic") +
+      xlim(c(plot.start,plot.end)) + 
+      scale_y_continuous(limits=c(0,1.1),breaks=seq(0,1,0.20),
+                         name="Maximum PPA") + 
+      scale_color_manual(values=c("firebrick4","black"),
+                         labels=c("Lead","Non-lead"),name="Credible Set") +
+      xlab("Genomic Position")+
+      theme_classic()
+    return(plt)    
+  } else{
+    return(NA)
+  }
+}
+
+eqtl_plot <- function(cap.name,cc.df,range=1e+06){
+  row.df <- filter(cc.df,V1==cap.name)
+  chromo <- row.df$V2; frag.start <- row.df$V3; frag.end <- row.df$V4
+  plot.start <- frag.start - range; plot.end <- frag.end + range 
+  e.df <- filter(eqtl.df,chrSNP==chromo,
+                StartSNP>=plot.start,StartSNP<=plot.end) 
+  if (dim(e.df)[1]>0){
+    e.df$SNP <- e.df$SNPid %&% " (" %&% e.df$A1 %&%
+      "/" %&% e.df$A2 %&% ")" %&% "\n" %&% e.df$GeneName
+    val <- max(abs(e.df$Slope)) %>% round(.,digits=2) 
+    val <- val + 0.2
+    if (val > 0.5){
+      y.up <- val; y.down <- -1*val    
+    } else{
+      y.up <- 0.5; y.down <- -0.5    
+    }
+    plt <- ggplot(data=e.df) + 
+      geom_hline(yintercept = 0,linetype="dashed") + 
+      geom_rect(aes(xmin=StartSNP,xmax=StartSNP+1,
+                    ymin=0,ymax=Slope),
+                size=1,color=viridis(10)[4],
+               stat="identity") + 
+      xlim(c(plot.start,plot.end)) + 
+      ylim(c(y.down,y.up)) +
+      geom_text_repel(aes(x=StartSNP,label=SNP,
+                          y=Slope),
+                fontface="italic",size=2.3,
+                nudge_y = 1*sign(e.df$Slope),
+                #nudge_x = 0.5,
+                segment.size  = 0.2,
+                segment.color = "grey50",
+                direction = "x") +
+      xlab("Genomic Position") + ylab("Coefficient") + 
+      theme_classic()
+    return(plt)    
+  } else{
+    return(NA)
+  }
+}
+
+
+save_ggplot2_objects <- function(exp.type,exp.file,range=1e+06){
+  cc.df <- fread(exp.file)
+  pb <- txtProgressBar(min=0,max=dim(cc.df)[1],style=3)
+  for (i in 1:dim(cc.df)[1]){
+    #print(i)
+    setTxtProgressBar(pb,i)
+    cap.name <- cc.df$V1[i]
+    plt1 <- cred_plot(cap.name,cc.df,range)
+    plt2 <- eqtl_plot(cap.name,cc.df,range)
+    plot.list <- list(plt1,plt2)
+    saveRDS(object=plot.list,file=save.dir %&% exp.type %&% 
+             "_" %&% cap.name %&% "_variant.RDS")      
+  }
+}
+
+
+```
+
+
+# Execution 
+
+```{r}
+
+save_ggplot2_objects(exp.type="promoter",exp.file=prom.cc.file,range=1e+06)
+save_ggplot2_objects(exp.type="enhancer-firstRound",exp.file=e1.cc.file,range=1e+06)
+save_ggplot2_objects(exp.type="enhancer-secondRound",exp.file=e2.cc.file,range=1e+06)
+
+```
+
+
+
