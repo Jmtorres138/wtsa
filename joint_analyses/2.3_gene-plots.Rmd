@@ -1,0 +1,125 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("genefilter")
+library("viridis")
+
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/"
+cbrg.dir <- "/home/jason/science/servers/FUSE2/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+save.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/plot_objects/"
+
+```
+
+
+Capture Compare output files 
+
+```{r}
+
+# promoter capture files 
+prom.dir <- cbrg.dir %&% "wtsa/promoter_driven/"
+prom.cc.file  <- prom.dir %&% "capture_compare_parameters.txt"
+# enhancer capture first round  
+e1.dir <- cbrg.dir %&% "wtsa/enhancer_driven/first_round/"
+e1.cc.file  <- e1.dir %&% "capture_compare_parameters_pruned_chr.txt"
+# enhancer capture second round  
+e2.dir <- cbrg.dir %&% "wtsa/enhancer_driven/second_round/"
+e2.cc.file  <- e2.dir %&% "capture_compare_parameters_pruned_chr.txt"
+
+```
+
+
+```{r}
+
+#if (!requireNamespace("BiocManager", quietly = TRUE))
+#    install.packages("BiocManager")
+#
+#BiocManager::install("ggbio")
+
+library("ggbio")
+library("Homo.sapiens")
+data(genesymbol, package = "biovizBase")
+
+gene_plot <- function(cap.name,cc.df,range=1e+06){
+  sub <- filter(cc.df,V1==cap.name)
+  reg.gr <- GRanges(seqnames=sub$V2,IRanges((sub$V3 - range),(sub$V4 + range)))
+  wh <- genesymbol[genesymbol %over% reg.gr] 
+  wh <- range(wh, ignore.strand = TRUE)
+  p <- suppressMessages(autoplot(Homo.sapiens, which = wh,
+                color=cividis(20)[1],
+                fill=cividis(20)[4]) +
+    theme_classic() + ylab("Transcripts") +
+    xlab("Genomic Position"))
+  return(p)
+}
+
+
+```
+
+
+# Functions 
+
+```{r}
+
+
+gene_plot <- function(cap.name,cc.df,range=1e+06){
+  sub <- filter(cc.df,V1==cap.name)
+  reg.gr <- GRanges(seqnames=sub$V2,IRanges((sub$V3 - range),(sub$V4 + range)))
+  wh <- genesymbol[genesymbol %over% reg.gr] 
+  wh <- range(wh, ignore.strand = TRUE)
+  if (length(wh)>0){
+    p <- suppressMessages(autoplot(Homo.sapiens, which = wh,
+                  color=cividis(20)[1],
+                  fill=cividis(20)[4]) +
+      theme_classic() + ylab("Transcripts") +
+      xlab("Genomic Position"))  
+    return(p)
+  } else{
+    return(NA)
+  }
+}
+
+save_ggplot2_objects <- function(exp.type,exp.file,range=1e+06){
+  cc.df <- fread(exp.file)
+  pb <- txtProgressBar(min=0,max=dim(cc.df)[1],style=3)
+  for (i in 1:dim(cc.df)[1]){
+    print(i)
+    setTxtProgressBar(pb,i)
+    cap.name <- cc.df$V1[i]
+    plt <- suppressWarnings(gene_plot(cap.name,cc.df,range))
+    saveRDS(object=plt,file=save.dir %&% exp.type %&% 
+             "_" %&% cap.name %&% "_knownGenes.RDS")      
+  }
+}
+
+
+```
+
+
+# Execution 
+
+```{r}
+
+save_ggplot2_objects(exp.type="promoter",exp.file=prom.cc.file,range=1e+06)
+save_ggplot2_objects(exp.type="enhancer-firstRound",exp.file=e1.cc.file,range=1e+06)
+save_ggplot2_objects(exp.type="enhancer-secondRound",exp.file=e2.cc.file,range=1e+06)
+
+```
+
+
+
