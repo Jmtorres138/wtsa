@@ -15,13 +15,14 @@ knitr::opts_chunk$set(echo = TRUE)
 "%&%" <- function(a,b) paste0(a,b)
 library("data.table")
 library("tidyverse")
+library("genefilter")
 
 
 local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
 rescomp.dir <- "/home/jason/science/servers/FUSE5/"
 cbrg.dir <- "/home/jason/science/servers/FUSE2/"
-plot.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/peakC_plots/"
 work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+save.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/plot_objects/"
 
 ```
 
@@ -53,7 +54,6 @@ peakc.df <- fread(work.dir %&%
 deseq2.df <- fread(work.dir %&%
                   "DESeq2_interactions/all_deseq2-interactions_merge1K.txt")
 
-
 ```
 
 
@@ -69,7 +69,7 @@ get_capC_df <- function(cap.name,exp.dir,exp.file,celltype1,celltype2,plot.range
   df <- fread(exp.file) %>% filter(.,V1==cap.name)
   chromo <- df$V2; cap.frag.start <-df$V3; cap.frag.end <-df$V4
   plot.start <- cap.frag.start - plot.range; plot.end <- cap.frag.end + plot.range
-  bdg.file <- experiment.dir %&% "2_unionBedgraphs/B_normalised_counts/" %&% cap.name %&%
+  bdg.file <- exp.dir %&% "2_unionBedgraphs/B_normalised_counts/" %&% cap.name %&%
     "_normalised.unionbdg"
   plot.df <- fread(bdg.file) %>% filter(.,V1==chromo,V2>=plot.start,V3<=plot.end)
   mat1 <- dplyr::select(plot.df,one_of("V4","V5","V6")) %>% as.matrix(.)
@@ -170,15 +170,40 @@ capC_full_plots <- function(cap.name,exp.dir,exp.file,
     plt <- peakC_plot(cap.name,plot.list2,plt1)
   } else if (dim(peakc.sub)[1]>0){
     plt <- peakC_plot(cap.name,plot.list2,plot.list2[[1]])
-  } else{
+  } else if (dim(deseq2.sub)[1]>0){
     plt <- deseq2_plot(cap.name,plot.list2,plot.list2[[1]])
+  } else if (dim(plot.list1[[1]])[1]>1000){
+    plt <- plot.list2[[1]]
+  } else{
+    return(NA)
   }
   plt <- plt + ylab("Mean Normalised Counts") + xlab("Genomic Position")
-  plt.zoom <- plt + 
-    xlim(c(min(sub$start)-50000),max(sub$end)+50000)
+  if (dim(sub)[1]>0){
+    plt.zoom <- plt + 
+      xlim(c(min(sub$start)-50000),max(sub$end)+50000)    
+  } else{
+    plt.zoom <- plt
+  }
   return(list(plt.zoom,plt))
 }
 
+
+save_ggplot2_objects <- function(exp.type,exp.dir,exp.file,celltype1,celltype2){
+  cc.df <- fread(exp.file)
+  pb <- txtProgressBar(min=0,max=dim(cc.df)[1],style=3)
+  for (i in 1:dim(cc.df)[1]){
+    #print(i)
+    setTxtProgressBar(pb,i)
+    cap.name <- cc.df$V1[i]
+    plot.list <- capC_full_plots(cap.name,exp.dir,exp.file,celltype1,celltype2)
+    if (!all(is.na(plot.list))){
+      saveRDS(object=plot.list,file=save.dir %&% exp.type %&% 
+                "_" %&% cap.name %&% "_capC.RDS")      
+    } else{
+      print("FAILED: " %&% cap.name)
+    }
+  }
+}
 
 ```
 
@@ -188,19 +213,20 @@ capC_full_plots <- function(cap.name,exp.dir,exp.file,
 
 ```{r}
 
-exp.dir <- prom.cc.dir
-exp.file <- prom.cc.file
-celltype1 <- "Endo" # use "Endo" for enhancer captures 
-celltype2 <- "Blymph"
-
-plot.list <- capC_full_plots("DGKB",exp.dir,exp.file,"Endo","Blymph")
-
-
-
+save_ggplot2_objects("promoter",prom.cc.dir,prom.cc.file,"Endo","Blymph")
+save_ggplot2_objects("enhancer-firstRound",e1.cc.dir,e1.cc.file,"Endo","hESC")
+save_ggplot2_objects("enhancer-secondRound",e2.cc.dir,e2.cc.file,"Endo","hESC")
 
 ```
 
+Failed captures (in terms of plotting due to insufficient information): 
 
+CDC123__86DF__cv__chr10_12307894
+rs11257658_CAMK1D__5QTL__eQTL__chr10_12309268
+CDKAL1__50DF__cv__chr6_20673880
+CDKAL1__50DF__cv__chr6_20686573
+CDKAL1__50DF__cv__chr6_20688121
+LINC01512__55DF__cv__chr6_43814625
 
 
 
