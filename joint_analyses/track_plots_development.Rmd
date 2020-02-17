@@ -1,0 +1,159 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("genefilter")
+library("viridis")
+library("ggbio")
+library("Homo.sapiens")
+data(genesymbol, package = "biovizBase")
+
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/"
+cbrg.dir <- "/home/jason/science/servers/FUSE2/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+save.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/plot_objects/"
+plot.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/track_plots/"
+
+```
+
+```{r}
+
+# promoter capture files 
+prom.dir <- cbrg.dir %&% "wtsa/promoter_driven/"
+prom.cc.file  <- prom.dir %&% "capture_compare_parameters.txt"
+# enhancer capture first round  
+e1.dir <- cbrg.dir %&% "wtsa/enhancer_driven/first_round/"
+e1.cc.file  <- e1.dir %&% "capture_compare_parameters_pruned_chr.txt"
+# enhancer capture second round  
+e2.dir <- cbrg.dir %&% "wtsa/enhancer_driven/second_round/"
+e2.cc.file  <- e2.dir %&% "capture_compare_parameters_pruned_chr.txt"
+
+```
+
+
+```{r}
+
+peakc.df <- fread(work.dir %&% "peakC_interactions/all_peakC-interactions_merge1K.txt")
+deseq2.df <- fread(work.dir %&% "DESeq2_interactions/all_deseq2-interactions_merge1K.txt")
+sig.df <- rbind(dplyr::select(peakc.df,one_of("experiment","capture","seqnames","start","end")),
+                dplyr::select(deseq2.df,one_of("experiment","capture","seqnames","start","end")))
+
+```
+
+
+
+# Functions
+
+```{r}
+
+gene_plot <- function(cap.name,cc.df,range=1e+06){
+  sub <- filter(cc.df,V1==cap.name)
+  reg.gr <- GRanges(seqnames=sub$V2,IRanges((sub$V3 - range),(sub$V4 + range)))
+  wh <- genesymbol[genesymbol %over% reg.gr] 
+  wh <- range(wh, ignore.strand = TRUE)
+  if (length(wh)>0){
+    p <- suppressMessages(autoplot(Homo.sapiens, which = wh,
+                  color=cividis(20)[1],
+                  fill=cividis(20)[4]) +
+      theme_classic() + ylab("Transcripts") +
+      xlab("Genomic Position"))  
+    return(p)
+  } else{
+    return(NA)
+  }
+}
+
+capture_plot <- function(exp.type,cap.name,cc.df){
+  row.df <- filter(cc.df,V1==cap.name)
+  chromo <- (row.df$V2 %>% strsplit(.,split="chr"))[[1]][2]
+  xname <- "Position on Chromosome "  %&% chromo
+  vp <- (row.df$V3 + row.df$V4)/2 %>% round(.)
+  # get plot limits 
+  ename <- ifelse(exp.type=="promoter","promoter",
+                  ifelse(exp.type=="enhancer-firstRound","enhancer.1st",
+                         ifelse(exp.type=="enhancer-secondRound","enhancer.2nd")))
+  sub <- filter(sig.df,experiment==ename,capture==cap.name)
+  if (dim(sub)[1]>0){
+    start.coord <- min(sub$start) - 100000
+    end.coord <- max(sub$end) + 100000
+    if (vp < start.coord | vp > end.coord){
+      start.coord <- vp - 1e+06
+      end.coord <- vp + 1e+06        
+    }
+  } else{
+    start.coord <- vp - 1e+06
+    end.coord <- vp + 1e+06    
+  }
+  obj1 <- readRDS(save.dir %&% exp.type %&% "_" %&% cap.name %&% "_capC.RDS")
+  obj2 <- readRDS(save.dir %&% exp.type %&% "_" %&% cap.name %&% "_variant.RDS")
+  obj3 <- readRDS(save.dir %&% exp.type %&% "_" %&% cap.name %&% "_knownGenes.RDS")
+  p1 <- obj1[[1]] 
+  p2 <- obj2[[1]]
+  p3 <- obj2[[2]] 
+  p4 <- gene_plot(cap.name,cc.df,range = 1e+06)  
+  if (!all(is.na(p2)) & !all(is.na(p3)) & all(is.na(p4))==FALSE){
+    trk <- tracks(p1,p2,p3,p4,xlim=c(start.coord,end.coord),heights = c(3,1,1,1),
+                  xlab=xname) 
+  } else if (all(is.na(p2))==TRUE & all(is.na(p3))==FALSE & all(is.na(p4))==FALSE){
+    trk <- tracks(p1,p3,p4,xlim=c(start.coord,end.coord),heights = c(3,1,1),
+                  xlab=xname) 
+  } else if (all(is.na(p2))==FALSE & all(is.na(p3))==TRUE & all(is.na(p4))==FALSE){
+    trk <- tracks(p1,p2,p4,xlim=c(start.coord,end.coord),heights = c(3,1,1),
+                  xlab=xname) 
+  } else{
+    print ("Need to inspect issue further")
+  }
+  trk <- trk + 
+    scale_x_sequnit(unit="Mb") + 
+    theme(axis.text.y=element_text(size=15),
+        axis.title = element_text(size=20),
+        legend.text = element_text(size=20),
+        legend.title = element_text(size=20))
+  ggsave(plot=trk,filename = plot.dir %&% exp.type %&% "_" %&% cap.name %&%"_tracks.png",width=25,height=15)
+}
+
+save_track_pngs <- function(exp.type,exp.file,range=1e+06){
+  cc.df <- fread(exp.file)
+  pb <- txtProgressBar(min=0,max=dim(cc.df)[1],style=3)
+  for (i in 119:dim(cc.df)[1]){
+    print(i)
+    setTxtProgressBar(pb,i)
+    cap.name <- cc.df$V1[i]
+    fname <- save.dir %&% exp.type %&% "_" %&% cap.name %&% "_capC.RDS"
+    if (file.exists(fname)==TRUE){
+      suppressMessages(capture_plot(exp.type,cap.name,cc.df))      
+    } else{
+      print("Failed: " %&% cap.name)
+    }
+  }
+}
+
+```
+
+# Execution 
+
+```{r}
+
+save_track_pngs(exp.type="promoter",exp.file=prom.cc.file,range=1e+06)
+save_track_pngs(exp.type="enhancer-firstRound",exp.file=e1.cc.file,range=1e+06)
+save_track_pngs(exp.type="enhancer-secondRound",exp.file=e2.cc.file,range=1e+06)
+
+# cannot plot "GNPDA2__32DF__uc__chr4_44996579", gene plot range issue 
+# cannot plot "chr13_58953476_PCDH17", gene plot range issue 
+# cannot plot ""chr4_137094047_PABPC4L"", gene plot range issue 
+
+```
+
