@@ -14,8 +14,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 "%&%" <- function(a,b) paste0(a,b)
 library("data.table")
-library("tidyverse")
 library("genefilter")
+library("tidyverse")
+
 
 
 local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
@@ -95,13 +96,15 @@ capC_plot <- function(plot.df,cap.frag.start,cap.frag.end){
     scale_fill_manual(values=viridis(20)[c(9,5)],name="Cell Type") +
     scale_color_manual(values=viridis(20)[c(9,5)],name="Cell Type") + 
     geom_rect(inherit.aes=F, 
-              aes(xmin=cap.frag.start, xmax=cap.frag.end), 
+              xmin=cap.frag.start, xmax=cap.frag.end, 
               ymin=0, ymax=max(plot.df$mean)+max(plot.df$sd),
               col="gray50", fill="grey60",size=0.1) + 
     geom_hline(yintercept=0,color="black") + 
     theme_classic() + 
-    coord_cartesian(ylim=c(-(max(plot.df$mean)+max(plot.df$sd))/4,
+    ylim(c(-(max(plot.df$mean)+max(plot.df$sd))/4,
                            max(plot.df$mean)+max(plot.df$sd)))
+    #coord_cartesian(ylim=c(-(max(plot.df$mean)+max(plot.df$sd))/4,
+    #                       max(plot.df$mean)+max(plot.df$sd)))
   return(list(plt,plot.df,cap.frag.start,cap.frag.end))
 }
 
