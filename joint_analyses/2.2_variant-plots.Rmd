@@ -16,6 +16,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library("data.table")
 library("tidyverse")
 library("genefilter")
+library("viridis")
+library("ggrepel")
 
 
 local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
@@ -86,12 +88,12 @@ cred_plot <- function(cap.name,cc.df,range=1e+06){
   if (dim(c.df)[1]>0){
     c.df <- make_cred_int_df(c.df)
     plt <- ggplot(data=c.df) + 
-      geom_segment(aes(x=int.start,xend=int.end,
-                       y=max.ppa,yend=max.ppa,color=lead),
-                   lineend="butt",size=2) + 
-      geom_text(aes(x=(int.start+int.end)/2,y=max.ppa+0.05,
+      geom_text(aes(x=(int.start+int.end)/2,y=max.ppa+0.1,
                     label=int.name,color=lead),
-                size=2,fontface="italic") +
+                size=5,fontface="italic") +
+      geom_segment(aes(x=int.start,xend=int.end+1,
+                       y=max.ppa,yend=max.ppa,color=lead),
+                   lineend="butt",size=5) + 
       xlim(c(plot.start,plot.end)) + 
       scale_y_continuous(limits=c(0,1.1),breaks=seq(0,1,0.20),
                          name="Maximum PPA") + 
@@ -131,10 +133,10 @@ eqtl_plot <- function(cap.name,cc.df,range=1e+06){
       ylim(c(y.down,y.up)) +
       geom_text_repel(aes(x=StartSNP,label=SNP,
                           y=Slope),
-                fontface="italic",size=2.3,
+                fontface="italic",size=5,
                 nudge_y = 1*sign(e.df$Slope),
                 #nudge_x = 0.5,
-                segment.size  = 0.2,
+                segment.size  = 1,
                 segment.color = "grey50",
                 direction = "x") +
       xlab("Genomic Position") + ylab("Coefficient") + 
