@@ -91,9 +91,9 @@ cred_plot <- function(cap.name,cc.df,range=1e+06){
       geom_text(aes(x=(int.start+int.end)/2,y=max.ppa+0.1,
                     label=int.name,color=lead),
                 size=5,fontface="italic") +
-      geom_segment(aes(x=int.start,xend=int.end+1,
+      geom_segment(aes(x=int.start-1,xend=int.end+1,
                        y=max.ppa,yend=max.ppa,color=lead),
-                   lineend="butt",size=5) + 
+                   lineend="butt",size=6) + 
       xlim(c(plot.start,plot.end)) + 
       scale_y_continuous(limits=c(0,1.1),breaks=seq(0,1,0.20),
                          name="Maximum PPA") + 
