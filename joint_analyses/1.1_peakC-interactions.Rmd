@@ -53,7 +53,7 @@ library("peakC")
 ```
 
 
-# Development code 
+# Functions
 
 ```{r}
 
@@ -89,12 +89,12 @@ build_interaction_dfs <- function(experiment.name,experiment.dir,capture,
     file.names <- names(bg.df)[grepl(celltype,names(bg.df))] %&% ".wig"
     file.vec <- local.dir%&%"temp/" %&% file.names 
     data <- readMultiple(file.vec, vp.pos=vp, window = range) # specified range 
-    res <- combined.analysis(data=data,num.exp=3,vp.pos=vp,wSize=5,alphaFDR=0.1)
+    res <- combined.analysis(data=data,num.exp=3,vp.pos=vp,wSize=5,alphaFDR=0.05)
     plot.name <- plot.dir %&% experiment.name %&% "_" %&% capture %&% 
       "_" %&% celltype %&% "_range-" %&% (range/1000) %&% "kb.png"
-    #png(filename = plot.name) # Must run in R not RStudio 
-    #plot_C(res) # Must run in R not RStudio
-    #dev.off() # Must run in R not RStudio
+    png(filename = plot.name) # Must run in R not RStudio 
+    plot_C(res) # Must run in R not RStudio
+    dev.off() # Must run in R not RStudio
     peak.vec <- as.integer(res$peak)
     if (length(peak.vec)>0){
       out.list <- consolidate_peaks(bg.df,peak.vec)
@@ -191,7 +191,7 @@ get_dist_from_vp <- function(int.df,experiment.file){
 
 ```
 
-
+NOTE: Best to run the following code in a regular R script (okay to fun above in RMarkdown) but for some reason cannot write png / pdf using png() or pdf() function from WITHIN RMarkdonw file 
 
 # Promoter Capture 
 
