@@ -51,7 +51,7 @@ e2.cc.dir  <- e2.dir %&% "troubleshoot_cis_analysis/"
 ```{r}
 
 peakc.df <- fread(work.dir %&% 
-                    "/peakC_interactions/all_peakC-interactions_merge1K.txt")
+                    "peakC_interactions/all_peakC-interactions_merge1K.txt")
 deseq2.df <- fread(work.dir %&%
                   "DESeq2_interactions/all_deseq2-interactions_merge1K.txt")
 
@@ -101,7 +101,7 @@ capC_plot <- function(plot.df,cap.frag.start,cap.frag.end){
               col="gray50", fill="grey60",size=0.1) + 
     geom_hline(yintercept=0,color="black") + 
     theme_classic() + 
-    ylim(c(-(max(plot.df$mean)+max(plot.df$sd))/3,
+    ylim(c(-(max(plot.df$mean)+max(plot.df$sd))/2,
                            max(plot.df$mean)+max(plot.df$sd)))
     #coord_cartesian(ylim=c(-(max(plot.df$mean)+max(plot.df$sd))/4,
     #                       max(plot.df$mean)+max(plot.df$sd)))
