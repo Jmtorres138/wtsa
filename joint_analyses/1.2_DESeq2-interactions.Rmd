@@ -93,7 +93,7 @@ build_interaction_dfs <- function(experiment.name,experiment.dir,capture,
   if (dim(bg.df)[1]>=1000){ # Capture must contain at least 1000 fragments in unionbedgraph 
     res.df <- run_deseq2(bg.df,vp,chrom,range,celltype1,celltype2)
     res.df$fragment <- row.names(res.df)
-    peak.df <- filter(na.omit(res.df),padj<0.10)
+    peak.df <- filter(na.omit(res.df),padj<0.05) # FDR 5% 
     if (dim(peak.df)[1]>0){
       peak.vec <- map(peak.df$fragment,function(s){
         (strsplit(s,split=":")[[1]][2] %>% strsplit(.,split="-"))[[1]][1]}) %>% as.integer(.)
