@@ -95,7 +95,7 @@ cred_plot <- function(cap.name,cc.df,range=1e+06){
                        y=max.ppa,yend=max.ppa,color=lead),
                    lineend="butt",size=6) + 
       xlim(c(plot.start,plot.end)) + 
-      scale_y_continuous(limits=c(0,1.1),breaks=seq(0,1,0.20),
+      scale_y_continuous(limits=c(0,1.2),breaks=seq(0,1,0.20),
                          name="Maximum PPA") + 
       scale_color_manual(values=c("firebrick4","black"),
                          labels=c("Lead","Non-lead"),name="Credible Set") +

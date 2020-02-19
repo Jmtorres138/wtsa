@@ -94,6 +94,7 @@ build_interaction_dfs <- function(experiment.name,experiment.dir,capture,
     res.df <- run_deseq2(bg.df,vp,chrom,range,celltype1,celltype2)
     res.df$fragment <- row.names(res.df)
     peak.df <- filter(na.omit(res.df),padj<0.05) # FDR 5% 
+    peak.df <- filter(peak.df,sign(stat)>0) # retain interactions that are higher in Endos 
     if (dim(peak.df)[1]>0){
       peak.vec <- map(peak.df$fragment,function(s){
         (strsplit(s,split=":")[[1]][2] %>% strsplit(.,split="-"))[[1]][1]}) %>% as.integer(.)
@@ -138,7 +139,7 @@ build_experiment_interaction_dfs <- function(experiment.name="promoter",experime
     chrom <- ex.df$V2[i]
     vp <- ex.df$V3[i]
     build.list <- build_interaction_dfs(experiment.name,experiment.dir,capture,
-                                        chrom,vp,celltype1,celltype2,range=3e+05)
+                                        chrom,vp,celltype1,celltype2,range=5e+05)
     if (!is.null(build.list)){
       out.df1 <- rbind(out.df1,build.list[[1]]); out.df2 <- rbind(out.df2,build.list[[2]]); 
     }
