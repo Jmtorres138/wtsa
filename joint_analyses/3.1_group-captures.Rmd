@@ -1,0 +1,162 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("genefilter")
+library("viridis")
+library("ggbio")
+library("Homo.sapiens")
+data(genesymbol, package = "biovizBase")
+
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/"
+cbrg.dir <- "/home/jason/science/servers/FUSE2/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+
+```
+
+```{r}
+
+peakc.df <- fread(work.dir %&% "peakC_interactions/all_peakC-interactions_merge1K.txt")
+deseq2.df <- fread(work.dir %&% "DESeq2_interactions/all_deseq2-interactions_merge1K.txt")
+sig.df <- rbind(dplyr::select(peakc.df,one_of("experiment","capture","seqnames","start","end")),
+                dplyr::select(deseq2.df,one_of("experiment","capture","seqnames","start","end")))
+
+```
+
+
+```{r}
+
+# promoter capture files 
+prom.dir <- cbrg.dir %&% "wtsa/promoter_driven/"
+prom.cc.file  <- prom.dir %&% "capture_compare_parameters.txt"
+# enhancer capture first round  
+e1.dir <- cbrg.dir %&% "wtsa/enhancer_driven/first_round/"
+e1.cc.file  <- e1.dir %&% "capture_compare_parameters_pruned_chr.txt"
+# enhancer capture second round  
+e2.dir <- cbrg.dir %&% "wtsa/enhancer_driven/second_round/"
+e2.cc.file  <- e2.dir %&% "capture_compare_parameters_pruned_chr.txt"
+
+```
+
+
+# Development code 
+
+```{r}
+
+library("GenomicRanges")
+
+prom.df <- fread(prom.cc.file)
+e1.df <- fread(e1.cc.file)
+e2.df <- fread(e2.cc.file)
+cap.df <- rbind(prom.df,e1.df,e2.df)
+
+
+cap.gr <- GRanges(seqnames=cap.df$V2,IRanges(cap.df$V3-5e+05,cap.df$V4+5e+05))
+names(cap.gr) <- cap.df$V1
+
+
+```
+
+# Funcions
+
+```{r}
+
+group_loci <- function(ov.df,ref.gr){
+  # ov.df is data frame of overlaps within a gr, 
+  # ref.gr is the gr used to obtain ov.df
+  out.df <- c()
+  track.vec <- c()
+  cap.vec <- ov.df$queryHits %>% unique(.)
+  grp.num <- 0
+  for (i in 1:length(cap.vec)){
+    #print(i)
+    cap.index <- cap.vec[i]
+    cap.name <- (ref.gr[cap.index] %>% as.data.frame(.)) %>% row.names(.)
+    if (!(cap.name %in% track.vec)){
+      track.vec <- append(track.vec,cap.name)
+      hit.vec <- filter(ov.df,queryHits==cap.index)$subjectHits
+      hit.names <- map(hit.vec,function(e){
+        (ref.gr[e] %>% as.data.frame(.)) %>% row.names(.)
+      }) %>% as.character(.)
+      track.vec <- append(track.vec,hit.names) %>% unique(.)
+      grp.num <- grp.num + 1 
+      grp <- "group_"  %&% grp.num
+      caps <- c(cap.name,hit.names) %>% unique(.) %>% paste0(.,collapse=",")
+      row.df <- data.frame(Group=grp,Captures=caps,stringsAsFactors = F)
+      out.df <- rbind(out.df,row.df)
+    } else{
+      print("Capture already accounted for: " %&% cap.name)
+    }
+  }
+  return(out.df)
+}
+
+
+
+
+```
+
+
+# Execution
+
+```{r}
+
+all.overlaps <- findOverlaps(cap.gr,cap.gr) %>% as.data.frame(.)
+all.groups.df <- group_loci(all.overlaps,cap.gr)
+
+all.groups.df$num.caps <- map(1:dim(all.groups.df)[1], function(i){
+  row.df <- all.groups.df[i,]
+  cap.vec <- (row.df$Captures %>% strsplit(.,split=","))[[1]]
+  length(cap.vec)
+}) %>% as.integer(.)
+
+all.groups.df$chrom <- map(1:dim(all.groups.df)[1], function(i){
+  row.df <- all.groups.df[i,]
+  cap.vec <- (row.df$Captures %>% strsplit(.,split=","))[[1]]
+  sub <- filter(cap.df,V1 %in% cap.vec)
+  (sub$V2 %>% unique(.) %>% strsplit(.,split="chr"))[[1]][2]
+}) %>% as.integer(.)
+
+all.groups.df$mid.pos <- map(1:dim(all.groups.df)[1], function(i){
+  row.df <- all.groups.df[i,]
+  cap.vec <- (row.df$Captures %>% strsplit(.,split=","))[[1]]
+  sub <- filter(cap.df,V1 %in% cap.vec)
+  median((sub$V3 + sub$V4)/2)
+}) %>% as.integer(.)
+
+out.df <- arrange(all.groups.df,chrom,mid.pos)
+out.df$chrom <- "chr" %&% out.df$chrom
+out.df$Locus <- "locus_" %&% 1:dim(out.df)[1]
+out.df <- dplyr::select(out.df,one_of("Locus","chrom","mid.pos","num.caps","Captures"))
+names(out.df) <- c("locus","chrom","mid.pos","num.caps","captures")
+
+write.table(x=out.df,file = work.dir %&% "analysis_files/locus_captures.txt",sep="\t",quote=F,row.names=F)
+
+```
+
+
+Summary notes: 
+
+Took each capture fragment for each capture, across all experiments, and extended the interval to a range of 500kb (1Mb windows). Then assessed overlaps to group them into non-overlapping "loci" regions to refer to in summaries and downstream analyses. I expect some of these failed due to poor capture coverage. 
+
+From these preliminary groups, there are 130 loci (numbered after arranging by chromosome and mid point of captures within the locus, i.e. the median of the capture fragment midpoints). 
+
+The median number of captures per locus was 2, but some loci were captured more densely. For example, 24 loci had more than five captures, and the maximum captures (at two loci, MALAT1 and LINC01512) being 14, note that some of these are controls 
+
+
+
+
+
