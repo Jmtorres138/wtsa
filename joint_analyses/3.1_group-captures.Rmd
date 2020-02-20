@@ -14,11 +14,6 @@ knitr::opts_chunk$set(echo = TRUE)
 "%&%" <- function(a,b) paste0(a,b)
 library("data.table")
 library("tidyverse")
-library("genefilter")
-library("viridis")
-library("ggbio")
-library("Homo.sapiens")
-data(genesymbol, package = "biovizBase")
 
 local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
 rescomp.dir <- "/home/jason/science/servers/FUSE5/"
@@ -27,14 +22,6 @@ work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
 
 ```
 
-```{r}
-
-peakc.df <- fread(work.dir %&% "peakC_interactions/all_peakC-interactions_merge1K.txt")
-deseq2.df <- fread(work.dir %&% "DESeq2_interactions/all_deseq2-interactions_merge1K.txt")
-sig.df <- rbind(dplyr::select(peakc.df,one_of("experiment","capture","seqnames","start","end")),
-                dplyr::select(deseq2.df,one_of("experiment","capture","seqnames","start","end")))
-
-```
 
 
 ```{r}
