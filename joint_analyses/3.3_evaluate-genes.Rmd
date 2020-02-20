@@ -1,0 +1,191 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+
+
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/"
+cbrg.dir <- "/home/jason/science/servers/FUSE2/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+file.dir <- work.dir %&% "analysis_files/"
+loc.df <- fread(file.dir %&% "locus_captures.txt")
+full.df <- fread(file.dir %&% "all_locus_interactions_merge1K.txt")
+```
+
+
+```{r}
+
+library("rtracklayer")
+gtf <- rtracklayer::import(rescomp.dir %&% "datasets/gencode.v19.genes.v7.patched_contigs.gtf")
+gtf.df=as.data.frame(gtf)
+pb <- txtProgressBar(min=0,max=dim(gtf.df)[1],style=3)
+gtf.df$ensgene <- map(1:dim(gtf.df)[1],function(i){
+  setTxtProgressBar(pb,i)
+  ens <- gtf.df$gene_id[i]
+  (strsplit(ens,split=".",fixed=TRUE))[[1]][1]
+}) %>% as.character(.)
+
+```
+
+
+
+```{r}
+
+
+loc.df$locus[!(loc.df$locus %in% unique(full.df$locus))]
+full.df$method %>% table(.)
+full.df$type %>% table(.)
+(filter(full.df,method=="peakC",peakc.deseq2.padj<0.05) %>% dim(.))[1] # 546
+all.genes <- map(full.df$genes,function(g){
+  strsplit(g,split=",")
+}) %>% unlist(.) %>% unique(.)
+
+islet.tpm.df <- fread(rescomp.dir %&% "projects/t2d_classification/analysis_files/islet_expression_tpm.txt")
+islet.ess.df <- fread(rescomp.dir %&% "projects/t2d_classification/analysis_files/expression_specificity_scores.txt")
+islet.tpm.df$GeneID <- map(1:dim(islet.tpm.df)[1],function(i){
+  ens <- islet.tpm.df$GeneID[i]
+  (strsplit(ens,split=".",fixed=TRUE))[[1]][1]
+}) %>% as.character(.)
+islet.ess.df$GeneID <- map(1:dim(islet.ess.df)[1],function(i){
+  ens <- islet.ess.df$GeneID[i]
+  (strsplit(ens,split=".",fixed=TRUE))[[1]][1]
+}) %>% as.character(.)
+
+
+pb <- txtProgressBar(min=0,max=length(all.genes),style=3)
+gene.name <- map(1:length(all.genes),function(i){
+  g <- all.genes[i]
+  setTxtProgressBar(pb,i)
+  filter(gtf.df,ensgene==g)$gene_name %>% unique(.) 
+}) %>% as.character(.)
+
+pb <- txtProgressBar(min=0,max=length(all.genes),style=3)
+gene.type <- map(1:length(all.genes),function(i){
+  g <- all.genes[i]
+  setTxtProgressBar(pb,i)
+  filter(gtf.df,ensgene==g)$gene_type %>% unique(.) %>% paste0(.,collapse=",")
+}) %>% as.character(.)
+
+gene.df <- data.frame("gene"=all.genes,"gene.name"=gene.name,"gene.type"=gene.type,stringsAsFactors = F)
+gene.df$gene.type %>% table(.) %>% sort(.) 
+
+mean.islet.tpm <- map(1:length(all.genes),function(i){
+  g <- all.genes[i]
+  setTxtProgressBar(pb,i)
+  filter(islet.tpm.df,GeneID==g)[1,3:dim(islet.tpm.df)[2]] %>% as.numeric(.) %>% mean(.) # will need to redo mapping to ENSID, as Y_RNA is too non-specific 
+}) %>% as.numeric(.)
+median.islet.tpm <- map(1:length(all.genes),function(i){
+  g <- all.genes[i]
+  setTxtProgressBar(pb,i)
+  filter(islet.tpm.df,GeneID==g)[1,3:dim(islet.tpm.df)[2]] %>% as.numeric(.) %>% median(.) # will need to redo mapping to ENSID, as Y_RNA is too non-specific 
+}) %>% as.numeric(.)
+islet.ess <- map(1:length(all.genes),function(i){
+  g <- all.genes[i]
+  setTxtProgressBar(pb,i)
+  (filter(islet.ess.df,GeneID==g) %>% arrange(.,desc(islet.score)))[1,]$islet.score
+}) %>% as.numeric(.)
+
+gene.df <- data.frame("gene"=all.genes,"gene.name"=gene.name,"gene.type"=gene.type,
+                      mean.islet.tpm,median.islet.tpm,islet.ess,stringsAsFactors = F)
+gene.df$gene.type %>% table(.) %>% sort(.) 
+gene.df$islet.ess %>% na.omit(.) %>% summary(.)
+filter(gene.df,gene.type=="protein_coding")$islet.ess %>% na.omit(.) %>% summary(.)
+
+```
+
+
+
+```{r}
+
+gene.df$method <- map(1:dim(gene.df)[1],function(i){
+  ens <- gene.df$gene[i]
+  sub <- filter(full.df,grepl(x=genes,pattern=ens))
+  vec <- sub$method %>% unique(.)
+  ifelse(length(vec)==2,"both",
+         ifelse(vec=="DESeq2","DESeq2",
+                ifelse(any(na.omit(sub$peakc.deseq2.padj)<0.05),"peakC.deseq2","peakC")))
+                   
+}) %>% as.character(.)
+
+write.table(x=gene.df,file=file.dir%&%"all_interaction_genes.txt",sep="\t",row.names=F,quote=F)
+
+
+```
+
+
+
+
+ESS enrichment 
+
+```{r}
+
+gene_set_enrich <- function(query.vec,full.vec,iter=10000){
+  obs <- filter(islet.ess.df,GeneID%in%query.vec)$islet.score %>% na.omit(.) %>% mean(.)
+  null.vec <- c()
+  pb <- txtProgressBar(min=0,max=iter,style=3)
+  for (i in 1:iter){
+    setTxtProgressBar(pb,i)
+    null.set <- sample(full.vec,size=length(query.vec),replace=FALSE)
+    null.count <- filter(islet.ess.df,GeneID%in%null.set)$islet.score %>% na.omit(.) %>% mean(.)
+    null.vec <- append(null.vec,null.count)
+  }
+  enrich.factor <- obs/mean(null.vec)
+  emp.p <- (sum(null.vec >= obs) + 1) / (iter+1)
+  return(list(enrich.factor,emp.p))
+}
+
+
+```
+
+
+```{r}
+
+set.seed(1)
+test1 <- gene_set_enrich(query.vec=(filter(gene.df,gene.type=="protein_coding")$gene %>% unique(.)),
+                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 281 genes; EF = 0.997; pval=0.52
+test2 <- gene_set_enrich(query.vec=(filter(gene.df,gene.type=="protein_coding",method=="peakC")$gene %>% unique(.)),
+                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 65 genes; EF = 0.97; pval=0.62
+test3 <- gene_set_enrich(query.vec=(filter(gene.df,gene.type=="protein_coding",method=="DESeq2")$gene %>% unique(.)),
+                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 82 genes; EF = 1.2; pval = 0.011
+test4 <- gene_set_enrich(query.vec=(filter(gene.df,gene.type=="protein_coding",method=="both")$gene %>% unique(.)),
+                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 61 genes; EF = 0.93; pval = 0.75?
+test5 <- gene_set_enrich(query.vec=(filter(gene.df,gene.type=="protein_coding",method=="peakC.deseq2")$gene %>% unique(.)),
+                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 73 genes; EF = 0.83; pval = 0.97
+
+test1b <- gene_set_enrich(query.vec=(filter(gene.df)$gene %>% unique(.)),
+                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 555 genes; EF = 0.92; pval=0.98
+test2b <- gene_set_enrich(query.vec=(filter(gene.df,method=="peakC")$gene %>% unique(.)),
+                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 134 genes; EF = 0.94; pval=0.80
+test3b <- gene_set_enrich(query.vec=(filter(gene.df,method=="DESeq2")$gene %>% unique(.)),
+                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 152 genes; EF = 0.998; pval = 0.51
+test4b <- gene_set_enrich(query.vec=(filter(gene.df,method=="both")$gene %>% unique(.)),
+                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 113 genes; EF = 0.96; pval = 0.69
+test5b <- gene_set_enrich(query.vec=(filter(gene.df,method=="peakC.deseq2")$gene %>% unique(.)),
+                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 156 genes; EF = 0.8; pval = 0.998
+
+```
+
+
+Summary Notes:
+
+in total, all interactions implicate 555 genes through interactions within +2kb/-5kb of TSS, 281 (50.6%) of which are protein coding genes, the mean islet expression specificity score is 0.3624 for this set of 281 genes
+
+Also, notably, PROTEIN-CODING genes uniquely impicated by DESeq2 only were significantly more likely to be specifically expressed in islet compared to adipose, liver, and muslce (ESS scores); enrichment factor = 1.2; pval = 0.011 
+
+
+
+
