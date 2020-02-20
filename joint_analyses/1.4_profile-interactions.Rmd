@@ -186,7 +186,8 @@ append_gene_info <- function(int.df){
         sub <- filter(tss.df,chrom%in%ov$second.seqnames,start%in%ov$second.start,
                       end%in%ov$second.end)     
       }
-      genes <- sub$gene.name %>% unique(.) %>% paste0(.,collapse = ",")
+      #genes <- sub$gene.name %>% unique(.) %>% paste0(.,collapse = ",")
+      genes <- sub$ensgene %>% unique(.) %>% paste0(.,collapse = ",")
       tss <- sub$tss %>% unique(.) %>% paste0(.,collapse = ",")
       dist.to.nearest <- (distanceToNearest(inter.gr,tss.gr) %>% 
                             as.data.frame())$distance %>% as.integer(.)
