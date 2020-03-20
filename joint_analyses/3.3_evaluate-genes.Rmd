@@ -108,7 +108,6 @@ filter(gene.df,gene.type=="protein_coding")$islet.ess %>% na.omit(.) %>% summary
 ```
 
 
-
 ```{r}
 
 gene.df$method <- map(1:dim(gene.df)[1],function(i){
@@ -125,8 +124,6 @@ write.table(x=gene.df,file=file.dir%&%"all_interaction_genes.txt",sep="\t",row.n
 
 
 ```
-
-
 
 
 ESS enrichment 
@@ -156,35 +153,35 @@ gene_set_enrich <- function(query.vec,full.vec,iter=10000){
 
 set.seed(1)
 test1 <- gene_set_enrich(query.vec=(filter(gene.df,gene.type=="protein_coding")$gene %>% unique(.)),
-                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 281 genes; EF = 0.997; pval=0.52
+                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 275 genes; EF = 0.988; pval=0.60
 test2 <- gene_set_enrich(query.vec=(filter(gene.df,gene.type=="protein_coding",method=="peakC")$gene %>% unique(.)),
-                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 65 genes; EF = 0.97; pval=0.62
+                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 65 genes; EF = 0.97; pval=0.61
 test3 <- gene_set_enrich(query.vec=(filter(gene.df,gene.type=="protein_coding",method=="DESeq2")$gene %>% unique(.)),
-                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 82 genes; EF = 1.2; pval = 0.011
+                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 76 genes; EF = 1.2; pval = 0.023
 test4 <- gene_set_enrich(query.vec=(filter(gene.df,gene.type=="protein_coding",method=="both")$gene %>% unique(.)),
-                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 61 genes; EF = 0.93; pval = 0.75?
+                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 58 genes; EF = 0.93; pval = 0.76
 test5 <- gene_set_enrich(query.vec=(filter(gene.df,gene.type=="protein_coding",method=="peakC.deseq2")$gene %>% unique(.)),
-                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 73 genes; EF = 0.83; pval = 0.97
+                         full.vec=(filter(gtf.df,gene_type=="protein_coding")$ensgene %>% unique(.))) # 76 genes; EF = 0.85; pval = 0.96
 
 test1b <- gene_set_enrich(query.vec=(filter(gene.df)$gene %>% unique(.)),
-                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 555 genes; EF = 0.92; pval=0.98
+                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 545 genes; EF = 0.92; pval=0.99
 test2b <- gene_set_enrich(query.vec=(filter(gene.df,method=="peakC")$gene %>% unique(.)),
-                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 134 genes; EF = 0.94; pval=0.80
+                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 135 genes; EF = 0.96; pval=0.70
 test3b <- gene_set_enrich(query.vec=(filter(gene.df,method=="DESeq2")$gene %>% unique(.)),
-                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 152 genes; EF = 0.998; pval = 0.51
+                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 142 genes; EF = 0.99; pval = 0.54
 test4b <- gene_set_enrich(query.vec=(filter(gene.df,method=="both")$gene %>% unique(.)),
-                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 113 genes; EF = 0.96; pval = 0.69
+                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 109 genes; EF = 0.94; pval = 0.76
 test5b <- gene_set_enrich(query.vec=(filter(gene.df,method=="peakC.deseq2")$gene %>% unique(.)),
-                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 156 genes; EF = 0.8; pval = 0.998
+                         full.vec=(filter(gtf.df)$ensgene %>% unique(.))) # 159 genes; EF = 0.8; pval = 0.998
 
 ```
 
 
 Summary Notes:
 
-in total, all interactions implicate 555 genes through interactions within +2kb/-5kb of TSS, 281 (50.6%) of which are protein coding genes, the mean islet expression specificity score is 0.3624 for this set of 281 genes
+in total, all interactions implicate 545 genes through interactions within +2kb/-5kb of TSS, 275 (50.5%) of which are protein coding genes, the mean islet expression specificity score is 0.3590 for this set of 275 genes
 
-Also, notably, PROTEIN-CODING genes uniquely impicated by DESeq2 only were significantly more likely to be specifically expressed in islet compared to adipose, liver, and muslce (ESS scores); enrichment factor = 1.2; pval = 0.011 
+Also, notably, PROTEIN-CODING genes uniquely impicated by DESeq2 only were significantly more likely to be specifically expressed in islet compared to adipose, liver, and muslce (ESS scores); enrichment factor = 1.2; pval = 0.023 
 
 
 
