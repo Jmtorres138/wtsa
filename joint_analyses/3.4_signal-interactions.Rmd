@@ -1,0 +1,184 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+
+
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/"
+cbrg.dir <- "/home/jason/science/servers/FUSE2/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+file.dir <- work.dir %&% "analysis_files/"
+grp.df  <- fread(file.dir %&% "all_locus_interactions_merge1K.txt")
+cred.df <- fread(rescomp.dir %&% "projects/t2d_classification/revamp/genetic_credible_sets/gencred.txt")
+gene.df <- fread(file.dir %&% "all_interaction_genes.txt")
+
+```
+
+
+
+```{r}
+
+library("GenomicRanges")
+
+build_signal_df <- function(){
+  sig.df <- filter(grp.df,capture.signal!="")
+  out.df <- c()
+  pb <- txtProgressBar(min=0,max=dim(sig.df)[1],style=3)
+  for (i in 1:dim(sig.df)[1]){
+    setTxtProgressBar(pb,i)
+    row.df <- sig.df[i,]
+    vec <- c("capture.locus","capture.signal","capture.snpid","capture.ppa")
+    df1 <- dplyr::select(row.df,one_of(vec))
+    sub.df <- dplyr::select(row.df,-one_of(vec))
+    sig.vec <- (df1$capture.signal %>% strsplit(.,split=","))[[1]]
+    snpid.vec <- (df1$capture.snpid%>% strsplit(.,split=","))[[1]]
+    loc.vec <-  (df1$capture.locus%>% strsplit(.,split=","))[[1]]
+    ppa.vec <- (df1$capture.ppa %>% strsplit(.,split=","))[[1]]
+    sub <- filter(cred.df,PPA%in%ppa.vec,CondID%in%sig.vec,SNPID%in%snpid.vec,symbol%in%loc.vec)
+    for (e in 1:dim(sub)[1]){
+      cred.sub <- sub[e,] %>% 
+        dplyr::select(.,one_of("CondID","symbol","SNPID","CHR","POS","PPA","coding","lead.rsid"))
+      names(cred.sub)[1] <- "capture.signal"
+      capture.signal.locus <- (strsplit(cred.sub$capture.signal,split="_"))[[1]][1]
+      cred.sub <- cbind(data.frame(capture.signal.locus,stringsAsFactors = F),cred.sub)
+      build.df <- cbind(cred.sub,sub.df)
+      out.df <- rbind(out.df,build.df)
+    }
+  }  
+  return(out.df)
+}
+
+build_sig_summary_df <- function(sigint.df){
+  sig.vec <- sigint.df$capture.signal %>% unique(.)
+  pb <- txtProgressBar(min=0,max=length(sig.vec),style=3)
+  out.df <- c()
+  for (i in 1:length(sig.vec)){
+    setTxtProgressBar(pb,i)
+    sub <- filter(sigint.df,capture.signal==sig.vec[i])
+    symbol <-sub$symbol %>% unique(.) %>% paste0(.,collapse=",")
+    n.cred.snps <- (filter(cred.df,CondID==sig.vec[i]) %>% dim(.))[1]
+    n.captured.snps <- unique(sub$SNPID) %>% length(.)
+    captured.cum.ppa <- filter(cred.df,CondID==sig.vec[i],SNPID%in%unique(sub$SNPID))$PPA %>% sum(.)
+    captured.max.ppa <- filter(cred.df,CondID==sig.vec[i],SNPID%in%unique(sub$SNPID))$PPA %>% max(.)
+    capture.ids <- sub$capture %>% unique(.) %>% paste0(.,collapse=",")
+    experiment <- sub$experiment %>% unique(.) %>% paste0(.,collapse=",")
+    region <- sub$locus %>% unique(.) %>% paste0(.,collapse=",")
+    interaction.genes <- sub$genes[nchar(sub$genes)>0] %>% unique(.) %>% paste0(.,collapse=",")
+    interaction.gene.names <- map(interaction.genes, function(g){
+      g <- strsplit(g,split=",")[[1]]
+      filter(gene.df,gene%in%g)$gene.name %>% unique(.)
+    }) %>% unlist(.) %>% as.character(.) %>% unique(.) %>% paste0(.,collapse=",")
+    interaction.eGenes <- sub$inter.eGene[nchar(sub$inter.eGene)>0] %>% unique(.) %>% paste0(.,collapse=",")
+    all.gr <- GRanges(seqnames=sub$seqnames,IRanges(sub$start,sub$end)) %>% reduce(.)
+    peakc.gr <- GRanges(seqnames=filter(sub,method=="peakC")$seqnames,
+                        IRanges(filter(sub,method=="peakC")$start,filter(sub,method=="peakC")$end)) %>% reduce(.)
+    deseq2.gr <- GRanges(seqnames=filter(sub,method=="DESeq2")$seqnames,
+                        IRanges(filter(sub,method=="DESeq2")$start,filter(sub,method=="DESeq2")$end)) %>% reduce(.)
+    num.interactions <- length(all.gr)
+    num.peakc.interactions <- length(peakc.gr)
+    num.deseq2.interactions <- length(deseq2.gr)
+    build.df <- data.frame(capture.signal=sig.vec[i],symbol,n.cred.snps, n.captured.snps,
+                           captured.cum.ppa,captured.max.ppa,capture.ids,experiment,region,
+                           interaction.genes,interaction.gene.names,interaction.eGenes,
+                           num.interactions,num.peakc.interactions,num.deseq2.interactions,
+                           stringsAsFactors=F)
+    out.df <- rbind(out.df,build.df)
+  }
+  return(out.df)
+}
+
+```
+
+
+```{r}
+
+sigint.df <- build_signal_df()
+sigint.df$capture.signal %>% unique(.) %>% length(.) # 160 
+sigint.df <- arrange(sigint.df,capture.signal.locus,capture.signal,desc(PPA))
+
+```
+
+
+
+```{r}
+
+sigsum.df <- build_sig_summary_df(sigint.df)
+table(sigsum.df$experiment)
+# enhancer.1st          enhancer.1st,enhancer.2nd          enhancer.1st,enhancer.2nd,promoter 
+#   40                                  3                                  1 
+# enhancer.2nd          enhancer.2nd,enhancer.1st          enhancer.2nd,enhancer.1st,promoter 
+#    106                                  5                                  2 
+# enhancer.2nd,promoter     enhancer.2nd,promoter,enhancer.1st 
+#      1                                    2 
+
+```
+
+
+```{r}
+
+df <- arrange(sigsum.df,desc(captured.cum.ppa))
+df$captured.cum.ppa %>% summary(.)
+filter(df,captured.cum.ppa>=0.5) %>% dim(.)
+filter(df,captured.cum.ppa>=0.8) %>% dim(.)
+
+hires.df <- filter(df,captured.cum.ppa>=0.5)
+g.vec <- map(hires.df$interaction.genes, function(g){
+  (strsplit(g,split=","))[[1]]
+}) %>% unlist(.) %>% as.character(.) %>% unique(.)
+length(g.vec)
+
+filter(gene.df,gene %in% g.vec)$gene.type %>% table(.)
+
+e.vec <- map(hires.df$interaction.eGenes, function(e){
+  (strsplit(e,split=","))[[1]]
+}) %>% unlist(.) %>% as.character(.) %>% unique(.)
+length(e.vec)
+
+```
+
+
+```{r}
+
+c <- map(1:dim(grp.df)[1],function(i){
+  row.df <- grp.df[i,] %>% dplyr::select(one_of("capture.signal","inter.signal"))
+  check <- row.df %>% as.character(.) 
+  check <- check[check!=""]
+  ifelse(length(check)>0,TRUE,FALSE)
+}) %>% as.logical(.)
+
+sum(c) # 1893
+
+```
+
+
+Summary notes:
+
+Of the 2,333 total interactions, 1,893 (81.1%) involve fine-mapped signals from Mahajan et al. 2018. 
+
+Of the 380, fine-mapped credible sets in Mahajan et al. 2018, 160 (42.1%) have captures in endos 
+
+Of the 160 signals, 40 (25%) were captured in the first round only, and 106 (66.3%) by the second round only; 14 (8.8%) were captured in both rounds
+
+Median and mean cumulative credible set PPA captured are 0.21 and 0.38; 53 signals with cumulative captured PPA >=0.50; 34 signals with cumulative captured PPA >=0.80
+
+There are 53 "high-resolution" captures, implicating 222 TSS genes, 115 of which are protein coding genes 
+
+Also, corroborate 21 eGenes through eQTL interactions: 
+
+
+ [1] "MTNR1B"       "EP400NL"      "STARD10"      "COQ5"         "YKT6"         "CRHR2"        "NDUFAF6"      "RP11-757G1.6"
+ [9] "MRPL21"       "IGHMBP2"      "PRSS3"        "LTBP3"        "SNAPC4"       "GPSM1"        "DGKB"         "WASF3"       
+[17] "RNF6"         "CDK8"         "CD68"         "TCF7L2"       "OSER1-AS1" 
