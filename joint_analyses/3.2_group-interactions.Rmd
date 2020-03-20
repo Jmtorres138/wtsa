@@ -108,8 +108,8 @@ write.table(x=no.inters,file=file.dir%&%"captures_without_interactions_merge1K.t
 ```{r}
 
 loc.df$locus[!(loc.df$locus %in% unique(full.df$locus))]
-full.df$method %>% table(.)
-full.df$type %>% table(.)
+full.df$method %>% table(.) # DESeq2 = 1177, peakC = 1156
+full.df$type %>% table(.) # distal = 788, proximal = 1545
 (filter(full.df,method=="peakC",peakc.deseq2.padj<0.05) %>% dim(.))[1] # 546
 all.genes <- map(full.df$genes,function(g){
   strsplit(g,split=",")
@@ -117,6 +117,7 @@ all.genes <- map(full.df$genes,function(g){
 
 ```
 
+Note now 2,333 total interactions, was previously 2,315 when used DEseq2 (method 2) range of 500kb rather than 1Mb 
 
 ```{r}
 
@@ -126,52 +127,59 @@ deseq2.gr <- GRanges(seqnames=filter(full.df,method=="DESeq2")$seqnames,
                     IRanges(filter(full.df,method=="DESeq2")$start,filter(full.df,method=="DESeq2")$end))
 all.gr <- append(peakc.gr,deseq2.gr)
 
-# 2315 total interactions
+# 2333 total interactions, up from previous total of 2315
 # 1156 peakC interactions
-# 1159 DESeq2 interactions 
+# 1177 DESeq2 interactions, increased from 1159 DESeq2 interactions with previous range (500kb)
 
-all.red.gr <- reduce(all.gr) # 1299 non-overlapping regions 
+all.red.gr <- reduce(all.gr) # 1310 non-overlapping regions (previously 1299)
 peakc.red.gr <- reduce(peakc.gr) # 735 non-overlapping regions
-deseq2.red.gr <- reduce(deseq2.gr) #  823 non-overlapping regions
+deseq2.red.gr <- reduce(deseq2.gr) #  830 non-overlapping regions (previously 823)
 
 ov1 <- findOverlapPairs(peakc.gr,deseq2.gr) %>% as.data.frame(.)
 ov1$name <- ov1$first.seqnames %&% ":" %&% ov1$first.start %&% "-" %&% ov1$first.end
-unique(ov1$name) %>% unique(.) %>% length(.) # 333 (28.8%) peakC interactions interact DESeq2 interactions 
+unique(ov1$name) %>% unique(.) %>% length(.) #  354 (30.6%) peakC interactions overlap DESeq2 interactions; previously 333
 
 ov2 <- findOverlapPairs(deseq2.gr,peakc.gr) %>% as.data.frame(.)
 ov2$name <- ov2$first.seqnames %&% ":" %&% ov2$first.start %&% "-" %&% ov2$first.end
-unique(ov2$name) %>% unique(.) %>% length(.) # 364 (31.4%) DESeq2 interactions interact peakC interactions 
+unique(ov2$name) %>% unique(.) %>% length(.) # 360 (30.6%) DESeq2 interactions overlap peakC interactions; previously 364
 
 ov1b <- findOverlapPairs(peakc.red.gr,deseq2.red.gr) %>% as.data.frame(.)
 ov1b$name <- ov1b$first.seqnames %&% ":" %&% ov1b$first.start %&% "-" %&% ov1b$first.end
-unique(ov1b$name) %>% unique(.) %>% length(.) # 179 (24.3%) non-overlapping peakC interactions interact non-overlapping DESeq2 interactions 
+unique(ov1b$name) %>% unique(.) %>% length(.) # 183 (24.9%) non-overlapping peakC interactions interact non-overlapping DESeq2 interactions ; previously 179
 
 ov2b <- findOverlapPairs(deseq2.red.gr,peakc.red.gr) %>% as.data.frame(.)
 ov2b$name <- ov2b$first.seqnames %&% ":" %&% ov2b$first.start %&% "-" %&% ov2b$first.end
-unique(ov2b$name) %>% unique(.) %>% length(.) # 244 (29.6%) non-overlapping DESeq2 interactions interact non-overlapping peakC interactions 
+unique(ov2b$name) %>% unique(.) %>% length(.) # 240 (28.9%) non-overlapping DESeq2 interactions interact non-overlapping peakC interactions ; previously 244
+
+```
 
 
+```{r}
 
+full.df$type %>% table(.) # distal = 788, proximal = 1545
+filter(full.df,method=="peakC")$type %>% table(.) # distal = 458, proximal = 698
+filter(full.df,method=="DESeq2")$type %>% table(.) # distal = 330, proximal = 847
+filter(full.df,method=="peakC",peakc.deseq2.padj<0.05)$type %>% table(.) # distal = 197, proximal = 349 
 ```
 
 
 Summary notes: 
 
-Took an inventory of the interactions detected within each of the 130 locus regions. From this, found a total of 2,315 interactions across 128 locus regions 
+Took an inventory of the interactions detected within each of the 130 locus regions. From this, found a total of 2,333 interactions across 128 locus regions 
 
 The two loci without any capture interactions are locus_35 (MRPS30, Enh2ndRound) and locus_53 (IGF2BP3, Enh2ndRound)
 
-Of the 2,315 interactions (1,299 non-overlapping regions), 1,159 (50.1%) were differentially present in Endos (i.e. DESeq2) and 1,156 (49.9%) were significant in peakC
+Of the 2,333 interactions (1,310 non-overlapping regions), 1,177 (50.4%) were differentially present in Endos (i.e. DESeq2) and 1,156 (49.5%) were significant in peakC
 
-Of the 1,156 peakC interactions, 333 (28.8%) overlap with DESeq2 interactions 
-Of the 1,159 DESeq2 interactions, 364 (31.4%) overlap with peakC interactions 
+Of the 1,156 peakC interactions, 354 (30.6%) overlap with DESeq2 interactions 
+Of the 1,177 DESeq2 interactions, 360 (30.6%) overlap with peakC interactions: Can confirm that the double 30.6% is not a mistake 
 
-The peakC interactions merge into 735 non-overlapping regions, of which, 179 (24.3%) overlap non-overlapping DESeq2 interactions 
-The DESeq2 interactions merge into 823 non-overlapping regions, of which, 244 (29.6%) overlap non-overlapping DESeq2 interactions 
+Across captures, the peakC interactions merge into 735 non-overlapping regions, of which, 183 (24.9%) overlap non-overlapping DESeq2 interactions 
+Across captures, the DESeq2 interactions merge into 830 non-overlapping regions, of which, 240 (28.9%) overlap non-overlapping DESeq2 interactions 
 
 Of the 1,156 peakC interactions, 546 (47.2% of peakC interactions) were differentially open from DESeq2 (padj<0.05): Note that this analysis was peformed across all peakC interactions first and different from DESeq2 performed at all individual fragments within 1Mb window) 
 
-of the 2,315 total interactions, 1,721 (74.3%) were proximal (i.e. within 250kb of capture site) and 594 (25.7%) were distal (beyond 250kb) 
+of the 2,333 total interactions, 1,545 (66.2%) were proximal (i.e. within 250kb of capture site) and 788 (33.8%) were distal (beyond 250kb) 
 
 
 
