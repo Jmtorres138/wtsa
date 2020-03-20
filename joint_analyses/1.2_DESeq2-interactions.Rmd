@@ -86,7 +86,7 @@ run_deseq2 <- function(bg.df,vp,chrom,range,celltype1="Endo",celltype2="Blymph")
 }
 
 build_interaction_dfs <- function(experiment.name,experiment.dir,capture,
-                                  chrom,vp,celltype1="Endo",celltype2="Blymph",range=5e+05){
+                                  chrom,vp,celltype1="Endo",celltype2="Blymph",range=1e+06){
   # celltype is a pattern string that is checked in the union bedgraph file used for extraction
   bg.file <- experiment.dir %&% "2_unionBedgraphs/A_raw_counts/" %&% capture %&% "_raw.unionbdg"
   bg.df <- fread(bg.file)  
@@ -139,7 +139,7 @@ build_experiment_interaction_dfs <- function(experiment.name="promoter",experime
     chrom <- ex.df$V2[i]
     vp <- ex.df$V3[i]
     build.list <- build_interaction_dfs(experiment.name,experiment.dir,capture,
-                                        chrom,vp,celltype1,celltype2,range=5e+05)
+                                        chrom,vp,celltype1,celltype2,range=1e+06)
     if (!is.null(build.list)){
       out.df1 <- rbind(out.df1,build.list[[1]]); out.df2 <- rbind(out.df2,build.list[[2]]); 
     }
