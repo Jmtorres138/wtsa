@@ -151,9 +151,9 @@ save_track_pngs(exp.type="enhancer-firstRound",exp.file=e1.cc.file,range=1e+06)
 # Note error at 111
 save_track_pngs(exp.type="enhancer-secondRound",exp.file=e2.cc.file,range=1e+06)
 
-# cannot plot "GNPDA2__32DF__uc__chr4_44996579", gene plot range issue 
-# cannot plot "chr13_58953476_PCDH17", gene plot range issue 
-# cannot plot ""chr4_137094047_PABPC4L"", gene plot range issue 
+# cannot plot "GNPDA2__32DF__uc__chr4_44996579", gene plot range issue (111)
+# cannot plot "chr13_58953476_PCDH17", gene plot range issue (49)
+# cannot plot ""chr4_137094047_PABPC4L"", gene plot range issue (118)
 
 ```
 
