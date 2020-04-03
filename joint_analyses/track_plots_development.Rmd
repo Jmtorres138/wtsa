@@ -127,7 +127,7 @@ capture_plot <- function(exp.type,cap.name,cc.df){
 save_track_pngs <- function(exp.type,exp.file,range=1e+06){
   cc.df <- fread(exp.file)
   pb <- txtProgressBar(min=0,max=dim(cc.df)[1],style=3)
-  for (i in 1:dim(cc.df)[1]){
+  for (i in 119:dim(cc.df)[1]){
     print(i)
     setTxtProgressBar(pb,i)
     cap.name <- cc.df$V1[i]
