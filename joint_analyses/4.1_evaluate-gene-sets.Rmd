@@ -1,0 +1,112 @@
+---
+title: "evaluate gene sets"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+
+
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+file.dir <- work.dir %&% "analysis_files/"
+grp.df  <- fread(file.dir %&% "all_locus_interactions_merge1K.txt")
+gene.df <- fread(file.dir %&% "all_interaction_genes.txt")
+
+```
+
+Sanity check for consistency in gene counts between data frames 
+
+```{r}
+
+check.vec <- map(grp.df$genes,function(s){
+  strsplit(s,split=",")[[1]]
+}) %>% unlist(.) %>% as.character(.) %>% unique(.) 
+
+sum(check.vec %in% gene.df$gene) # 545 
+sum(gene.df$gene %in% check.vec) #545 
+
+```
+
+Now to separate interaction results for controls and targets among the enhancer captures (1st and 2nd rounds) 
+
+```{r}
+
+# Enhancer target captures
+etarg.df <- dplyr::filter(grp.df,experiment=="enhancer.1st"|experiment=="enhancer.2nd") # 2,148 interactions corresponding to enhancer 1st or 2nd rounds 
+econt.df <- filter(etarg.df,grepl("__uc__",capture) | grepl("__dc__",capture) ) # There are 288 controls involving control captures 
+etarg.df <- filter(etarg.df,!(capture %in% econt.df$capture)) # There are 1,860 enhancer target capture interactions 
+
+ <- etarg.df$genes %>% map(.,function(s){
+  strsplit(s,split=",")[[1]]
+}) %>% unlist(.) %>% as.character(.) %>% unique(.) # There are 432 Ensembl genes involved in interactions with enhancer targets captures
+etarg.genes.peakc <- (filter(gene.df,gene %in% etarg.genes.all) %>% 
+  filter(.,method=="peakC"|method=="both"|method=="peakC.deseq2"))$gene %>% unique(.) # 325 of the 432 genes are supported by peakC 
+etarg.genes.deseq2 <- (filter(gene.df,gene %in% etarg.genes.all) %>% 
+  filter(.,method=="DESeq2"|method=="both"))$gene %>% unique(.) # 200 of the 432 genes are supported by DESeq2 
+etarg.genes.both <- (filter(gene.df,gene %in% etarg.genes.all) %>% 
+  filter(.,method=="both"))$gene %>% unique(.) # 93 of the 432 genes are supported by peakC and DESeq2 
+
+econt.genes.all <- econt.df$genes %>% map(.,function(s){
+  strsplit(s,split=",")[[1]]
+}) %>% unlist(.) %>% as.character(.) %>% unique(.) # There are 97 Ensembl genes involved in interactions with enhancer control captures
+econt.genes.peakc <- (filter(gene.df,gene %in% econt.genes.all) %>% 
+  filter(.,method=="peakC"|method=="both"|method=="peakC.deseq2"))$gene %>% unique(.) # 86 of the 97 genes are supported by peakC 
+econt.genes.deseq2 <- (filter(gene.df,gene %in% econt.genes.all) %>% 
+  filter(.,method=="DESeq2"|method=="both"))$gene %>% unique(.) # 48 of the 97 genes are supported by DESeq2 
+econt.genes.both <- (filter(gene.df,gene %in% econt.genes.all) %>% 
+  filter(.,method=="both"))$gene %>% unique(.) # 37 of the 97 genes are supported by peakC and DESeq2 
+
+etarg.gene.list <- list(etarg.genes.all,etarg.genes.peakc,etarg.genes.deseq2,econt.genes.both)
+econt.gene.list <- list(econt.genes.all,econt.genes.peakc,econt.genes.deseq2,econt.genes.both)
+
+saveRDS(etarg.gene.list,file=file.dir %&% "enhancer.target.genes.RDS")
+saveRDS(econt.gene.list,file=file.dir %&% "enhancer.control.genes.RDS")
+
+```
+
+# Gene-set enrichment test with CLUEGO
+
+```{r}
+
+library("rtracklayer")
+
+ens.df <- fread(rescomp.dir %&% "datasets/Ensembl_HumanGenes_GRCh37-p13.txt")
+
+gtf <- rtracklayer::import(rescomp.dir %&% "datasets/gencode.v19.genes.v7.patched_contigs.gtf")
+gtf.df=as.data.frame(gtf)
+pb <- txtProgressBar(min=0,max=dim(gtf.df)[1],style=3)
+gtf.df$ensgene <- map(1:dim(gtf.df)[1],function(i){
+  setTxtProgressBar(pb,i)
+  ens <- gtf.df$gene_id[i]
+  (strsplit(ens,split=".",fixed=TRUE))[[1]][1]
+}) %>% as.character(.)
+
+```
+
+
+Summary: 
+
+2,148 interactions corresponding to enhancer 1st or 2nd rounds 
+There are 288 controls involving control captures
+There are 1,860 enhancer target capture interactions 
+
+There are 432 Ensembl genes involved in interactions with enhancer targets captures
+325 of the 432 genes are supported by peakC 
+200 of the 432 genes are supported by DESeq2 
+93 of the 432 genes are supported by peakC and DESeq2
+
+There are 97 Ensembl genes involved in interactions with enhancer control captures
+86 of the 97 genes are supported by peakC
+48 of the 97 genes are supported by DESeq2
+37 of the 97 genes are supported by peakC and DESeq2

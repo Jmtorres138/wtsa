@@ -1,0 +1,228 @@
+---
+title: "setRank"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+file.dir <- work.dir %&% "analysis_files/"
+etarg.list  <- readRDS(file.dir %&% "enhancer.target.genes.RDS")
+econt.list <- readRDS(file.dir %&% "enhancer.control.genes.RDS")
+
+```
+
+
+# Set Rank (Cedric Simillion)
+
+## Build Annotation Tables 
+
+Note that gene ids are in Entrez ids 
+
+```{r}
+
+library("SetRank")
+
+db.pth <- "/home/jason/science/projects/wtsa/joint_analyses/GeneSets/package_data/" %&% "GeneSets.Homo.sapiens/data/"
+biocyc.df <- fread(db.pth %&% "BIOCYC.txt")
+gocc.df <- fread(db.pth %&% "GOCC.txt")
+gobp.df <- fread(db.pth %&% "GOBP.txt")
+gomf.df <- fread(db.pth %&% "GOMF.txt")
+kegg.df <- fread(db.pth %&% "KEGG.txt")
+reactome.df <- fread(db.pth %&% "REACTOME.txt")
+pthway_inter_db.df <- fread(db.pth %&% "Pathway_Interaction_Database.txt")
+wiki_pthwy.df <- fread(db.pth %&% "WikiPathways.txt")
+    
+
+```
+
+
+
+## Selection of background genes (GTEx criteria used for gene selection prior to eQTL mapping)
+
+Genes were selected based on expression thresholds of >0.1 TPM in at least 20% of samples and ≥6 reads in at least 20% of samples.
+
+
+
+```{r}
+
+tpm.df <- fread(work.dir %&% "islet-expression-data/01.03.2019.Islets_RNA-seq.gene.tpm.tsv")
+count.df <- fread(work.dir %&% "islet-expression-data/01.03.2019.Islets_RNA-seq.gene.counts.tsv")
+samp.df <- fread(work.dir %&% "islet-expression-data/sample_batches.txt",header=T) %>% 
+  filter(.,!(grepl("Endo",sample))) %>% filter(.,!(grepl("_",sample))) %>% filter(.,!(grepl("ZMI",sample))) %>%
+  filter(.,!(grepl("SCRAM",sample))) %>% filter(.,!(grepl("UN",sample))) %>% filter(.,!(grepl("GF",sample))) # 250 islet samples 
+
+pb <- txtProgressBar(min=0,max=dim(tpm.df)[1],style=3)
+tpm.sub  <- c()
+for (i in 1:dim(tpm.df)[1]){
+  setTxtProgressBar(pb,i)
+  row.df <- tpm.df[i,] %>% dplyr::select(.,one_of("GeneID",samp.df$sample))
+  tpm.vec <- row.df[,3:dim(row.df)[2]] %>% as.numeric(.)
+  eval <- sum(tpm.vec > 0.1) > round(0.2 * length(tpm.vec))
+  if (eval==TRUE){
+    tpm.sub <- rbind(tpm.sub,row.df)
+  }
+}
+
+pb <- txtProgressBar(min=0,max=dim(count.df)[1],style=3)
+count.sub  <- c()
+for (i in 1:dim(count.df)[1]){
+  setTxtProgressBar(pb,i)
+  row.df <- count.df[i,] %>% dplyr::select(.,one_of("GeneID",samp.df$sample))
+  count.vec <- row.df[,3:dim(row.df)[2]] %>% as.numeric(.)
+  eval <- sum(count.vec > 6) > round(0.2 * length(count.vec))
+  if (eval==TRUE){
+    count.sub <- rbind(count.sub,row.df)
+  }
+}
+
+keep.genes <- unique(count.sub$GeneID[count.sub$GeneID %in% tpm.sub$GeneID]) # There are 22,929 genes to retain in islets that meet the filtering thresholds
+
+```
+
+
+Ensembl to Entrez gene conversion 
+
+```{r}
+
+x <- org.Hs.egENSEMBL
+mapped_genes <- mappedkeys(x)
+xx <- as.list(x[mapped_genes])
+pb <- txtProgressBar(min=0,max=length(xx),style=3)
+ens2ent.df <- c() 
+for (i in 1:length(xx)){
+  setTxtProgressBar(pb,i)
+  entrez <- names(xx)[i]
+  ens.vec <- xx[[i]]
+  for (ens in ens.vec){
+    build.df <- data.frame("entrez"=entrez,"ensembl"=ens,
+                           stringsAsFactors = F)
+    ens2ent.df <- rbind(ens2ent.df,build.df)
+  }
+}
+
+```
+
+
+```{r}
+
+reference.genes <- map(keep.genes,function(s){
+  ens <- strsplit(s,split=".",fixed=TRUE)[[1]][1]
+  filter(ens2ent.df,ensembl==ens)$entrez %>% unique(.)
+}) %>% unlist(.) %>% as.integer(.)
+
+```
+
+
+## Create gene set collection objects 
+
+```{r}
+
+
+collection.biocyc <- buildSetCollection(biocyc.df,referenceSet = reference.genes,
+                                 maxSetSize = 500)
+collection.gocc <- buildSetCollection(gocc.df,referenceSet = reference.genes,
+                                 maxSetSize = 500)
+collection.gobp <- buildSetCollection(gobp.df,referenceSet = reference.genes,
+                                 maxSetSize = 500)
+collection.gomf <- buildSetCollection(gomf.df,referenceSet = reference.genes,
+                                 maxSetSize = 500)
+collection.kegg <- buildSetCollection(kegg.df,referenceSet = reference.genes,
+                                 maxSetSize = 500)
+collection.reactome <- buildSetCollection(reactome.df,referenceSet = reference.genes,
+                                 maxSetSize = 500)
+collection.pthway_inter_db <- buildSetCollection(pthway_inter_db.df,referenceSet = reference.genes,
+                                 maxSetSize = 500)
+collection.wiki_pthwy <- buildSetCollection(wiki_pthwy.df,referenceSet = reference.genes,
+                                 maxSetSize = 500)
+
+```
+
+
+
+## set rank analysis 
+
+Test 
+
+```{r}
+
+
+options(mc.cores=4)
+
+coll.list <- list(collection.gocc,collection.gobp,collection.gomf,collection.kegg,
+                  collection.reactome,collection.biocyc,collection.pthway_inter_db,collection.wiki_pthwy)
+coll.names <- c("GOCC","GOBP","GOMF","KEGG","REACTOME","biocyc","pathway_inter_db","wiki_pthwy")
+
+
+
+etarg.names <- c("EnhTargets_All","EnhTargets_peakC","EnhTargets_DESeq2","EnhTargets_both")
+for (i in 1:length(etarg.list)){
+  gene.vec <- map(etarg.list[[i]],function(s){
+    ens <- strsplit(s,split=".",fixed=TRUE)[[1]][1]
+    filter(ens2ent.df,ensembl==ens)$entrez %>% unique(.)
+  }) %>% unlist(.) %>% as.integer(.)
+  etarg <- etarg.names[i]
+  print(etarg)
+  for (e in 1:length(coll.list)){
+    coll <- coll.list[[e]]
+    coll.name <- coll.names[e]
+    print(coll.name)
+    network <- setRankAnalysis(geneIDs = gene.vec, setCollection = coll,
+                    use.ranks = FALSE,
+                    setPCutoff = 0.01,fdrCutoff = 0.05)
+    tryCatch(expr={exportSingleResult(network=network, selectedGenes=gene.vec, 
+                          collection=coll, networkName = coll.name,
+                          outputPath = file.dir%&%"SetRank." %&% etarg %&% "." %&% coll.name)},
+             error=function(e){
+               print("Error within SetRank, skipping")
+             })
+             
+  }
+}
+
+
+```
+
+
+
+```{r}
+
+econt.names <- c("EnhControls_All","EnhControls_peakC","EnhControls_DESeq2","EnhControls_both")
+for (i in 1:length(econt.list)){
+  gene.vec <- map(econt.list[[i]],function(s){
+    ens <- strsplit(s,split=".",fixed=TRUE)[[1]][1]
+    filter(ens2ent.df,ensembl==ens)$entrez %>% unique(.)
+  }) %>% unlist(.) %>% as.integer(.)
+  econt <- econt.names[i]
+  print(etarg)
+  for (e in 1:length(coll.list)){
+    coll <- coll.list[[e]]
+    coll.name <- coll.names[e]
+    print(coll.name)
+    network <- setRankAnalysis(geneIDs = gene.vec, setCollection = coll,
+                    use.ranks = FALSE,
+                    setPCutoff = 0.01,fdrCutoff = 0.05)
+    tryCatch(expr={exportSingleResult(network=network, selectedGenes=gene.vec, 
+                          collection=coll, networkName = coll.name,
+                          outputPath = file.dir%&%"SetRank." %&% econt %&% "." %&% coll.name)},
+             error=function(e){
+               print("Error within SetRank, skipping")
+             })
+             
+  }
+}
+
+```
+
