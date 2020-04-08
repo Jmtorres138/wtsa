@@ -1,0 +1,183 @@
+---
+title: "4.4_OpenTargets-enrichment.Rmd"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+file.dir <- work.dir %&% "analysis_files/"
+etarg.list  <- readRDS(file.dir %&% "enhancer.target.genes.RDS")
+econt.list <- readRDS(file.dir %&% "enhancer.control.genes.RDS")
+keep.genes <- fread(file.dir %&% "islet-keep-genes.txt")$x
+keep.genes <- map(keep.genes,function(g){
+  strsplit(g,split=".",fixed=TRUE)[[1]][1]
+}) %>% as.character(.) 
+
+```
+
+Subset gene sets to those meeting islet gene expression criteria (see 4.2 script) 
+
+```{r}
+
+set.seed(1)
+etarg.all <- etarg.list[[1]][etarg.list[[1]] %in% keep.genes]
+econt.all <- econt.list[[1]][econt.list[[1]] %in% keep.genes]
+write.table(x=etarg.all,file=file.dir%&%"OpenTargets/"%&% "enhancer_target-genes_all.txt",
+            sep="\t",quote=F,row.names=F,col.names=F)
+write.table(x=econt.all,file=file.dir%&%"OpenTargets/"%&% "enhancer_control-genes_all.txt",
+            sep="\t",quote=F,row.names=F,col.names=F)
+
+etarg.all.subset <- etarg.all[etarg.all %in% econt.all]
+set.seed(1)
+etarg.samp <- sample(x=etarg.all[!(etarg.all %in% econt.all)],
+                     size=(200-length(etarg.all.subset)),replace=FALSE)
+etarg.subset <- c(etarg.samp,etarg.all.subset)
+write.table(x=etarg.subset,file=file.dir%&%"OpenTargets/"%&% "enhancer_target-genes_all_random200.seed1.txt",
+            sep="\t",quote=F,row.names=F,col.names=F)
+```
+
+
+Manually uploading gene list to OpenTargets Platform (https://www.targetvalidation.org/) for batch analyses:
+
+CAUTION: The online batch query search only allows a maximum of 200 genes whereas, for all target capture genes, there was a total 273 (out of 432) Ensembl genes that meet islet expression criteria. So used a sample sample of 200 (keeping the 31 genes shared with controls) for enrichment, but will also do a manual annotation for all genes using the Open Targets Pyton API 
+
+pip install opentargets
+
+```{bash}
+
+pip install --upgrade pip
+pip install opentargets
+
+```
+
+
+```{python}
+
+import sys
+from opentargets import OpenTargetsClient
+ot = OpenTargetsClient()
+fin = open("/home/jason/science/servers/FUSE5/projects/wtsa/joint_analyses/analysis_files/OpenTargets/enhancer_target-genes_all.txt",'r')
+fout = open("/home/jason/science/servers/FUSE5/projects/wtsa/joint_analyses/analysis_files/OpenTargets/enhancer_target-genes_all_OpenTarget-annotated.txt",'w')
+head_list = ["gene","symbol","gene_Name","disease_ID","disease","overall_association_score","literature_score",
+              "rna_expression_score","genetic_association_score","somatic_mutation_score","known_drug_score",
+              "animal_model_score","affected_pathway_score","direct","drugs"]
+fout.write("\t".join(head_list)+"\n")
+count = 0
+for line in fin:
+  count += 1
+  sys.stdout.write("\r%d"%count)
+  sys.stdout.flush()  
+  targ = line.strip()
+  #print targ
+  client = OpenTargetsClient()
+  assoc = client.filter_associations()
+  assoc.filter(target=str(targ),scorevalue_min=0.8,direct=True)
+  #a_for_target = ot.get_associations_for_target(targ) # object comprised of dictionaries that can be indexed 
+  #for a in a_for_target:
+  for a in assoc:
+    try:
+      gene_symbol = a['target']['gene_info']['symbol']
+      gene_full_name = a['target']['gene_info']['name']
+      overall_association_score = a['association_score']['overall']
+      literature_score = a['association_score']['datatypes']['literature']
+      rna_expression_score = a['association_score']['datatypes']['rna_expression']
+      genetic_association_score = a['association_score']['datatypes']['genetic_association']
+      somatic_mutation_score = a['association_score']['datatypes']['somatic_mutation']
+      known_drug_score = a['association_score']['datatypes']['known_drug']
+      animal_model_score = a['association_score']['datatypes']['animal_model']
+      affected_pathway_score = a['association_score']['datatypes']['affected_pathway']
+      dis_id = a['disease']['id']
+      #print dis_id
+      disease = a['disease']['efo_info']['label']
+      direct = a['is_direct'] # is the target directly or indirectly associated with the disease trait
+      ## Search for specific evidence 
+      #try: 
+      #  client= OpenTargetsClient()
+      #  response = client.filter_evidence()
+      #  response.filter(target=str(targ),disease=str(dis_id))
+      #  dic = {}
+      #  for entry in response:
+      #    mol_name = entry['drug']['molecule_name']
+      #    mol_type = entry['drug']['molecule_type']
+      #    try:
+      #      dic[mol_name].append(mol_type)
+      #    except:
+      #      dic[mol_name] = [mol_type]
+      #  for key in dic.keys():
+      #    dic[key] = list(set(dic[key]))
+      #  drugs = ",".join(dic.keys())
+       # #drug_types = ",".join(dic.values()[0])
+      #except:
+      #  drugs = "NA"
+      #  drug_types = "NA"
+      write_list = [str(targ),str(gene_symbol),str(gene_full_name),str(dis_id),disease,str(overall_association_score),
+                  str(literature_score),str(rna_expression_score),str(genetic_association_score),
+                  str(somatic_mutation_score),str(known_drug_score),str(animal_model_score),
+                  str(affected_pathway_score),str(direct)] #drugs]#,drug_types]
+      fout.write("\t".join(write_list)+"\n")
+    except:
+      print "\nassociation failed\n"
+    
+fin.close()
+fout.close()
+
+
+```
+
+
+```{r}
+
+ot.df <- fread("/home/jason/science/servers/FUSE5/projects/wtsa/joint_analyses/analysis_files/OpenTargets/enhancer_target-genes_all_OpenTarget-annotated.txt") %>% dplyr::select(.,-one_of("drugs"))
+
+count.df <- (ot.df$disease %>% table(.) %>% sort()) %>% as.data.frame(.)
+names(count.df) <- c("Disease","Count")
+count.df <- arrange(count.df,desc(Count))
+
+write.table(x=ot.df,file=file.dir%&%"OpenTargets/"%&% "enhancer_target-genes_all_OpenTarget-annotated.txt",
+            sep="\t",quote=F,row.names=F,col.names=T)
+write.table(x=count.df,file=file.dir%&%"OpenTargets/"%&% "enhancer_target-genes_all_OpenTarget-diseaseCounts.txt",
+            sep="\t",quote=F,row.names=F,col.names=T)
+write.table(x=ot.df,file=file.dir%&%"OpenTargets/"%&% "enhancer_target-genes_all_OpenTarget-annotated.txt",
+            sep="\t",quote=F,row.names=F,col.names=T)
+
+diab.sub <- filter(ot.df,grepl("iabetes",disease)) # 101
+diab.sub$gene %>% unique(.) %>% length(.) # 46 
+write.table(x=diab.sub,file=file.dir%&%"OpenTargets/"%&% "enhancer_target-genes_all_OpenTarget-annotated_diabetes.txt",
+            sep="\t",quote=F,row.names=F,col.names=T)
+
+t2d.sub <- filter(ot.df,disease=="type II diabetes mellitus") # 38 
+write.table(x=t2d.sub,file=file.dir%&%"OpenTargets/"%&% "enhancer_target-genes_all_OpenTarget-annotated_t2d.txt",
+            sep="\t",quote=F,row.names=F,col.names=T)
+
+ot.df$gene %>% unique(.) %>% length(.) # 170 
+
+filter(diab.sub,genetic_association_score>0.8) %>% dim(.)
+
+nongen.df <- filter(diab.sub,genetic_association_score<0.5) # 11 
+
+```
+
+
+There are 170 genes associated with disease outcomes (1,112) in OpenTarget platform at an overall association score > 0.8), 46 of which have been directly implicated in some form of diabetes and correspond to a total of 101 OpenTarget diabetes associations.
+
+38 genes are associated with type 2 diabetes: 
+[1] "GRB14"    "PPARG"    "ATXN7"    "PSMD6"    "ADCY5"    "FBXW7"    "NDUFS4"   "ARL15"    "PDE8B"    "RREB1"    "KCNK17"
+[12] "KCNK16"   "JAZF1"    "GCK"      "MYL7"     "YKT6"     "TP53INP1" "DMRTA1"   "MTAP"     "ABO"      "GPSM1"    "DNLZ" 
+[23] "ZMIZ1"    "HHEX"     "EXOC6"    "TCF7L2"   "CDKN1C"   "TRPM5"    "KCNJ11"   "NDUFS3"   "SPPL3"    "HNF1A" "C12orf43"
+[34] "HMG20A"   "PEAK1"    "GIPR"     "EML2"     "HNF4A" 
+
+Its notable that all but one of these genes have a genetic association score > 0.5. The exception is NDUFS3 (NADH:ubiquinone oxidoreductase core subunit S3) which only has a contribution from the known drug score to the overall association score. This gene is annotated as a target for the small molecule drug Metformin 
+

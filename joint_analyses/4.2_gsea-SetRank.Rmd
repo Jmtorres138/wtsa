@@ -89,6 +89,7 @@ for (i in 1:dim(count.df)[1]){
 }
 
 keep.genes <- unique(count.sub$GeneID[count.sub$GeneID %in% tpm.sub$GeneID]) # There are 22,929 genes to retain in islets that meet the filtering thresholds
+write.table(x=keep.genes,file=file.dir %&% "islet-keep-genes.txt",sep="\t",quote=F,row.names=F)
 
 ```
 

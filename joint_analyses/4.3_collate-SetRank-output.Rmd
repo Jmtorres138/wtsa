@@ -1,0 +1,106 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/home/jason/science/servers/FUSE5/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+file.dir <- work.dir %&% "analysis_files/"
+setrank.dir <- file.dir %&% "SetRank_output"
+
+```
+
+
+
+```{r}
+
+filevec <- list.dirs(setrank.dir)
+filevec <- filevec[grepl("Enh",filevec)]
+
+namevec <- map(filevec, function(s){
+  vec <- strsplit(s,split="/")[[1]]
+  vec[length(vec)]
+}) %>% as.character(.)
+
+
+out.df <- c()
+pb <- txtProgressBar(min=0,max=length(namevec),style=3)
+for (i in 1:length(namevec)){
+  setTxtProgressBar(pb,i)
+  n <- namevec[i]
+  vec <- strsplit(n,split=".",fixed=TRUE)[[1]]
+  database <- vec[3]
+  term2 <- vec[2]
+  vec2 <- strsplit(x=term2,split="_")[[1]]
+  capture_set <- vec2[1]
+  caller <- vec2[2]
+  fname <- setrank.dir %&% "/" %&% n %&% "/" %&% database %&% "_pathways.txt"
+  if (file.exists(fname)==TRUE){
+    df0 <- data.frame("capture_set"=capture_set,"caller"=caller,stringsAsFactors = FALSE)
+    df <- fread(fname) 
+    build.df <- cbind(df0,df)
+    out.df <- rbind(out.df,build.df)
+  }
+}
+
+```
+
+
+```{r}
+
+econt.df <- filter(out.df,capture_set=="EnhControls") %>% 
+  arrange(.,caller,database,adjustedPValue) # 72 pathways enriched for control capture genes 
+etarg.df <- filter(out.df,capture_set=="EnhTargets") %>% 
+  arrange(.,caller,database,adjustedPValue) # 128 pathways enrihed for target capture genes  
+filter(econt.df,caller=="All")$database %>% table(.)
+#    GOBP     GOCC     GOMF     KEGG REACTOME 
+#       9        4        3        1        4 
+filter(etarg.df,caller=="All")$database %>% table(.)
+#                        GOBP                         GOCC                         GOMF                         KEGG 
+#                          21                            2                            6                            5 
+#Pathway Interaction Database                     REACTOME                 WikiPathways 
+#                           1                            5                            7 
+
+write.table(x=econt.df,file=file.dir%&%"SetRank_output_enhancer-controls.txt",sep="\t",quote=F,row.names=F)
+write.table(x=etarg.df,file=file.dir%&%"SetRank_output_enhancer-targets.txt",sep="\t",quote=F,row.names=F)
+
+targ.vec <- filter(etarg.df,caller=="All")$description %>% unique(.)
+cont.vec <- filter(econt.df,caller=="All")$description %>% unique(.)
+targ.spec <- targ.vec[!(targ.vec %in% cont.vec)]
+
+spec.df <- filter(etarg.df,caller=="All",description%in%targ.spec) %>% arrange(.,database,adjustedPValue) # 47 pathways 
+write.table(x=spec.df,file=file.dir%&%"SetRank_output_enhancer-targets_targetSpecificPathways.txt",sep="\t",quote=F,row.names=F)
+
+cont.spec <- cont.vec[!(cont.vec %in% targ.vec)] # 21 pathways 
+
+
+```
+
+
+72 pathways enriched for control capture genes, across all gene subsets  
+128 pathways enrihed for target capture genes, across all gene subsets 
+
+Dabase table for control pathways implicated by all genes implicated by all calling methods: 
+#    GOBP     GOCC     GOMF     KEGG REACTOME 
+#       9        4        3        1        4 
+Dabase table for target pathways implicated by all genes implicated by all calling methods: 
+#                        GOBP                         GOCC                         GOMF                         KEGG 
+#                          21                            2                            6                            5 
+#Pathway Interaction Database                     REACTOME                 WikiPathways 
+#                           1                            5                            7 
+
+47 of these pathways are specific to target captures 
+21 pathways were specific to control captures 

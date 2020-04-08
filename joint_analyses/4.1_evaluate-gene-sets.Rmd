@@ -75,7 +75,7 @@ saveRDS(econt.gene.list,file=file.dir %&% "enhancer.control.genes.RDS")
 
 ```
 
-# Gene-set enrichment test with CLUEGO
+# Gene-set enrichment test with SetRank
 
 ```{r}
 
