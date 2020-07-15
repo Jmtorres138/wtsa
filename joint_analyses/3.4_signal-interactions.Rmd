@@ -1,5 +1,5 @@
 ---
-title: "Untitled"
+title: "signal-interactons"
 output: html_document
 ---
 
@@ -109,6 +109,9 @@ sigint.df <- build_signal_df()
 sigint.df$capture.signal %>% unique(.) %>% length(.) # 160 
 sigint.df <- arrange(sigint.df,capture.signal.locus,capture.signal,desc(PPA))
 
+write.table(x=sigint.df,file=file.dir %&% "credible-set_interactions.txt",
+            sep="\t",quote=F,row.names=F)
+
 ```
 
 
@@ -123,6 +126,9 @@ table(sigsum.df$experiment)
 #    106                                  5                                  2 
 # enhancer.2nd,promoter     enhancer.2nd,promoter,enhancer.1st 
 #      1                                    2 
+
+write.table(x=sigsum.df,file=file.dir %&% "credible-set_interaction-summary.txt",
+            sep="\t",quote=F,row.names=F)
 
 ```
 
