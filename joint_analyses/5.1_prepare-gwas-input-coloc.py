@@ -16,8 +16,8 @@ import pandas as pd
 import numpy as np 
 
 
-serv_dir1 = "/home/jason/science/servers/FUSE/"
-serv_dir2 = "/home/jason/science/servers/FUSE5/"
+serv_dir1 = "/well/got2d/jason/"#"/home/jason/science/servers/FUSE/"
+serv_dir2 = "/well/mccarthy/users/jason/"#"/home/jason/science/servers/FUSE5/"
 
 work_dir = serv_dir2+"projects/wtsa/joint_analyses/"
 out_dir = work_dir + "coloc_analysis_files/conditioned_gwas_summarystats/"
