@@ -71,12 +71,12 @@ gwas_eqtl_coloc <- function(gwas.signal.dir,gwas.signal,
     maf.vec <- maf.vec[!exclude.vec]
     if (length(maf.vec)>0 & length(maf.vec)==length(p.vec.gwas) & 
         length(maf.vec==p.vec.eqtl)){
-        coloc.res <- coloc.abf(dataset1=list(pvalues=p.vec.gwas,
+        coloc.res <- suppressMessages(coloc.abf(dataset1=list(pvalues=p.vec.gwas,
                                              snp=names(p.vec.gwas),
                                            N=n.gwas,s=case.prop,type="cc"),
                              dataset2=list(pvalues=p.vec.gwas,N=n.eqtl,
                                            snp=names(p.vec.gwas),type="quant"),
-                             MAF=maf.vec)
+                             MAF=maf.vec))
         out.name <- out.dir %&% gwas.signal %&% ":" %&% gene %&% ".coloc.RDS"
         saveRDS(object=coloc.res,file=out.name)      
     } else{
@@ -87,6 +87,7 @@ gwas_eqtl_coloc <- function(gwas.signal.dir,gwas.signal,
 
 for (i in 1:length(file.vec)){
   gwas.signal <- strsplit(file.vec[i],split=".",fixed=TRUE)[[1]][1]
+  print(gwas.signal)
   gwas_eqtl_coloc(gwas.stat.dir,gwas.signal)  
 }
 
