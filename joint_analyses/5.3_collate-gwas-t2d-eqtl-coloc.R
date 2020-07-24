@@ -15,7 +15,7 @@ gtf.df <- import(gene.ref.file) %>% as.data.frame()
 collate_coloc_results <- function(){
   coloc.sum.df <- c()
   coloc.sig.df <- c()
-  rds.vec <- list.files(res.dir)[1:10] # TESTING FIRST 100
+  rds.vec <- list.files(res.dir) 
   pb <- txtProgressBar(min=0,max=length(rds.vec),style=3)
   for (i in 1:length(rds.vec)){
     setTxtProgressBar(pb,i)
