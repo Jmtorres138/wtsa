@@ -78,8 +78,8 @@ gwas_eqtl_coloc <- function(gwas.signal.dir,gwas.signal,
         coloc.res <- suppressMessages(coloc.abf(dataset1=list(pvalues=p.vec.gwas,
                                              snp=names(p.vec.gwas),
                                            N=n.gwas,s=case.prop,type="cc"),
-                             dataset2=list(pvalues=p.vec.gwas,N=n.eqtl,
-                                           snp=names(p.vec.gwas),type="quant"),
+                             dataset2=list(pvalues=p.vec.eqtl,N=n.eqtl,
+                                           snp=names(p.vec.eqtl),type="quant"),
                              MAF=maf.vec))
         out.name <- out.dir %&% gwas.signal %&% ":" %&% gene %&% ".coloc.RDS"
         saveRDS(object=coloc.res,file=out.name)      
