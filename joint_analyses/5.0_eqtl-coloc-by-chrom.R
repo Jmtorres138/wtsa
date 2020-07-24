@@ -61,9 +61,13 @@ gwas_eqtl_coloc <- function(gwas.signal.dir,gwas.signal,
       names(p2) <- filter(sig.df,POS==posit)$SNPID
       f <- filter(sig.df,POS==posit)$'F'
       maf <- min(f,(1-f))
-      p.vec.gwas <- append(p.vec.gwas,p1)
-      p.vec.eqtl <- append(p.vec.eqtl,p2)
-      maf.vec <- append(maf.vec,maf)
+      if (length(p1)==length(p2) & length(p2)==length(maf)){
+        p.vec.gwas <- append(p.vec.gwas,p1)
+        p.vec.eqtl <- append(p.vec.eqtl,p2)
+        maf.vec <- append(maf.vec,maf)       
+      } else{
+        print(posit)
+      }
     }
     exclude.vec <- is.na(maf.vec) | is.na(p.vec.gwas) | is.na(p.vec.eqtl) 
     p.vec.gwas <- p.vec.gwas[!exclude.vec]
