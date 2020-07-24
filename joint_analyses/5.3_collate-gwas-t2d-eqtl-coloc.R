@@ -1,5 +1,6 @@
 "%&%" <- function(a,b) paste0(a,b)
 library("data.table");library("dplyr")
+library("rtracklayer")
 serv.dir <- "/well/mccarthy/users/jason/" 
 serv.dir0 <- "/well/got2d/jason/" 
 work.dir <- serv.dir %&% "projects/wtsa/joint_analyses/"
