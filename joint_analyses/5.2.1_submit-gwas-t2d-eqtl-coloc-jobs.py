@@ -11,8 +11,8 @@ import subprocess as sp
 work_dir = "/well/mccarthy/users/jason/projects/wtsa/joint_analyses/"
 coloc_dir = work_dir + "coloc_analysis_files/"
 gwas_sig_dir = coloc_dir + "conditioned_gwas_summarystats/"
-job_dir = coloc_dir + "jobs/"
-log_dir = coloc_dir +"logs/"
+job_dir = coloc_dir + "jobs/eqtl/"
+log_dir = coloc_dir +"logs/eqtl/"
 
 
 def submit_coloc_job(chromo):

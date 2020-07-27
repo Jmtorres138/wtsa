@@ -11,8 +11,8 @@ import subprocess as sp
 work_dir = "/well/mccarthy/users/jason/projects/wtsa/joint_analyses/"
 coloc_dir = work_dir + "coloc_analysis_files/"
 gwas_sig_dir = coloc_dir + "conditioned_gwas_summarystats/"
-job_dir = coloc_dir + "jobs/"
-log_dir = coloc_dir +"logs/"
+job_dir = coloc_dir + "jobs/caqtl/"
+log_dir = coloc_dir +"logs/caqtl/"
 
 
 def submit_coloc_job(chromo):
@@ -33,7 +33,7 @@ echo "------------------------------------------------"
 module load R/3.6.2-foss-2019b
 Rscript %s %s
     ''' % (chromo,log_dir+chromo,log_dir+chromo,
-    work_dir+"5.0_eqtl-coloc-by-chrom.R",chromo)
+    work_dir+"5.0_caqtl-coloc-by-chrom.R",chromo)
     fout = open(job_dir + chromo + "_job.sh",'w')
     fout.write(script)
     fout.close()
