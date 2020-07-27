@@ -14,6 +14,10 @@ chromo <- args[1]
 
 caqtl.df <- fread(caqtl.chrom.dir %&% "results_rasqual_" %&% 
                     chromo %&% ".txt.gz")
+names(caqtl.df)[1] <- "feature_id"
+names(caqtl.df)[3] <- "chr"
+names(caqtl.df)[4] <- "snp_pos"
+names(caqtl.df)[dim(caqtl.df)[2]] <- "p_chi2"
 							
 caqtl.df$snp_pos <- as.integer(caqtl.df$snp_pos)
 caqtl.gr <- GRanges(seqnames=unique(caqtl.df$chr),
