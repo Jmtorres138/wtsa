@@ -66,12 +66,12 @@ gwas_caqtl_coloc <- function(gwas.signal.dir,gwas.signal,
         print(posit)
       }
     }
-    exclude.vec <- is.na(maf.vec) | is.na(p.vec.gwas) | is.na(p.vec.eqtl) 
+    exclude.vec <- is.na(maf.vec) | is.na(p.vec.gwas) | is.na(p.vec.caqtl) 
     p.vec.gwas <- p.vec.gwas[!exclude.vec]
     p.vec.caqtl <- p.vec.caqtl[!exclude.vec]
     maf.vec <- maf.vec[!exclude.vec]
     if (length(maf.vec)>0 & length(maf.vec)==length(p.vec.gwas) & 
-        length(maf.vec==p.vec.eqtl)){
+        length(maf.vec==p.vec.caqtl)){
         coloc.res <- suppressMessages(coloc.abf(dataset1=list(pvalues=p.vec.gwas,
                                              snp=names(p.vec.gwas),
                                            N=n.gwas,s=case.prop,type="cc"),
