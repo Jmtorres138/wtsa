@@ -19,7 +19,7 @@ def submit_coloc_job(chromo):
     script = '''#!/bin/bash
 #$ -P mccarthy.prjc
 #$ -N coloc-job-%s
-#$ -q short.qc
+#$ -q long.qc
 #$ -o %s.out
 #$ -e %s.err
 
