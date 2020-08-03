@@ -19,7 +19,7 @@ def submit_coloc_job(chromo):
     script = '''#!/bin/bash
 #$ -P mccarthy.prjc
 #$ -N coloc-job-%s
-#$ -q long.qc
+#$ -q himem.qh
 #$ -o %s.out
 #$ -e %s.err
 
@@ -37,12 +37,15 @@ Rscript %s %s
     fout = open(job_dir + chromo + "_job.sh",'w')
     fout.write(script)
     fout.close()
-    command = ["qsub",job_dir+chromo+"_job.sh"]
+    #command = ["qsub",job_dir+chromo+"_job.sh"]
+    command = ["sh",job_dir+chromo+"_job.sh"] # run serially
     sp.check_call(command)
 
 def main():
     file_list = os.listdir(gwas_sig_dir)
-    chrom_list = list(set([x.split("-")[-2] for x in file_list]))
+    #chrom_list = list(set([x.split("-")[-2] for x in file_list]))
+    chrom_list = ["chr2","chr3","chr4","chr5","chr6","chr7","chr8",
+                  "chr9","chr10"]
     for chrom in chrom_list:
         submit_coloc_job(chrom)
 
