@@ -45,7 +45,9 @@ def main():
                   "9","10","11","14","15","16","17"]
     #chrom_list = ["18"]
     for chrom in chrom_list:
-        submit_append_job(chrom)
+        fname = rasqual_dir + "results_rasqual_chr" +  chrom + "_with_Pvalues.txt"
+        if os.isfile(fname)==False:
+            submit_append_job(chrom)
 
 if (__name__=="__main__"):
      main()
