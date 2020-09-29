@@ -19,6 +19,7 @@ def submit_append_job(chromo):
 #$ -P mccarthy.prjc
 #$ -N append-job-%s
 #$ -q long.qc
+#$ -pe shmem 2
 #$ -o %s_append.out
 #$ -e %s_append.err
 
@@ -42,12 +43,13 @@ Rscript %s %s
 
 def main():
     chrom_list = ["2","3","4","5","7","8",
-                  "9","10","11","14","15","16","17"]
+                  "9","10","11"]
     #chrom_list = ["18"]
     for chrom in chrom_list:
-        fname = rasqual_dir + "results_rasqual_chr" +  chrom + "_with_Pvalues.txt"
-        if os.isfile(fname)==False:
+        fname = rasqual_dir + "with_p_values/results_rasqual_chr" +  chrom + "_with_Pvalues.txt.gz"
+        if os.path.exists(fname)==False:
             submit_append_job(chrom)
+            #print(fname)
 
 if (__name__=="__main__"):
      main()
