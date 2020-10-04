@@ -19,7 +19,8 @@ def submit_coloc_job(chromo):
     script = '''#!/bin/bash
 #$ -P mccarthy.prjc
 #$ -N coloc-job-%s
-#$ -q himem.qh
+#$ -q long.qc
+#$ -pe shmem 2
 #$ -o %s.out
 #$ -e %s.err
 
@@ -33,19 +34,19 @@ echo "------------------------------------------------"
 module load R/3.6.2-foss-2019b
 Rscript %s %s
     ''' % (chromo,log_dir+chromo,log_dir+chromo,
-    work_dir+"5.0_caqtl-coloc-by-chrom.R",chromo)
+    work_dir+"7.0_caqtl-coloc-by-chrom.R",chromo)
     fout = open(job_dir + chromo + "_job.sh",'w')
     fout.write(script)
     fout.close()
-    #command = ["qsub",job_dir+chromo+"_job.sh"]
-    command = ["sh",job_dir+chromo+"_job.sh"] # run serially
+    command = ["qsub",job_dir+chromo+"_job.sh"]
+    #command = ["sh",job_dir+chromo+"_job.sh"] # run serially
     sp.check_call(command)
 
 def main():
     file_list = os.listdir(gwas_sig_dir)
-    #chrom_list = list(set([x.split("-")[-2] for x in file_list]))
-    chrom_list = ["chr2","chr3","chr4","chr5","chr6","chr7","chr8",
-                  "chr9","chr10"]
+    chrom_list = list(set([x.split("-")[-2] for x in file_list]))
+    #chrom_list = ["chr2","chr3","chr4","chr5","chr6","chr7","chr8",
+    #              "chr9","chr10"]
     for chrom in chrom_list:
         submit_coloc_job(chrom)
 
