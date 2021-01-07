@@ -13,8 +13,11 @@ collate_coloc_results <- function(){
   coloc.sum.df <- c()
   coloc.sig.df <- c()
   rds.vec <- list.files(res.dir)
+  failed.vec <- rds.vec[grepl("FAILED",rds.vec)]
+  rds.vec <- rds.vec[!(rds.vec %in% failed.vec)]
   pb <- txtProgressBar(min=0,max=length(rds.vec),style=3)
   for (i in 1:length(rds.vec)){
+    #print(i)
     setTxtProgressBar(pb,i)
     rds.file <- rds.vec[i]
     s.vec <- strsplit(x=rds.file,split=":")[[1]]
