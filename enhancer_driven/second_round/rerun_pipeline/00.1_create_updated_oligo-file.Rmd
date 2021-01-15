@@ -1,0 +1,96 @@
+---
+title: "create_updated_oligo-file"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+
+local.dir <- "/Users/jasont/science/projects/wtsa/"
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+cbrg.dir <- "/Users/jasont/science/servers/FUSE2/"
+
+```
+
+
+```{r}
+oligo.v1.df <- fread(cbrg.dir %&% 
+                       "wtsa/enhancer_driven/second_round/OligoFile.txt")
+e2.df <- fread(rescomp.dir %&% "projects/wtsa/enhancer_driven/second_round/" %&% 
+                 "probe_design/probe-file-expanded-info.csv")
+```
+
+## Create updated oligonucleotide file 
+
+```{r}
+
+oligo.df <- c()
+pb <- txtProgressBar(min=0,max=dim(oligo.v1.df)[1],style=3)
+for (i in 1:dim(oligo.v1.df)[1]){
+  setTxtProgressBar(pb,i)
+  row.df <- oligo.v1.df[i,]
+  frag.id <- gsub("chr","",row.df$V1)
+  sub.df <- dplyr::filter(e2.df,frag==frag.id) %>% 
+    dplyr::select(one_of("frag.start","frag.end"))
+  sub.df <- sub.df[!duplicated(sub.df),]
+  if (dim(sub.df)[1]>0){
+    row.df$V3 <- sub.df$frag.start; row.df$V6 <- sub.df$frag.start
+    row.df$V4 <- sub.df$frag.end; row.df$V7 <- sub.df$frag.end    
+  }
+  oligo.df <- rbind(oligo.df,row.df)
+}
+
+```
+
+Evaluate the data frame further...
+
+```{r}
+eval.df <- oligo.df
+eval.df$dist <- oligo.df$V4-oligo.df$V3
+View(arrange(eval.df,dist))
+```
+
+It seems that four captures to be repeated from the first round have the probe
+coordinates provided rather than the DpnII fragment 
+
+CAMK1D_eQTL_rs11257655 chr10 12307894
+FADS1_eQTL_rs174550 11:61571478
+WARS_eQTL_rs3783347 14:100839261
+DGKB_eQTL_rs17168486 7:14898282
+
+
+```{r}
+dpn.df <- fread(cbrg.dir %&% "wtsa/enhancer_driven/" %&%
+                  "second_round/hg19.txt",header=F)
+dpn.full.df <- c()
+pb <- txtProgressBar(min=0,max=dim(dpn.df)[1],style=3)
+for (i in 1:dim(dpn.df)[1]){
+  setTxtProgressBar(pb,i)
+  s <- dpn.df$V1[i]
+  vec <- strsplit(x=s,split=":")[[1]]
+  chromo <- vec[1]
+  vec2 <- strsplit(x=vec[2],split="-")[[1]]
+  pos1 <- vec2[1]; pos2 <- vec2[2]
+  build.df <- data.frame(V1=chromo,V2=pos1,V3=pos2,stringsAsFactors = F)
+  dpn.full.df <- rbind(dpn.full.df,build.df)
+}
+
+```
+
+```{r}
+write.table(x=dpn.full.df,file=rescomp.dir %&% 
+              "projects/wtsa/enhancer_driven/second_round/dpnII.txt",
+            sep="\t",quote=F,row.names=F,col.names=F)
+```
+
+
+t1d.probes.df <- fread(local.dir %&% "misc/Vibe_CC_run2_70bp_probes.csv") 
