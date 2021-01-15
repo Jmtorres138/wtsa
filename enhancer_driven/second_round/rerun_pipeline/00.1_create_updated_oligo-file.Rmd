@@ -69,28 +69,126 @@ DGKB_eQTL_rs17168486 7:14898282
 
 
 ```{r}
-dpn.df <- fread(cbrg.dir %&% "wtsa/enhancer_driven/" %&%
-                  "second_round/hg19.txt",header=F)
-dpn.full.df <- c()
-pb <- txtProgressBar(min=0,max=dim(dpn.df)[1],style=3)
-for (i in 1:dim(dpn.df)[1]){
-  setTxtProgressBar(pb,i)
-  s <- dpn.df$V1[i]
-  vec <- strsplit(x=s,split=":")[[1]]
-  chromo <- vec[1]
-  vec2 <- strsplit(x=vec[2],split="-")[[1]]
-  pos1 <- vec2[1]; pos2 <- vec2[2]
-  build.df <- data.frame(V1=chromo,V2=pos1,V3=pos2,stringsAsFactors = F)
-  dpn.full.df <- rbind(dpn.full.df,build.df)
+dpn.df <- fread(rescomp.dir %&% "projects/wtsa/" %&%
+                  "genome_dpnII_coordinates_reformatted.txt",header=F)
+dpn.gr <- GRanges(seqnames=dpn.df$V1,IRanges(dpn.df$V2,dpn.df$V3))
+```
+
+
+```{r}
+targ <- "CAMK1D_eQTL_rs11257655" 
+targ.gr <- GRanges(seqnames = 10,IRanges(start=12307894))
+targ.df <- dpn.gr[dpn.gr %over% targ.gr] %>% as.data.frame()
+index <- c(1:length(oligo.df$V1))[oligo.df$V1==targ]
+oligo.df[index,]$V3 <- targ.df$start-1; oligo.df[index,]$V6 <- targ.df$start-1
+oligo.df[index,]$V4 <- targ.df$end-1; oligo.df[index,]$V7 <- targ.df$end-1
+```
+
+```{r}
+targ <- "FADS1_eQTL_rs174550" 
+targ.gr <- GRanges(seqnames = 11,IRanges(start=61571478))
+targ.df <- dpn.gr[dpn.gr %over% targ.gr] %>% as.data.frame()
+index <- c(1:length(oligo.df$V1))[oligo.df$V1==targ]
+oligo.df[index,]$V3 <- targ.df$start-1; oligo.df[index,]$V6 <- targ.df$start-1
+oligo.df[index,]$V4 <- targ.df$end-1; oligo.df[index,]$V7 <- targ.df$end-1
+```
+
+```{r}
+targ <- "WARS_eQTL_rs3783347" 
+targ.gr <- GRanges(seqnames = 14,IRanges(start=100839261))
+targ.df <- dpn.gr[dpn.gr %over% targ.gr] %>% as.data.frame()
+index <- c(1:length(oligo.df$V1))[oligo.df$V1==targ]
+oligo.df[index,]$V3 <- targ.df$start-1; oligo.df[index,]$V6 <- targ.df$start-1
+oligo.df[index,]$V4 <- targ.df$end-1; oligo.df[index,]$V7 <- targ.df$end-1
+```
+
+```{r}
+targ <- "DGKB_eQTL_rs17168486"
+targ.gr <- GRanges(seqnames = 7,IRanges(start=14898282))
+targ.df <- dpn.gr[dpn.gr %over% targ.gr] %>% as.data.frame()
+index <- c(1:length(oligo.df$V1))[oligo.df$V1==targ]
+oligo.df[index,]$V3 <- targ.df$start-1; oligo.df[index,]$V6 <- targ.df$start-1
+oligo.df[index,]$V4 <- targ.df$end-1; oligo.df[index,]$V7 <- targ.df$end-1
+```
+
+Evaluate the data frame further...
+
+```{r}
+eval.df <- oligo.df
+eval.df$dist <- oligo.df$V4-oligo.df$V3
+View(arrange(eval.df,dist))
+```
+
+Sanity check
+
+```{r}
+targ.gr <- GRanges(seqnames = 9,IRanges(start=22134172))
+dpn.gr[dpn.gr %over% targ.gr] %>% as.data.frame()
+```
+
+## Append T1D probes requested by Dr.Tony Cutler 
+
+```{r}
+t1d.probes.df <- fread( "/Users/jasont/science/projects/wtsa/" %&%
+  "joint_analyses/misc/Vibe_CC_run2_70bp_probes.csv") 
+```
+
+Need to figure out the actual fragment coordinates for requested targets 
+
+```{r}
+
+t1d.vec <- t1d.probes.df$FragID %>% unique(.) 
+t1d.vec <- t1d.vec[grepl(":",t1d.vec)]
+t1d.genes <- purrr::map(t1d.vec,function(s){
+  vec <- strsplit(s,split="_")[[1]]
+  gene.vec <- vec[2:length(vec)]
+  gene <- paste0(gene.vec,collapse = "_")
+}) %>% as.character(.) %>% unique(.) # 20 genes 
+
+t1d.df <- c()
+for (gene in t1d.genes){
+  target <- "T1D___" %&% gene
+  sub.df <- dplyr::filter(t1d.probes.df,grepl(gene,FragID))
+  chrom <- gsub("chr","",sub.df$chr) %>% unique(.)
+  vec <- c(sub.df$`bp start`,sub.df$`bp end`)
+  frag.start <- min(vec) + 2
+  frag.end <- max(vec) - 2 
+  if (dim(sub.df)[1]==2){
+    targ.gr <- GRanges(seqnames = chrom,IRanges(start=frag.start,end=frag.end))
+    targ.df <- dpn.gr[dpn.gr %over% targ.gr] %>% as.data.frame()
+    frag.start <- targ.df$start - 1
+    frag.end <- targ.df$end - 1 
+  } else{
+    dpn.sub1 <- dplyr::filter(dpn.df,V1==chrom,V2==frag.start)
+    dpn.sub2 <- dplyr::filter(dpn.df,V1==chrom,V3==frag.end)
+    dpn.sub <- rbind(dpn.sub1,dpn.sub2)
+    frag.start <- dpn.sub$V2 - 1
+    frag.end <- dpn.sub$V3 - 1 
+  }
+  build.df <- data.frame(V1=target,V2=chrom,V3=frag.start,V4=frag.end,
+                         V5=chrom,V6=frag.start,V7=frag.end,V8=1,V9="A",
+                         stringsAsFactors = F)
+  t1d.df <- rbind(t1d.df,build.df)
 }
 
 ```
 
 ```{r}
-write.table(x=dpn.full.df,file=rescomp.dir %&% 
-              "projects/wtsa/enhancer_driven/second_round/dpnII.txt",
-            sep="\t",quote=F,row.names=F,col.names=F)
+
+oligo.full.df <- rbind(oligo.df,t1d.df)
+eval.df <- oligo.full.df
+eval.df$dist <- oligo.full.df$V4-oligo.full.df$V3
+View(arrange(eval.df,dist))
 ```
 
+```{r}
 
-t1d.probes.df <- fread(local.dir %&% "misc/Vibe_CC_run2_70bp_probes.csv") 
+write.table(x=oligo.full.df,file=cbrg.dir %&% "wtsa/enhancer_driven/" %&%
+              "second_round/rerun_pipeline/OligoFileRedo.txt",sep="\t",
+            quote=F,row.names=F,col.names=F)
+write.table(x=oligo.full.df,file=rescomp.dir %&% "projects/wtsa/enhancer_driven/" %&%
+              "second_round/rerun_pipeline/OligoFileRedo.txt",sep="\t",
+            quote=F,row.names=F,col.names=F)
+
+```
+
