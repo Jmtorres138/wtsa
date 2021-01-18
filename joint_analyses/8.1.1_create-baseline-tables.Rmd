@@ -1,0 +1,347 @@
+---
+title: "Prepare baseline tables"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+
+local.dir <- "/Users/jasont/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+cbrg.dir <- "/Users/jasont/science/servers/FUSE2/"
+output.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/analysis_files/" %&%
+  "master_tables/"
+```
+
+# Extract genetic credible set information
+```{r}
+cred.df <- fread(rescomp.dir %&% "projects/t2d_classification/revamp/genetic_credible_sets/gencred.txt")
+
+cred.df <- dplyr::select(cred.df,
+  one_of("CondID","IndexSNP","lead.rsid","symbol",
+         "SNPID","CHR","POS","PPA","coding"))
+names(cred.df)[c(1,3,4,9)] <- c("Signal","IndexRSID","GeneSymbol","Coding")
+```
+
+# Reference captured fragment regions 
+
+Create summary credible set table 
+```{r}
+
+cred.sum.df <- c()
+pb <- txtProgressBar(min=0,max=length(unique(cred.df$Signal)),style=3)
+for (i in 1:length(unique(cred.df$Signal))){
+  setTxtProgressBar(pb,i)
+  sig <- unique(cred.df$Signal)[i]
+  sub.df <- filter(cred.df,Signal==sig)
+  build.df <- sub.df %>% 
+    dplyr::select(one_of("Signal","IndexSNP","IndexRSID","GeneSymbol"))
+  build.df <- build.df[!duplicated(build.df)]
+  NumCredSNPs <- dim(sub.df)[1]
+  CredInt <- min(sub.df$POS) %&% "-" %&% max(sub.df$POS)
+  CredIntLength <- max(sub.df$POS) - min(sub.df$POS)
+  MaxPPA <- max(sub.df$PPA)
+  MaxPPA.SNPID <- filter(sub.df,PPA==max(sub.df$PPA))$SNPID
+  MaxPPA.SNPID.Coding <- filter(sub.df,PPA==max(sub.df$PPA))$Coding
+  build.df$NumCredSNPs <- NumCredSNPs
+  build.df$CredInt <- CredInt
+  build.df$CredIntLength  <- CredIntLength
+  build.df$MaxPPA <- MaxPPA
+  build.df$MaxPPA.SNPID <- paste0(MaxPPA.SNPID,collapse=",")
+  build.df$MaxPPA.SNPID.Coding <- paste0(MaxPPA.SNPID.Coding,collapse=",")
+  cred.sum.df <- rbind(cred.sum.df,build.df)
+}
+
+```
+
+
+Identify all the regions that were captured in this NG Capture-C experiments
+
+```{r}
+# promoter capture files 
+prom.dir <- cbrg.dir %&% "wtsa/promoter_driven/"
+prom.cc.file  <- prom.dir %&% "capture_compare_parameters.txt"
+prom.df <- fread(prom.cc.file) %>% dplyr::select(V1:V4)
+# enhancer capture first round  
+e1.dir <- cbrg.dir %&% "wtsa/enhancer_driven/first_round/"
+e1.cc.file  <- e1.dir %&% "capture_compare_parameters_pruned_chr.txt"
+e1.df <- fread(e1.cc.file) %>% dplyr::select(V1:V4)
+# enhancer capture second round  
+e2.dir <- cbrg.dir %&% "wtsa/enhancer_driven/second_round/rerun_pipeline/"
+e2.cc.file  <- e2.dir %&% "OligoFileRedo.txt"
+e2.df <- fread(e2.cc.file) %>% dplyr::select(V1:V4)
+e2.df <- dplyr::filter(e2.df,!grepl("___",V1)) # exclude the T1D captures requested by Tony Cutler 
+e2.df$V2 <- "chr" %&% e2.df$V2 
+cap.df <- rbind(prom.df,e1.df,e2.df)
+```
+
+
+## Evaluate capture files and check for any issues 
+
+### First round enhancer capture
+
+Note: There are 187 captures included in first round enhancer capture 
+These include: 
+  * 117 credible variants
+  * 12 eQTL SNPs from Van de Bunt et al. 2015: 
+    * e.g. "rs4736819_NKX6_3__22QTL__eQTL__chr8_41509915"  
+  * 11 SNPs from Andrew Moris / Anubha Mahajan from trans-ethnic study, 
+    fine mapped to a single credible SNP 
+    * e.g "TCF7L2__7TG__te__chr10_115016408"
+  * 47 upstream/downstream non-credible SNP-based controls 
+    * e.g. "GPSM1__85DF__uc__chr9_139142357" 
+    
+Note that two captures were "offsets" as DpnII enzyme couldn't yield fragments able to be captured with good quality oligonucleotide probes:      
+  [1] "PTGFRN__4DF__cv__chr1_117532790_offset100"
+  [2] "ZMIZ1__88DF__cv__chr10_80945964_offset100")
+  
+Also note that 9 and 11 captures (20 total) correspond to intervals (e.g): 
+  * Format 1 (9): "CCND1__98DF__cv__chr11_69458430_to_69462856"  
+  * Format 2 (11): "COBLL1__16DF__cv__chr2_165528624_165528876" 
+
+
+```{r}
+e1.df$V1[grepl(pattern="__te__",x=e1.df$V1)] %>% length(.) # 11
+e1.df$V1[grepl(pattern="__cv__",x=e1.df$V1)] %>% length(.) # 117 
+e1.df$V1[grepl(pattern="eQTL",x=e1.df$V1)] %>% length(.) # 12 
+e1.df$V1[grepl(pattern="c__",x=e1.df$V1)] %>% length(.) # 47 
+e1.df$V1[grepl(pattern="offset",x=e1.df$V1)] %>% length(.) # 2
+e1.df$V1[grepl(pattern="_to_",x=e1.df$V1)] %>% length(.) # 9
+e1.df$V1[grepl(pattern="chr[0-9]+_[0-9]+_[0-9]+",x=e1.df$V1)] # 11 
+```
+
+
+Will now determine if fields V2-V4 encompass capture signals (sanity check)
+
+```{r}
+e1.sub.df0 <- dplyr::select(e1.df,V1:V4)
+e1.sub.df <- c() 
+pb <- txtProgressBar(min=0,max=dim(e1.sub.df0)[1],style=3)
+for (i in 1:dim(e1.sub.df0)[1]){
+  setTxtProgressBar(pb,i)
+  row.df <- e1.sub.df0[i,]
+  capfrag.gr <- GRanges(seqnames=row.df$V2,
+                        IRanges(start=row.df$V3,end=row.df$V4))
+  v1 <- strsplit(row.df$V1,split="__")[[1]]
+  coord <- v1[length(v1)]
+  coord <- gsub("to_","",x=coord)
+  v2 <- strsplit(coord,split="_")[[1]]
+  chrom <- v2[1]
+  pos1 <- v2[2] %>% as.integer(.)
+  pos2 <- ifelse(length(v2)>2 & all(grepl("offset",v2) == FALSE),
+                 v2[3],pos1)  %>% as.integer(.)
+  query.gr <- GRanges(seqnames=chrom,IRanges(start=pos1,end=pos2))
+  eval <- capfrag.gr %over% query.gr
+  row.df$overlap <- eval 
+  e1.sub.df <- rbind(e1.sub.df,row.df)
+} 
+
+dplyr::filter(e1.sub.df,overlap==FALSE)
+
+```
+
+Note: As expected, the only target variants in the first round enhancer capture that were not targeted by the capture fragment directly, were the two "offset" signals 
+
+### Second round enhancer capture
+
+There are 168 captures included in the second round enhancer capture experiment 
+All with a similar naming scheme:
+  * e.g. "chr7_15062694_DGKB"    
+
+Will now determine if fields V2-V4 encompass capture signals (sanity check)
+
+```{r}
+e2.sub.df0 <- dplyr::select(e2.df,V1:V4)
+e2.sub.df <- c() 
+pb <- txtProgressBar(min=0,max=dim(e2.sub.df0)[1],style=3)
+for (i in 1:dim(e2.sub.df0)[1]){
+  setTxtProgressBar(pb,i)
+  row.df <- e2.sub.df0[i,]
+  capfrag.gr <- GRanges(seqnames=row.df$V2,
+                        IRanges(start=row.df$V3,end=row.df$V4))
+  if (row.df$V1=="CAMK1D_eQTL_rs11257655"){
+    query.gr <- GRanges(seqnames = "chr10",IRanges(start=12307894))
+  } else if(row.df$V1=="FADS1_eQTL_rs174550"){
+    query.gr <- GRanges(seqnames = "chr11",IRanges(start=61571478))
+  } else if (row.df$V1=="WARS_eQTL_rs3783347"){
+    query.gr <- GRanges(seqnames = "chr14",IRanges(start=100839261))
+  } else if (row.df$V1=="DGKB_eQTL_rs17168486"){
+    query.gr <- GRanges(seqnames = "chr7",IRanges(start=14898282))
+  } else if (row.df$V1=="MADD_eQTL_rs7944584"){
+    query.gr <- GRanges(seqnames = "chr11",IRanges(start=47336320))
+  } else if (row.df$V1=="CTD-2260A17.2_eQTL_rs4869272"){
+    query.gr <- GRanges(seqnames = "chr5",IRanges(start=95539448))
+  } else if (row.df$V1=="NKX6-3_eQTL_rs12549902"){
+    query.gr <- GRanges(seqnames = "chr8",IRanges(start=41509259))
+  }
+  else{
+    v1 <- strsplit(row.df$V1,split="_")[[1]]
+    chrom <- v1[1]
+    pos1 <- v1[2] %>% as.integer(.)
+    query.gr <- GRanges(seqnames=chrom,IRanges(start=pos1,end=pos1))
+  }
+  eval <- capfrag.gr %over% query.gr
+  row.df$overlap <- eval 
+  e2.sub.df <- rbind(e2.sub.df,row.df)
+} 
+
+##flagged.df <- dplyr::filter(e2.sub.df,overlap==FALSE)
+
+```
+
+Concerningly, there are 41 captures in the second round that correspond to SNPs that DO NOT fall within the capture fragment specified in the capture compare input file, this needs to be resolved immediately. Will investigate before proceeding to next stages of data integration! 
+
+UPDATE: after regenerating oligo file for second round per 00.1 script in second round rerun pipeline dirctory, ensuring that the fragments, rather than PROBE coordinates, are provided, all capture variants now fall within the capture fragments as expected, however, as of now, the 41 captures above still need to be re-run on the CBRG servers (CCanalyser and CaptureCompare), so this overlap only indicates that the SNPs were intended to be captured by the capture c experiment! 
+
+
+Reading in expanded probe file 
+
+```{r}
+
+e2.probe.df <- fread(rescomp.dir %&% "projects/wtsa/enhancer_driven/" %&%
+                       "second_round/probe_design/probe-file-expanded-info.csv")
+e2.probe.df$frag <- "chr" %&% e2.probe.df$frag
+names(e2.sub.df) <- c("frag","chrom","start","end","overlap")
+
+e2.merge.df <- c()
+for (i in 1:dim(e2.sub.df)[1]){
+  row.df <- e2.sub.df[i,]
+  sub <- dplyr::filter(e2.probe.df,frag==row.df$frag) %>% 
+    dplyr::select(one_of("probe.type","frag.start","frag.end"))
+  sub <- sub[!duplicated(sub),]
+  if (dim(sub)[1]==0){
+    sub <- data.frame("probe.type"=NA,"frag.start"=NA,"frag.end"=NA)
+  }
+  row.df <- cbind(row.df,sub)
+  e2.merge.df <- rbind(e2.merge.df,row.df)
+}
+
+```
+
+
+```{r}
+
+##write.table(x=flagged.df,file=rescomp.dir %&%
+##              "projects/wtsa/joint_analyses/analysis_files/" %&% 
+##              "flagged-captures_second-round.csv",sep=",",quote=F,row.names=F)
+write.table(x=e2.merge.df,file=rescomp.dir %&%
+              "projects/wtsa/joint_analyses/analysis_files/" %&% 
+              "evaluated-captures_second-round.csv",sep=",",quote=F,row.names=F)
+```
+
+
+
+```{r}
+write.table(x=cap.df,file=output.dir %&% "all-capture-design-fragments.txt",
+            sep="\t",quote=F,row.names=F) # Note not all were successfully captured
+cap.df <- fread(output.dir %&% "all-capture-design-fragments.txt") %>% 
+  dplyr::select(V1:V4)
+```
+
+
+```{r}
+
+cap.gr <- GRanges(seqnames = cap.df$V2,
+                  IRanges(start=cap.df$V3,end=cap.df$V4))
+cred.gr <- GRanges(seqnames = cred.df$CHR,
+                  IRanges(start=cred.df$POS,end=cred.df$POS))
+```
+
+
+
+
+# Determine if each credible SNP was targeted in the capture experiment design and write baseline tables for t2d credible sets/snps 
+
+```{r}
+
+cred.df2 <- c()
+pb <- txtProgressBar(min=0,max=dim(cred.df)[1],style=3)
+for (i in 1:dim(cred.df)[1]){
+  setTxtProgressBar(pb,i)
+  sub.df <- cred.df[i]
+  sub.gr <- GRanges(seqnames = sub.df$CHR,
+                    IRanges(start=sub.df$POS,end=sub.df$POS))
+  cap.index <- cap.gr %over% sub.gr
+  ov.df <- cap.df[cap.index,]
+  if (dim(ov.df)[1]>0){
+    ov.df$CapFrag <- ov.df$V2 %&% ":" %&% ov.df$V3 %&% "-" %&% ov.df$V4
+    CapID <- paste0(ov.df$V1,collapse=",")
+    CapFrag <- paste0(ov.df$CapFrag,collapse=",")
+  } else{
+    CapID <- NA; CapFrag <- NA
+  }
+  sub.df$CapID <- CapID; sub.df$CapFrag <- CapFrag
+  cred.df2 <- rbind(cred.df2,sub.df)
+}
+
+```
+
+
+```{r}
+
+write.table(x=cred.df2,file=output.dir %&% "t2d-credible-snps-table-v0.txt",
+            sep="\t",quote=F,row.names=F)
+cred.df2 <- fread(output.dir %&% "t2d-credible-snps-table-v0.txt")
+
+```
+
+
+
+```{r}
+
+cred.sum.df2 <- c()
+pb <- txtProgressBar(min=0,max=dim(cred.sum.df)[1],style=3)
+for (i in 1:dim(cred.sum.df)[1]){
+  setTxtProgressBar(pb,i)
+  row.df <- cred.sum.df[i,]
+  sub.df <- dplyr::filter(cred.df2,Signal==row.df$Signal) %>% na.omit(.)
+  if (dim(sub.df)[1]>0){
+    CapDesign <- TRUE # was the credible set covered by a capture fragment 
+    # in the experimental design? 
+    NumCapSNPs <- dim(sub.df)[1]
+    CapCummPPA <- sum(sub.df$PPA)
+  }
+  else{
+    NumCapSNPs <- 0
+    CapCummPPA <- NA
+    
+  }
+  row.df$NumCapSNPs <- NumCapSNPs
+  row.df$CapCummPPA <- CapCummPPA
+  cred.sum.df2 <- rbind(cred.sum.df2,row.df)
+}
+
+```
+
+```{r}
+
+write.table(x=cred.sum.df2,file=output.dir %&% "t2d-credible-sets-table-v0.txt",
+            sep="\t",quote=F,row.names=F)
+cred.sum.df2 <- fread(output.dir %&% "t2d-credible-sets-table-v0.txt")
+
+```
+
+
+# Create a baseline table for the capture SNPs not in the above tables  
+
+Identify captured regions that do not overlap T2D credible SNPs
+
+```{r}
+index.vec <- !(cap.gr %over% cred.gr)
+nont2dcred.df <- cap.df[index.vec,]
+```
+
+
+```{r}
+
+```
+
