@@ -1,0 +1,240 @@
+---
+title: "update-enhancer-oligo-files"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+
+local.dir <- "/Users/jasont/science/projects/wtsa/"
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+cbrg.dir <- "/Users/jasont/science/servers/FUSE2/"
+
+
+```
+
+
+```{r}
+e1.dir <- cbrg.dir %&% "wtsa/enhancer_driven/first_round/"
+e1.cc.file  <- e1.dir %&% "Oligofile-original.txt"
+e1.df <- fread(e1.cc.file) 
+e2.df <- fread(rescomp.dir %&% "projects/wtsa/enhancer_driven/" %&%
+              "second_round/rerun_pipeline/OligoFileRedo.txt")
+```
+
+
+## Determine what column manipulations need to be made 
+
+```{r}
+
+all(e1.df$V6 == (e1.df$V3 - 1000))  
+all(e1.df$V7 == (e1.df$V4 + 1000))
+
+all(e2.df$V6 == (e2.df$V3 - 1000)) # Need to update fields V5 and V6 for enhancer capture second round
+all(e2.df$V7 == (e2.df$V4 + 1000))
+
+```
+
+```{r}
+e1.update.df <- e1.df
+### e1.update.df$V6 <- (e1.df$V3 - 1000) # unnecessary 
+### e1.update.df$V7 <-  (e1.df$V4 + 1000)
+
+e2.update.df <- e2.df
+e2.update.df$V6 <- (e2.df$V3 - 1000)
+e2.update.df$V7 <-  (e2.df$V4 + 1000)
+
+all(e1.update.df$V6 == (e1.update.df$V3 - 1000)) 
+all(e1.update.df$V7 == (e1.update.df$V4 + 1000))
+
+all(e2.update.df$V6 == (e2.update.df$V3 - 1000)) 
+all(e2.update.df$V7 == (e2.update.df$V4 + 1000))
+```
+
+Both E1 and E2 data frames have been evaluated and confirmed that they 
+now include a 1kb exclusion zone
+
+## Determine what captures need to be merged 
+
+```{r}
+e1.cap.gr <- GRanges(seqnames=e1.update.df$V2,
+                 IRanges(start=e1.update.df$V3,end=e1.update.df$V4))
+length(e1.cap.gr) == length(reduce(e1.cap.gr)) # FALSE 
+e1.excl.gr <- GRanges(seqnames=e1.update.df$V5,
+                 IRanges(start=e1.update.df$V6,end=e1.update.df$V7))
+length(e1.excl.gr) == length(reduce(e1.excl.gr)) # FALSE; 238 vs 149
+```
+
+There captures that overlap with other capture exclusion zones, in the first round set 
+
+```{r}
+e2.cap.gr <- GRanges(seqnames=e2.update.df$V2,
+                 IRanges(start=e2.update.df$V3,end=e2.update.df$V4))
+length(e2.cap.gr) == length(reduce(e2.cap.gr)) # FALSE; 204 vs 203 
+e2.excl.gr <- GRanges(seqnames=e2.update.df$V5,
+                 IRanges(start=e2.update.df$V6,end=e2.update.df$V7))
+length(e2.excl.gr) == length(reduce(e2.excl.gr)) # FALSE; 204 vs 191 
+```
+
+There are captures that overlap with other capture exclusion zones, in the second round set 
+
+Now, let's determine what needs to be merged, will iterate through the reduced 
+exclusion set, look up overlapping captures, and create a new merged ID, and write all output 
+
+### First Round Enhancer 
+
+```{r}
+e1.output.df <- c()
+e1.merged.ref.df <- c()
+names(e1.excl.gr) <- e1.update.df$V1
+e1.excl.reduce <- reduce(e1.excl.gr)
+pb <- txtProgressBar(min=0,max=length(e1.excl.reduce),style=3)
+for (i in 1:length(e1.excl.reduce)){
+  setTxtProgressBar(pb,i)
+  query.gr <- e1.excl.reduce[i]
+  sub.gr <- e1.excl.gr[e1.excl.gr %over% query.gr]
+  if (length(sub.gr)==1){
+    cap.id <- names(sub.gr)
+    build.df <- filter(e1.update.df,V1==cap.id)
+    build.df$V3 <- as.integer(build.df$V3)
+    build.df$V4 <- as.integer(build.df$V4)
+    build.df$V2 <- as.character(build.df$V2)
+    build.df$V5 <- as.character(build.df$V5)
+    e1.output.df <- rbind(e1.output.df,build.df)
+  } else{
+    cap.id.vec <- names(sub.gr)
+    query.df <- query.gr %>% as.data.frame(.)
+    chrom <- query.df$seqnames
+    excl.start <- query.df$start; excl.end <- query.df$end
+    cap.start <- excl.start + 1000; cap.end <- excl.end - 1000
+    ### win.start <- cap.start - 1e6; win.end <- cap.end + 1e6 
+    cap.id <- "merged_E1_chr"%&%chrom%&%"_"%&%cap.start%&%"-"%&%cap.end
+    build.df <- data.frame(V1=cap.id,V2=chrom,V3=cap.start,V4=cap.end,
+                           V5=chrom,V6=excl.start,V7=excl.end,
+                           V8=1,V9="A",stringsAsFactors = F)
+    build.df$V3 <- as.integer(build.df$V3)
+    build.df$V4 <- as.integer(build.df$V4)
+    build.df$V2 <- as.character(build.df$V2)
+    build.df$V5 <- as.character(build.df$V5)
+    e1.output.df <- rbind(e1.output.df,build.df)
+    build.df2 <- data.frame("capture.ID"=cap.id.vec,"merged.ID"=cap.id,
+                            stringsAsFactors = F)
+    e1.merged.ref.df <- rbind(e1.merged.ref.df,build.df2)
+  }
+}
+```
+
+
+```{r}
+all(e1.output.df$V6 == (e1.output.df$V3 - 1000)) 
+all(e1.output.df$V7 == (e1.output.df$V4 + 1000))
+```
+
+
+```{r}
+write.table(e1.output.df,file=rescomp.dir %&% "projects/wtsa/capture_c_rerun/input_files/" %&%
+              "captureC_E1_oligofile.txt",sep="\t",quote=F,row.names=F,col.names=F)
+write.table(e1.merged.ref.df,file=rescomp.dir %&% "projects/wtsa/capture_c_rerun/input_files/" %&%
+              "captureC_E1_merged-keyfile.txt",sep="\t",quote=F,row.names=F,col.names=F)
+```
+
+### Second Round Enhancer 
+
+```{r}
+e2.output.df <- c()
+e2.merged.ref.df <- c()
+names(e2.excl.gr) <- e2.update.df$V1
+e2.excl.reduce <- reduce(e2.excl.gr)
+pb <- txtProgressBar(min=0,max=length(e2.excl.reduce),style=3)
+for (i in 1:length(e2.excl.reduce)){
+  setTxtProgressBar(pb,i)
+  query.gr <- e2.excl.reduce[i]
+  sub.gr <- e2.excl.gr[e2.excl.gr %over% query.gr]
+  if (length(sub.gr)==1){
+    cap.id <- names(sub.gr)
+    build.df <- filter(e2.update.df,V1==cap.id)
+    build.df$V3 <- as.integer(build.df$V3)
+    build.df$V4 <- as.integer(build.df$V4)
+    build.df$V2 <- as.character(build.df$V2)
+    build.df$V5 <- as.character(build.df$V5)
+    e2.output.df <- rbind(e2.output.df,build.df)
+  } else{
+    cap.id.vec <- names(sub.gr)
+    query.df <- query.gr %>% as.data.frame(.)
+    chrom <- query.df$seqnames
+    excl.start <- query.df$start; excl.end <- query.df$end
+    cap.start <- excl.start + 1000; cap.end <- excl.end - 1000
+    ### win.start <- cap.start - 1e6; win.end <- cap.end + 1e6 
+    cap.id <- "merged_E2_chr"%&%chrom%&%"_"%&%cap.start%&%"-"%&%cap.end
+    build.df <- data.frame(V1=cap.id,V2=chrom,V3=cap.start,V4=cap.end,
+                           V5=chrom,V6=excl.start,V7=excl.end,
+                           V8=1,V9="A",stringsAsFactors = F)
+    build.df$V3 <- as.integer(build.df$V3)
+    build.df$V4 <- as.integer(build.df$V4)
+    build.df$V2 <- as.character(build.df$V2)
+    build.df$V5 <- as.character(build.df$V5)
+    e2.output.df <- rbind(e2.output.df,build.df)
+    build.df2 <- data.frame("capture.ID"=cap.id.vec,"merged.ID"=cap.id,
+                            stringsAsFactors = F)
+    e2.merged.ref.df <- rbind(e2.merged.ref.df,build.df2)
+  }
+}
+```
+
+
+```{r}
+all(e2.output.df$V6 == (e2.output.df$V3 - 1000)) 
+all(e2.output.df$V7 == (e2.output.df$V4 + 1000))
+```
+
+
+```{r}
+write.table(e2.output.df,file=rescomp.dir %&% "projects/wtsa/capture_c_rerun/input_files/" %&%
+              "captureC_E2_oligofile.txt",sep="\t",quote=F,row.names=F,col.names=F)
+write.table(e2.merged.ref.df,file=rescomp.dir %&% "projects/wtsa/capture_c_rerun/input_files/" %&%
+              "captureC_E2_merged-keyfile.txt",sep="\t",quote=F,row.names=F,col.names=F)
+```
+
+
+### Evaluate capture fragment distribution lengths
+
+```{r}
+# not merged 
+dist1.nm <- filter(e1.output.df,!grepl("merged",V1))$V4-filter(e1.output.df,!grepl("merged",V1))$V3
+summary(dist1.nm)
+## Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+##   83.0   479.5   865.0   889.6  1255.0  1964.0 
+# merged 
+dist1.m <- filter(e1.output.df,grepl("merged",V1))$V4-filter(e1.output.df,grepl("merged",V1))$V3
+summary(dist1.m)
+## Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+##  866    2401    3200    3849    4564    8574 
+
+```
+
+```{r}
+# not merged 
+dist2.nm <- filter(e2.output.df,!grepl("merged",V1))$V4-filter(e2.output.df,!grepl("merged",V1))$V3
+summary(dist2.nm)
+## Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+##  149.0   459.5   773.5   937.9  1283.0  3110.0 
+# merged 
+dist2.m <- filter(e2.output.df,grepl("merged",V1))$V4-filter(e2.output.df,grepl("merged",V1))$V3
+summary(dist2.m)
+## Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+##    822    1501    2070    2154    2654    3640 
+
+```
+
+In total, there are 149 capture regions to process in the first round and 
+there are 191 capture regions to process in the second round
+
