@@ -1,0 +1,49 @@
+---
+title: "08.2.1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+output.dir <- work.dir %&%  "analysis_files/master_tables/"
+credsets.df <- fread(output.dir %&% "t2d-credible-sets-table.txt")
+credsnps.df <- fread(output.dir %&% "t2d-credible-snps-table.txt")
+```
+
+
+## Append eQTL colocalisation information 
+
+```{r}
+qtl.dir <- work.dir %&% "coloc_analysis_files/summary_files/"
+coloc.snp.df <- fread(qtl.dir %&% "coloc_t2d-gwas-islet-eqtl_sig-p50.txt")
+coloc.sum.df <- fread(qtl.dir %&% "coloc_t2d-gwas-islet-eqtl_summary.txt")
+
+```
+
+Need to work out a "IndexSNP" column for the coloc.sum.df data frame 
+Need to work out a "SNPID" column for the coloc.snp.df data frame 
+
+then can proceed to update the cred tables 
+
+```{r}
+
+pb <- txtProgressBar(min=0,max=dim(credsets.df)[1],style=3)
+for (i in 1:dim(credsets.df)[1]){
+  setTxtProgressBar(pb,i)
+  row.df <- credsets.df[i,]
+}
+
+```
+
