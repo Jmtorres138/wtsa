@@ -257,8 +257,6 @@ cred.gr <- GRanges(seqnames = cred.df$CHR,
 ```
 
 
-
-
 # Determine if each credible SNP was targeted in the capture experiment design and write baseline tables for t2d credible sets/snps 
 
 ```{r}
@@ -288,9 +286,9 @@ for (i in 1:dim(cred.df)[1]){
 
 ```{r}
 
-write.table(x=cred.df2,file=output.dir %&% "t2d-credible-snps-table-v0.txt",
+write.table(x=cred.df2,file=output.dir %&% "t2d-credible-snps-table.txt",
             sep="\t",quote=F,row.names=F)
-cred.df2 <- fread(output.dir %&% "t2d-credible-snps-table-v0.txt")
+cred.df2 <- fread(output.dir %&% "t2d-credible-snps-table.txt")
 
 ```
 
@@ -324,9 +322,9 @@ for (i in 1:dim(cred.sum.df)[1]){
 
 ```{r}
 
-write.table(x=cred.sum.df2,file=output.dir %&% "t2d-credible-sets-table-v0.txt",
+write.table(x=cred.sum.df2,file=output.dir %&% "t2d-credible-sets-table.txt",
             sep="\t",quote=F,row.names=F)
-cred.sum.df2 <- fread(output.dir %&% "t2d-credible-sets-table-v0.txt")
+cred.sum.df2 <- fread(output.dir %&% "t2d-credible-sets-table.txt")
 
 ```
 
@@ -342,6 +340,9 @@ nont2dcred.df <- cap.df[index.vec,]
 
 
 ```{r}
+
+write.table(x=nont2dcred.df,file=output.dir %&% "baits-not-overlapping-credible-SNPs.txt",
+            sep="\t",quote=F,row.names=F,col.names=F)
 
 ```
 
