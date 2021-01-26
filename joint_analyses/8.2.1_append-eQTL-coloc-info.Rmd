@@ -23,7 +23,7 @@ credsnps.df <- fread(output.dir %&% "t2d-credible-snps-table.txt")
 ```
 
 
-## Append eQTL colocalisation information 
+## Append SNP info to eQTL colocalisation data frame  
 
 ```{r}
 qtl.dir <- work.dir %&% "coloc_analysis_files/summary_files/"
@@ -32,10 +32,27 @@ coloc.sum.df <- fread(qtl.dir %&% "coloc_t2d-gwas-islet-eqtl_summary.txt")
 
 ```
 
-Need to work out a "IndexSNP" column for the coloc.sum.df data frame 
-Need to work out a "SNPID" column for the coloc.snp.df data frame 
 
-then can proceed to update the cred tables 
+```{r}
+
+names(coloc.snp.df)[4] <- "SNPID"
+pb <- txtProgressBar(min=0,max=dim(coloc.snp.df)[1],style=3)
+coloc.snp.df$Signal <- purrr::map(1:dim(coloc.snp.df)[1],function(i){
+  setTxtProgressBar(pb,i)
+  s <- coloc.snp.df$gwas.signal[i]
+  strsplit(x=s,split="-")[[1]][2]
+}) %>% as.character(.)
+
+pb <- txtProgressBar(min=0,max=dim(coloc.sum.df)[1],style=3)
+coloc.sum.df$Signal <- purrr::map(1:dim(coloc.sum.df)[1],function(i){
+  setTxtProgressBar(pb,i)
+  s <- coloc.sum.df$gwas.signal[i]
+  strsplit(x=s,split="-")[[1]][2]
+}) %>% as.character(.)
+```
+
+
+## Append eQTL colocalisation info to credible set/SNP tables 
 
 ```{r}
 
