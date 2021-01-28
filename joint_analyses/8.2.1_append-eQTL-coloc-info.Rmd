@@ -58,49 +58,90 @@ Will accept posterior probability values >= 0.5 as evidence of colocalisation
 
 ```{r}
 
-out.df <- c() 
-pb <- txtProgressBar(min=0,max=dim(credsets.df)[1],style=3)
-for (i in 1:dim(credsets.df)[1]){
-  setTxtProgressBar(pb,i)
-  row.df <- credsets.df[i,]
-  sub.df1 <- filter(coloc.sum.df,Signal==row.df$Signal,PP.H4.abf>=0.5) %>% 
-    arrange(desc(PP.H4.abf))
-  if (dim(sub.df1)[1]>0){
-    coloc.eqtl.count <- dim(sub.df1)[1]
-    coloc.egene <- c()
-    coloc.egene.name <- c()
-    coloc.PP.H4.abf <- c()
-    coloc.top.snp <- c() 
-    coloc.top.snp.pp <- c() 
-    for (e in 1:dim(sub.df1)[1]){
-      coloc.egene <- append(coloc.egene,sub.df1[e,]$egene)
-      coloc.egene.name <- append(coloc.egene.name,sub.df1[e,]$egene.name)
-      coloc.PP.H4.abf <- append(coloc.PP.H4.abf,round(sub.df1[e,]$PP.H4.abf,digits=3))
-      sub.df2 <- (filter(coloc.snp.df,Signal==row.df$Signal,
-                        egene==sub.df1[e,]$egene) %>% 
-                    arrange(desc(SNP.PP.H4)))[1,]
-      coloc.top.snp <- append(coloc.top.snp,sub.df2$SNPID) 
-      coloc.top.snp.pp <- append(coloc.top.snp.pp,round(sub.df2$SNP.PP.H4,digits=3))      
+append_eqtl_coloc_info_to_credsets <- function(csets.df){
+  out.df <- c() 
+  pb <- txtProgressBar(min=0,max=dim(csets.df)[1],style=3)
+  for (i in 1:dim(csets.df)[1]){
+    setTxtProgressBar(pb,i)
+    row.df <- csets.df[i,]
+    sub.df1 <- filter(coloc.sum.df,Signal==row.df$Signal,PP.H4.abf>=0.5) %>% 
+      arrange(desc(PP.H4.abf))
+    if (dim(sub.df1)[1]>0){
+      coloc.eqtl.count <- dim(sub.df1)[1]
+      coloc.egene <- c()
+      coloc.egene.name <- c()
+      coloc.PP.H4.abf <- c()
+      coloc.top.snp <- c() 
+      coloc.top.snp.pp <- c() 
+      for (e in 1:dim(sub.df1)[1]){
+        coloc.egene <- append(coloc.egene,sub.df1[e,]$egene)
+        coloc.egene.name <- append(coloc.egene.name,sub.df1[e,]$egene.name)
+        coloc.PP.H4.abf <- append(coloc.PP.H4.abf,round(sub.df1[e,]$PP.H4.abf,digits=3))
+        sub.df2 <- (filter(coloc.snp.df,Signal==row.df$Signal,
+                          egene==sub.df1[e,]$egene) %>% 
+                      arrange(desc(SNP.PP.H4)))[1,]
+        coloc.top.snp <- append(coloc.top.snp,sub.df2$SNPID) 
+        coloc.top.snp.pp <- append(coloc.top.snp.pp,round(sub.df2$SNP.PP.H4,digits=3))      
+      }
+      build.df <- data.frame("coloc.eqtl.count"=coloc.eqtl.count,
+                             "coloc.egene"=paste0(coloc.egene,collapse=","),
+                             "coloc.egene.name"=paste0(coloc.egene.name,collapse=","),
+                             "coloc.eqtl.PP.H4.abf"=paste0(coloc.PP.H4.abf,collapse=","),
+                             "coloc.top.esnp"=paste0(coloc.top.snp,collapse=","),
+                             "coloc.top.esnp.pp"=paste0(coloc.top.snp.pp,collapse=","),
+                             stringsAsFactors = F)
+    } else{
+      build.df <- data.frame("coloc.eqtl.count"=0,
+                             "coloc.egene"=NA,
+                             "coloc.egene.name"=NA,
+                             "coloc.eqtl.PP.H4.abf"=NA,
+                             "coloc.top.esnp"=NA,
+                             "coloc.top.esnp.pp"=NA,
+                             stringsAsFactors = F)    
     }
-    build.df <- data.frame("coloc.eqtl.count"=coloc.eqtl.count,
-                           "coloc.egene"=paste0(coloc.egene,collapse=","),
-                           "coloc.egene.name"=paste0(coloc.egene.name,collapse=","),
-                           "coloc.PP.H4.abf"=paste0(coloc.PP.H4.abf,collapse=","),
-                           "coloc.top.snp"=paste0(coloc.top.snp,collapse=","),
-                           "coloc.top.snp.pp"=paste0(coloc.top.snp.pp,collapse=","),
-                           stringsAsFactors = F)
-  } else{
-    build.df <- data.frame("coloc.eqtl.count"=0,
-                           "coloc.egene"=NA,
-                           "coloc.egene.name"=NA,
-                           "coloc.PP.H4.abf"=NA,
-                           "coloc.top.snp"=NA,
-                           "coloc.top.snp.pp"=NA,
-                           stringsAsFactors = F)    
-  }
-  build.df <- cbind(row.df,build.df)
-  out.df <- rbind(out.df,build.df)
+    build.df <- cbind(row.df,build.df)
+    out.df <- rbind(out.df,build.df)
+  }  
+  return(out.df)
 }
 
+
+append_eqtl_coloc_info_to_credsnps <- function(csnps.df){
+  out.df <- c() 
+  pb <- txtProgressBar(min=0,max=dim(csnps.df)[1],style=3)
+  for (i in 1:dim(csnps.df)[1]){
+    setTxtProgressBar(pb,i)
+    row.df <- csnps.df[i,]
+    sub.df1 <- filter(coloc.sum.df,Signal==row.df$Signal,PP.H4.abf>=0.5) %>% 
+      arrange(desc(PP.H4.abf))
+    sub.df2 <- (filter(coloc.snp.df,Signal==row.df$Signal,
+                SNPID==row.df$SNPID) %>% arrange(desc(SNP.PP.H4)))[1,]
+    if (dim(sub.df1)[1]>0 & dim(sub.df2)[1]>0){
+      coloc.eqtl.SNP.PP.H4 <- paste0(round(sub.df2$SNP.PP.H4,digits=3),collapse=",")
+      coloc.egene <- paste0(sub.df2$egene,collapse=",")
+      coloc.egene.name <- paste0(sub.df2$egene.name,collapse=",")
+    } else{
+      coloc.eqtl.SNP.PP.H4 <- NA
+      coloc.egene <- NA
+      coloc.egene.name <- NA
+    }
+    build.df <- data.frame(coloc.egene,coloc.egene.name,coloc.eqtl.SNP.PP.H4,
+                           stringsAsFactors = F)
+    build.df <- cbind(row.df,build.df)
+    out.df <- rbind(out.df,build.df)
+  }  
+  return(out.df)
+}
+
+
 ```
+
+
+```{r}
+
+credsets.df2 <- append_eqtl_coloc_info_to_credsets(credsets.df) 
+credsnps.df2 <- append_eqtl_coloc_info_to_credsnps(credsnps.df)
+
+```
+
 
