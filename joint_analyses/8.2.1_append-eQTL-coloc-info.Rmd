@@ -144,4 +144,10 @@ credsnps.df2 <- append_eqtl_coloc_info_to_credsnps(credsnps.df)
 
 ```
 
+```{r}
+write.table(x=credsets.df2,output.dir %&% "t2d-credible-sets-table_v2.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=credsnps.df2,output.dir %&% "t2d-credible-snps-table_v2.txt",
+            sep="\t",quote=F,row.names=F)
+```
 
