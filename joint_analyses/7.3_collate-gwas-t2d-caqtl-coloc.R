@@ -27,7 +27,7 @@ collate_coloc_results <- function(){
     name.df <- data.frame("gwas.signal"=gwas.signal,"peak"=peak,stringsAsFactors = FALSE)
     build.df1 <- rds$summary %>% t(.) %>% as.data.frame(.)
     build.df2 <- rds$results %>% arrange(.,desc(SNP.PP.H4)) %>%
-      filter(.,SNP.PP.H4>=0.5)
+      filter(.,SNP.PP.H4>=0.01)
     build.df1 <- cbind(name.df,build.df1)
     coloc.sum.df <- rbind(coloc.sum.df,build.df1)
     if (dim(build.df2)[1]>0){
@@ -43,5 +43,5 @@ write.table(x=coloc.list[[1]],file=out.dir %&%
               "coloc_t2d-gwas-islet-caqtl_summary.txt",
             sep="\t",quote=F,row.names=F)
 write.table(x=coloc.list[[2]],file=out.dir %&%
-              "coloc_t2d-gwas-islet-caqtl_sig-p50.txt",
+              "coloc_t2d-gwas-islet-caqtl_sig-p01.txt",
             sep="\t",quote=F,row.names=F)
