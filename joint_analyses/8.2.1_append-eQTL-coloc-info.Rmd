@@ -27,7 +27,7 @@ credsnps.df <- fread(output.dir %&% "t2d-credible-snps-table.txt")
 
 ```{r}
 qtl.dir <- work.dir %&% "coloc_analysis_files/summary_files/"
-coloc.snp.df <- fread(qtl.dir %&% "coloc_t2d-gwas-islet-eqtl_sig-p50.txt")
+coloc.snp.df <- fread(qtl.dir %&% "coloc_t2d-gwas-islet-eqtl_sig-p01.txt")
 coloc.sum.df <- fread(qtl.dir %&% "coloc_t2d-gwas-islet-eqtl_summary.txt")
 
 ```
