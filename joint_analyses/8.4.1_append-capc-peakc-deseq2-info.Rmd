@@ -1,0 +1,124 @@
+---
+title: "08.4.1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+output.dir <- work.dir %&%  "analysis_files/master_tables/"
+credsets.df <- fread(output.dir %&% "t2d-credible-sets-table_v3.txt")
+credsnps.df <- fread(output.dir %&% "t2d-credible-snps-table_v3.txt")
+```
+
+
+## Append SNP info to caQTL colocalisation data frame  
+
+```{r}
+cap.df1 <- fread(work.dir%&%
+                   "analysis_files/credible-set_interaction-summary.txt")
+cap.df2 <- fread(work.dir%&%"analysis_files/credible-set_interactions.txt")
+
+```
+
+
+
+## Append capture-C interaction info to credible set/SNP tables 
+
+Will accept posterior probability values >= 0.5 as evidence of colocalisation 
+
+```{r}
+
+append_capc_info_credsets <- function(csets.df){
+  out.df <- c() 
+  pb <- txtProgressBar(min=0,max=dim(csets.df)[1],style=3)
+  for (i in 1:dim(csets.df)[1]){
+    setTxtProgressBar(pb,i)
+    row.df <- csets.df[i,]
+    sub.df1 <- filter(cap.df1,capture.signal==row.df$Signal) %>% 
+      dplyr::select(one_of("capture.ids","experiment","interaction.genes",
+                           "interaction.gene.names","num.interactions",
+                           "num.peakc.interactions","num.deseq2.interactions"))
+    if (dim(sub.df1)[1]==0){
+    sub.df1 <- data.frame("capture.ids"=NA,"experiment"=NA,"interaction.genes"=NA,
+                           "interaction.gene.names"=NA,"num.interactions"=NA,
+                           "num.peakc.interactions"=NA,
+                          "num.deseq2.interactions"=NA,stringsAsFactors = F)
+    }
+    build.df <- cbind(row.df,sub.df1)
+    out.df <- rbind(out.df,build.df)
+  }
+  return(out.df)
+}
+
+
+append_capc_info_credsnps <- function(csnps.df){
+  out.df <- c() 
+  pb <- txtProgressBar(min=0,max=dim(csnps.df)[1],style=3)
+  for (i in 1:dim(csnps.df)[1]){
+    setTxtProgressBar(pb,i)
+    row.df <- csnps.df[i,]
+    sub.df <- filter(cap.df2,capture.signal==row.df$Signal,
+                     SNPID==row.df$SNPID) %>% 
+      dplyr::select(one_of("capture","seqnames","start","end","width","type",
+                           "dist.from.vp","genes","tss","dist.to.nearest",
+                           "method"))
+    if (dim(sub.df)[1]>0){
+      interactions <- sub.df$seqnames %&%":"%&%sub.df$start%&%"-"%&%sub.df$end
+      interactions <- paste0(interactions,collapse=",")
+      build.df <- data.frame("capture"=paste0(unique(sub.df$capture),collapse = ","),
+                             "interactions"=interactions,
+                             "widths"=paste0(sub.df$width,collapse = ","),
+                             "type"=paste0(sub.df$type,collapse = ","),
+                             "dist.from.vp "=paste0(sub.df$dist.from.vp ,collapse = ","),
+                             "genes"=paste0(sub.df$genes ,collapse = ","),
+                             "tss"=paste0(sub.df$tss ,collapse = ","),
+                             "dist.to.nearest"=paste0(sub.df$dist.to.nearest ,collapse = ","),
+                             "method"=paste0(sub.df$method ,collapse = ","),
+                             stringsAsFactors = F)
+    } else{
+      build.df <- data.frame("capture"=NA,
+                             "interactions"=NA,
+                             "widths"=NA,
+                             "type"=NA,
+                             "dist.from.vp "=NA,
+                             "genes"=NA,
+                             "tss"=NA,
+                             "dist.to.nearest"=NA,
+                             "method"=NA,
+                             stringsAsFactors = F)
+    }
+    build.df <- cbind(row.df,build.df)
+    out.df <- rbind(out.df,build.df)    
+  }
+  return(out.df)
+}
+
+
+```
+
+```{r}
+
+credsets.df2 <- append_capc_info_credsets(credsets.df) 
+credsnps.df2 <- append_capc_info_credsnps(credsnps.df)
+
+```
+
+```{r}
+write.table(x=credsets.df2,output.dir %&% "t2d-credible-sets-table_v4.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=credsnps.df2,output.dir %&% "t2d-credible-snps-table_v4.txt",
+            sep="\t",quote=F,row.names=F)
+```
+
