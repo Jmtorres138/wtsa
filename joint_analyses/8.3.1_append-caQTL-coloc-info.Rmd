@@ -1,0 +1,171 @@
+---
+title: "08.2.1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/"
+output.dir <- work.dir %&%  "analysis_files/master_tables/"
+credsets.df <- fread(output.dir %&% "t2d-credible-sets-table_v2.txt")
+credsnps.df <- fread(output.dir %&% "t2d-credible-snps-table_v2.txt")
+```
+
+
+## Append SNP info to caQTL colocalisation data frame  
+
+```{r}
+qtl.dir <- work.dir %&% "coloc_analysis_files/summary_files/"
+coloc.snp.df <- fread(qtl.dir %&% "coloc_t2d-gwas-islet-caqtl_sig-p01.txt")
+coloc.sum.df <- fread(qtl.dir %&% "coloc_t2d-gwas-islet-caqtl_summary.txt")
+
+```
+
+
+```{r}
+
+names(coloc.snp.df)[3] <- "SNPID"
+pb <- txtProgressBar(min=0,max=dim(coloc.snp.df)[1],style=3)
+coloc.snp.df$Signal <- purrr::map(1:dim(coloc.snp.df)[1],function(i){
+  setTxtProgressBar(pb,i)
+  s <- coloc.snp.df$gwas.signal[i]
+  strsplit(x=s,split="-")[[1]][2]
+}) %>% as.character(.)
+
+pb <- txtProgressBar(min=0,max=dim(coloc.sum.df)[1],style=3)
+coloc.sum.df$Signal <- purrr::map(1:dim(coloc.sum.df)[1],function(i){
+  setTxtProgressBar(pb,i)
+  s <- coloc.sum.df$gwas.signal[i]
+  strsplit(x=s,split="-")[[1]][2]
+}) %>% as.character(.)
+```
+
+ATAC-seq peak information
+
+```{r}
+peak.df <- fread(work.dir %&% "analysis_files/atac-seq/" %&% 
+                 "feature_count_results.txt") %>% 
+  dplyr::select(one_of("Geneid","Chr","Start","End"))
+peak.df$peak.interval <- peak.df$Chr %&% ":" %&% 
+  peak.df$Start %&% "-" %&% peak.df$End
+peak.df <- dplyr::select(peak.df,one_of("Geneid","peak.interval"))
+names(peak.df) <- c("peak","peak.interval")
+
+```
+
+
+
+## Append caqtl colocalisation info to credible set/SNP tables 
+
+Will accept posterior probability values >= 0.5 as evidence of colocalisation 
+
+```{r}
+
+append_caqtl_coloc_info_to_credsets <- function(csets.df){
+  out.df <- c() 
+  pb <- txtProgressBar(min=0,max=dim(csets.df)[1],style=3)
+  for (i in 1:dim(csets.df)[1]){
+    setTxtProgressBar(pb,i)
+    row.df <- csets.df[i,]
+    sub.df1 <- filter(coloc.sum.df,Signal==row.df$Signal,PP.H4.abf>=0.5) %>% 
+      arrange(desc(PP.H4.abf))
+    if (dim(sub.df1)[1]>0){
+      coloc.caqtl.count <- dim(sub.df1)[1]
+      coloc.peak <- c()
+      coloc.peak.interval <- c()
+      coloc.PP.H4.abf <- c()
+      coloc.top.snp <- c() 
+      coloc.top.snp.pp <- c() 
+      for (e in 1:dim(sub.df1)[1]){
+        pk <- sub.df1[e,]$peak
+        coloc.peak <- append(coloc.peak,pk)
+        peak.interval <- filter(peak.df,peak==pk)$peak.interval
+        coloc.peak.interval <- append(coloc.peak.interval,peak.interval)
+        coloc.PP.H4.abf <- append(coloc.PP.H4.abf,round(sub.df1[e,]$PP.H4.abf,digits=3))
+        sub.df2 <- (filter(coloc.snp.df,Signal==row.df$Signal,
+                          peak==pk) %>% 
+                      arrange(desc(SNP.PP.H4)))[1,]
+        coloc.top.snp <- append(coloc.top.snp,sub.df2$SNPID) 
+        coloc.top.snp.pp <- append(coloc.top.snp.pp,round(sub.df2$SNP.PP.H4,digits=3))      
+      }
+      build.df <- data.frame("coloc.caqtl.count"=coloc.caqtl.count,
+                             "coloc.peak"=paste0(coloc.peak,collapse=","),
+                             "coloc.peak.interval"=paste0(coloc.peak.interval,collapse=","),
+                             "coloc.caqtl.PP.H4.abf"=paste0(coloc.PP.H4.abf,collapse=","),
+                             "coloc.top.casnp"=paste0(coloc.top.snp,collapse=","),
+                             "coloc.top.casnp.pp"=paste0(coloc.top.snp.pp,collapse=","),
+                             stringsAsFactors = F)
+    } else{
+      build.df <- data.frame("coloc.caqtl.count"=NA,
+                             "coloc.peak"=NA,
+                             "coloc.peak.interval"=NA,
+                             "coloc.caqtl.PP.H4.abf"=NA,
+                             "coloc.top.casnp"=NA,
+                             "coloc.top.casnp.pp"=NA,
+                             stringsAsFactors = F) 
+    }
+    build.df <- cbind(row.df,build.df)
+    out.df <- rbind(out.df,build.df)
+  }  
+  return(out.df)
+}
+
+
+append_caqtl_coloc_info_to_credsnps <- function(csnps.df){
+  out.df <- c() 
+  pb <- txtProgressBar(min=0,max=dim(csnps.df)[1],style=3)
+  for (i in 1:dim(csnps.df)[1]){
+    setTxtProgressBar(pb,i)
+    row.df <- csnps.df[i,]
+    sub.df1 <- filter(coloc.sum.df,Signal==row.df$Signal,PP.H4.abf>=0.5) %>% 
+      arrange(desc(PP.H4.abf))
+    sub.df2 <- (filter(coloc.snp.df,Signal==row.df$Signal,
+                SNPID==row.df$SNPID) %>% arrange(desc(SNP.PP.H4)))[1,]
+    if (dim(sub.df1)[1]>0 & dim(sub.df2)[1]>0){
+      coloc.caqtl.SNP.PP.H4 <- paste0(round(sub.df2$SNP.PP.H4,digits=3),collapse=",")
+      pk <- sub.df2$peak
+      peak.interval <- filter(peak.df,peak%in%pk)$peak.interval
+      coloc.peak <- paste0(sub.df2$peak,collapse=",")
+      coloc.peak.interval <- paste0(peak.interval,collapse=",")
+    } else{
+      coloc.caqtl.SNP.PP.H4 <- NA
+      coloc.peak <- NA
+      coloc.peak.interval <- NA
+    }
+    build.df <- data.frame(coloc.peak,coloc.peak.interval,coloc.caqtl.SNP.PP.H4,
+                           stringsAsFactors = F)
+    build.df <- cbind(row.df,build.df)
+    out.df <- rbind(out.df,build.df)
+  }  
+  return(out.df)
+}
+
+
+```
+
+
+```{r}
+
+credsets.df2 <- append_caqtl_coloc_info_to_credsets(credsets.df) 
+credsnps.df2 <- append_caqtl_coloc_info_to_credsnps(credsnps.df)
+
+```
+
+```{r}
+write.table(x=credsets.df2,output.dir %&% "t2d-credible-sets-table_v3.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=credsnps.df2,output.dir %&% "t2d-credible-snps-table_v3.txt",
+            sep="\t",quote=F,row.names=F)
+```
+
