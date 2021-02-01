@@ -115,7 +115,8 @@ append_eqtl_coloc_info_to_credsnps <- function(csnps.df){
     sub.df1 <- filter(coloc.sum.df,Signal==row.df$Signal,PP.H4.abf>=0.5) %>% 
       arrange(desc(PP.H4.abf))
     sub.df2 <- (filter(coloc.snp.df,Signal==row.df$Signal,
-                SNPID==row.df$SNPID) %>% arrange(desc(SNP.PP.H4)))[1,]
+                SNPID==row.df$SNPID) %>% arrange(desc(SNP.PP.H4)))#[1,]
+    num.eqtls <- dim(sub.df2)[1]
     if (dim(sub.df1)[1]>0 & dim(sub.df2)[1]>0){
       coloc.eqtl.SNP.PP.H4 <- paste0(round(sub.df2$SNP.PP.H4,digits=3),collapse=",")
       coloc.egene <- paste0(sub.df2$egene,collapse=",")
@@ -125,7 +126,7 @@ append_eqtl_coloc_info_to_credsnps <- function(csnps.df){
       coloc.egene <- NA
       coloc.egene.name <- NA
     }
-    build.df <- data.frame(coloc.egene,coloc.egene.name,coloc.eqtl.SNP.PP.H4,
+    build.df <- data.frame(num.eqtls,coloc.egene,coloc.egene.name,coloc.eqtl.SNP.PP.H4,
                            stringsAsFactors = F)
     build.df <- cbind(row.df,build.df)
     out.df <- rbind(out.df,build.df)

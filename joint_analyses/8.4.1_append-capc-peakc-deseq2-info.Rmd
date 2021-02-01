@@ -78,6 +78,7 @@ append_capc_info_credsnps <- function(csnps.df){
       interactions <- sub.df$seqnames %&%":"%&%sub.df$start%&%"-"%&%sub.df$end
       interactions <- paste0(interactions,collapse=",")
       build.df <- data.frame("capture"=paste0(unique(sub.df$capture),collapse = ","),
+                             "num.interactions"=dim(sub.df)[1],
                              "interactions"=interactions,
                              "widths"=paste0(sub.df$width,collapse = ","),
                              "type"=paste0(sub.df$type,collapse = ","),
@@ -89,6 +90,7 @@ append_capc_info_credsnps <- function(csnps.df){
                              stringsAsFactors = F)
     } else{
       build.df <- data.frame("capture"=NA,
+                             "num.interactions"=0,
                              "interactions"=NA,
                              "widths"=NA,
                              "type"=NA,
