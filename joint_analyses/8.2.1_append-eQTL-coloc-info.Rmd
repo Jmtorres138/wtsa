@@ -115,13 +115,15 @@ append_eqtl_coloc_info_to_credsnps <- function(csnps.df){
     sub.df1 <- filter(coloc.sum.df,Signal==row.df$Signal,PP.H4.abf>=0.5) %>% 
       arrange(desc(PP.H4.abf))
     sub.df2 <- (filter(coloc.snp.df,Signal==row.df$Signal,
-                SNPID==row.df$SNPID) %>% arrange(desc(SNP.PP.H4)))#[1,]
-    num.eqtls <- dim(sub.df2)[1]
+                SNPID==row.df$SNPID,SNP.PP.H4>=0.05) %>% arrange(desc(SNP.PP.H4)))#[1,] 
+    #retaining all caQTLs with PP > 0.05 (5%) 
     if (dim(sub.df1)[1]>0 & dim(sub.df2)[1]>0){
+      num.eqtls <- dim(sub.df2)[1]
       coloc.eqtl.SNP.PP.H4 <- paste0(round(sub.df2$SNP.PP.H4,digits=3),collapse=",")
       coloc.egene <- paste0(sub.df2$egene,collapse=",")
       coloc.egene.name <- paste0(sub.df2$egene.name,collapse=",")
     } else{
+      num.eqtls <- 0
       coloc.eqtl.SNP.PP.H4 <- NA
       coloc.egene <- NA
       coloc.egene.name <- NA

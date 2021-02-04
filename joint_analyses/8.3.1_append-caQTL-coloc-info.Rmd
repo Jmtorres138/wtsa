@@ -131,15 +131,16 @@ append_caqtl_coloc_info_to_credsnps <- function(csnps.df){
     sub.df1 <- filter(coloc.sum.df,Signal==row.df$Signal,PP.H4.abf>=0.5) %>% 
       arrange(desc(PP.H4.abf))
     sub.df2 <- (filter(coloc.snp.df,Signal==row.df$Signal,
-                SNPID==row.df$SNPID) %>% arrange(desc(SNP.PP.H4)))#[1,]
-    num.caqtls <- dim(sub.df2)[1]
+                SNPID==row.df$SNPID,SNP.PP.H4>=0.05) %>% arrange(desc(SNP.PP.H4)))#[1,]
     if (dim(sub.df1)[1]>0 & dim(sub.df2)[1]>0){
+      num.caqtls <- dim(sub.df2)[1]
       coloc.caqtl.SNP.PP.H4 <- paste0(round(sub.df2$SNP.PP.H4,digits=3),collapse=",")
       pk <- sub.df2$peak
       peak.interval <- filter(peak.df,peak%in%pk)$peak.interval
       coloc.peak <- paste0(sub.df2$peak,collapse=",")
       coloc.peak.interval <- paste0(peak.interval,collapse=",")
     } else{
+      num.caqtls <- 0 
       coloc.caqtl.SNP.PP.H4 <- NA
       coloc.peak <- NA
       coloc.peak.interval <- NA
