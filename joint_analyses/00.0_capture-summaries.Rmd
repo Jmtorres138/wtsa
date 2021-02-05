@@ -21,7 +21,8 @@ library("grid");library("gridExtra")
 cbrg.serv <- "/Users/jasont/science/servers/FUSE2/"
 rescomp.serv <- "/Users/jasont/science/servers/FUSE5/"
 input.dir.enhan <- cbrg.serv %&% "wtsa/enhancer_driven/first_round/capture_compare_cis_analysis/1_reports/"
-input.dir.enhan2nd <- cbrg.serv %&% "wtsa/enhancer_driven/second_round/troubleshoot_cis_analysis/1_reports/"
+#input.dir.enhan2nd <- cbrg.serv %&% "wtsa/enhancer_driven/second_round/troubleshoot_cis_analysis/1_reports/"
+input.dir.enhan2nd <- cbrg.serv %&% "ddownes/04_Collaborations/27_Anna_Gloyn_T2D/02_Enhancer_centric_design_credible_sets/03_CapComp_run/T2D_Credible_cis_analysis/1_reports/"
 input.dir.prom <- cbrg.serv %&% "ddownes/04_Collaborations/27_Anna_Gloyn_T2D/00_Promoter_centric_design/03_CapComp_run/T2D_Promoter_cis_analysis/1_reports/"#"wtsa/promoter_driven/PromCap_cis_analysis/1_reports/"
 plot.dir <- rescomp.serv %&% "projects/wtsa/joint_analyses/capture_summaries/"
 
@@ -241,11 +242,12 @@ ggsave(plot=cistab2,filename=plot.dir%&%"tableAll_enh1st.pdf",
 ```{r}
  
 enh.df2 <- build_input_df(input.dir=input.dir.enhan2nd,
-                     input.vec=c("Endo_A","Endo_B","Endo_C",
-                                "hESC_A","hESC_B","hESC_C"))
+                     input.vec=c("EndoB_rep1","EndoB_rep2","EndoB_rep3",
+                                "hESC_rep1","hESC_rep2","hESC_rep3"))
 
-tot.plt2 <- total.count.plot(enh.df2,yscale="1M",input.vec=c("Endo_A","Endo_B","Endo_C",
-                                                           "hESC_A","hESC_B","hESC_C"))
+tot.plt2 <- total.count.plot(enh.df2,yscale="1M",
+            input.vec=c("EndoB_rep1","EndoB_rep2","EndoB_rep3",
+                        "hESC_rep1","hESC_rep2","hESC_rep3"))
 
 ggsave(plot=tot.plt2,filename=plot.dir%&%"summary_counts_enh2nd.png",width=5,height=5)
 ggsave(plot=tot.plt2,filename=plot.dir%&%"summary_counts_enh2nd.pdf",width=5,height=5)
