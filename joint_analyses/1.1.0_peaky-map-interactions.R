@@ -4,7 +4,7 @@
 library(peaky)
 
 work.dir <- "/well/mccarthy/users/jason/projects/wtsa/joint_analyses/"
-output.dir <- work.dir %&% "projects/wtsa/joint_analyses/peaky_interactions/"
+output.dir <- work.dir %&% "peaky_interactions/"
 plot.dir <- output.dir %&% "plots/"
 args <- commandArgs(trailingOnly=TRUE)
 experiment.name <- args[1] #"promoter-capture"
