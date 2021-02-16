@@ -6,9 +6,9 @@ library(peaky)
 work.dir <- "/well/mccarthy/users/jason/projects/wtsa/joint_analyses/"
 output.dir <- work.dir %&% "projects/wtsa/joint_analyses/peaky_interactions/"
 plot.dir <- output.dir %&% "plots/"
-
-experiment.name <- "promoter-capture"
-bait.id <- 471258
+args <- commandArgs(trailingOnly=TRUE)
+experiment.name <- args[1] #"promoter-capture"
+bait.id <- args[2] #471258
 BTS <- readRDS(file=output.dir %&% experiment.name %&% ".BTS.RDS")
 
 relevant_bait = BTS[baitID==bait.id]
