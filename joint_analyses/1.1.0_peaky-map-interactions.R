@@ -2,7 +2,7 @@
 #library("data.table")
 #library("tidyverse")
 library(peaky)
-
+options(bitmapType='cairo')
 work.dir <- "/well/mccarthy/users/jason/projects/wtsa/joint_analyses/"
 output.dir <- work.dir %&% "peaky_interactions/"
 plot.dir <- output.dir %&% "plots/"
@@ -14,7 +14,7 @@ BTS <- readRDS(file=output.dir %&% experiment.name %&% ".BTS.RDS")
 relevant_bait = BTS[baitID==bait.id]
 zoom = relevant_bait[abs(relevant_bait$dist)<1e6]
 
-png(filename = plot.dir %&% "adj-readcount/" %&% experiment.name %&% 
+png(filename = plot.dir %&% "adj-readcount/" %&% experiment.name %&%
       "." %&% bait.id %&% ".adj-readcount.png")
   plot(x=zoom$dist,
      y=zoom$residual,
@@ -38,7 +38,7 @@ fit_omega = nls(residual~dist_exp(distance_from_peak,strength,omega_power),
                 data=single_peak,
                 start=list(strength=5, omega_power=-3))
 
-png(filename = plot.dir %&% "peak-decay/" %&% experiment.name %&% 
+png(filename = plot.dir %&% "peak-decay/" %&% experiment.name %&%
       "." %&% bait.id %&% ".peak-decay.png")
   plot(single_peak$distance_from_peak, single_peak$residual,
        main=paste0("Decay of signal for an isolated peak\nEstimate of omega = 10^",
@@ -54,10 +54,11 @@ PKS = peaky(relevant_bait, omega_power, iterations=1e6)
 
 P = interpret_peaky(relevant_bait, PKS, omega_power)
 P$omega.power <- omega_power
-write.table(x=P,file=output.dir %&% experiment.name %&% "." %&% baid.id %&% 
-              ".peaky-ouput.txt",sep="\t",quote=F,row.names=F,col.names=T)
+write.table(x=P,file=output.dir %&% experiment.name %&% "/" %&%
+            experiment.name %&% "." %&% baid.id %&%
+            ".peaky-output.txt",sep="\t",quote=F,row.names=F,col.names=T)
 
-png(filename = plot.dir %&% "mppc-plots/" %&% experiment.name %&% 
+png(filename = plot.dir %&% "mppc-plots/" %&% experiment.name %&%
       "." %&% bait.id %&% ".mppc.png")
   par(mfrow=c(3,1))
   zoom = P[abs(P$dist)<1e6]
@@ -70,4 +71,3 @@ png(filename = plot.dir %&% "mppc-plots/" %&% experiment.name %&%
       y=zoom$rjmcmc_pos, ylab="MPPC",
       col="blue")
 dev.off()
-
