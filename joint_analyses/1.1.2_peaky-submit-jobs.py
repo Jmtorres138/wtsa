@@ -59,21 +59,27 @@ def prom_jobs():
     exper_code = "p"
     bait_list = read_bait_list(output_dir + exper_name + ".BTS.txt")
     for bait in bait_list:
-        submit_job(exper_name,exper_code,bait)
+        outfile = output_dir + exper_name +"/"+ exper_name +"."+bait+".peaky-output.txt"
+        if os.path.isfile(outfile)==False:
+            submit_job(exper_name,exper_code,bait)
 
 def e1_jobs():
     exper_name = "enhancer1st-capture"
     exper_code = "e1"
     bait_list = read_bait_list(output_dir + exper_name + ".BTS.txt")
     for bait in bait_list:
-        submit_job(exper_name,exper_code,bait)
+        outfile = output_dir + exper_name +"/"+ exper_name +"."+bait+".peaky-output.txt"
+        if os.path.isfile(outfile)==False:
+            submit_job(exper_name,exper_code,bait)
 
 def e2_jobs():
     exper_name = "enhancer2nd-capture"
     exper_code = "e2"
     bait_list = read_bait_list(output_dir + exper_name + ".BTS.txt")
     for bait in bait_list:
-        submit_job(exper_name,exper_code,bait)
+        outfile = output_dir + exper_name +"/"+ exper_name +"."+bait+".peaky-output.txt"
+        if os.path.isfile(outfile)==False:
+            submit_job(exper_name,exper_code,bait)
 
 def main():
     prom_jobs()

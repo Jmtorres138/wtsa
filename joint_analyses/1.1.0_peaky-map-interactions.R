@@ -54,8 +54,9 @@ PKS = peaky(relevant_bait, omega_power, iterations=1e6)
 
 P = interpret_peaky(relevant_bait, PKS, omega_power)
 P$omega.power <- omega_power
-write.table(x=P,file=output.dir %&% experiment.name %&% "." %&% baid.id %&%
-              ".peaky-ouput.txt",sep="\t",quote=F,row.names=F,col.names=T)
+write.table(x=P,file=output.dir %&% experiment.name %&% "/" %&%
+            experiment.name %&% "." %&% baid.id %&%
+            ".peaky-output.txt",sep="\t",quote=F,row.names=F,col.names=T)
 
 png(filename = plot.dir %&% "mppc-plots/" %&% experiment.name %&%
       "." %&% bait.id %&% ".mppc.png")
