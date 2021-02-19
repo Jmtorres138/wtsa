@@ -34,22 +34,52 @@ dist_exp = function(offset, strength, omega_power){
   strength * exp(-(abs(offset * omega)))
 }
 
-fit_omega = nls(residual~dist_exp(distance_from_peak,strength,omega_power),
-                data=single_peak,
-                start=list(strength=5, omega_power=-3))
+## Need to try to fit omega for capture, otherwise will default to -3.8 for omega_power
+## see Downes et al. 2019
 
-png(filename = plot.dir %&% "peak-decay/" %&% experiment.name %&%
-      "." %&% bait.id %&% ".peak-decay.png")
-  plot(single_peak$distance_from_peak, single_peak$residual,
-       main=paste0("Decay of signal for an isolated peak\nEstimate of omega = 10^",
-                   round(coefficients(fit_omega)["omega_power"],3)),
-       xlab="Distance from center of peak (bp)",
-       ylab="Adjusted readcount")
-  lines(single_peak$distance_from_peak, fitted.values(fit_omega), col="red", lwd=3)
-dev.off()
+try_fit_omega <- function(single_peak) {
+    omega_power_value <- tryCatch(
+        {
+            message("Fitting omega for capture...")
+            fit_omega = nls(residual~dist_exp(distance_from_peak,strength,
+              omega_power),data=single_peak,
+              start=list(strength=5, omega_power=-3))
+            png(filename = plot.dir %&% "peak-decay/" %&% experiment.name %&%
+                  "." %&% bait.id %&% ".peak-decay.png")
+              plot(single_peak$distance_from_peak, single_peak$residual,
+                    main=paste0("Decay of signal for an isolated peak\nEstimate of omega = 10^",
+                               round(coefficients(fit_omega)["omega_power"],3)),
+                    xlab="Distance from center of peak (bp)",
+                    ylab="Adjusted readcount")
+              lines(single_peak$distance_from_peak, fitted.values(fit_omega), col="red", lwd=3)
+            dev.off()
+            round(coefficients(fit_omega)["omega_power"],3) #omega_power value that will be returned
+        },
+        error=function(cond) {
+            message("Failed to fit omega, will set to -3.8:")
+            message("Here's the original error message:")
+            message(cond)
+            # Return value -3.8 in case of error
+            return(-3.8)
+        },
+        warning=function(cond) {
+            message("Omega fit caused a warning")
+            message("Here's the original warning message:")
+            message(cond)
+            # Return value -3.8 in case of warning
+            return(-3.8)
+        },
+        finally={
+            message("Completed attempt to fit omega value ")
+        }
+    )
+    return(omega_power_value)
+}
+
+omega_power <- try_fit_omega(single_peak)
 
 relevant_bait = BTS[baitID==bait.id]
-omega_power = round(coefficients(fit_omega)["omega_power"],3) #-5
+
 PKS = peaky(relevant_bait, omega_power, iterations=1e6)
 
 P = interpret_peaky(relevant_bait, PKS, omega_power)
