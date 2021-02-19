@@ -31,7 +31,7 @@ def submit_job(exeriment,exp_code,bait_id):
 #$ -P mccarthy.prjc
 #$ -N peaky-%s-%s
 #$ -q short.qc
-#$ -pe shmem 2
+#$ -pe shmem 1
 #$ -o %s.out
 #$ -e %s.err
 
