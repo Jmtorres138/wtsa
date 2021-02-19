@@ -31,7 +31,7 @@ def submit_job(exeriment,exp_code,bait_id):
 #$ -P mccarthy.prjc
 #$ -N peaky-%s-%s
 #$ -q short.qc
-#$ -pe shmem 1
+#$ -pe shmem 2
 #$ -o %s.out
 #$ -e %s.err
 
@@ -61,6 +61,7 @@ def prom_jobs():
     for bait in bait_list:
         outfile = output_dir + exper_name +"/"+ exper_name +"."+bait+".peaky-output.txt"
         if os.path.isfile(outfile)==False:
+            #print(bait)
             submit_job(exper_name,exper_code,bait)
 
 def e1_jobs():
