@@ -81,8 +81,8 @@ def e2_jobs():
     for bait in bait_list:
         outfile = output_dir + exper_name +"/"+ exper_name +"."+bait+".peaky-output.txt"
         if os.path.isfile(outfile)==False:
-            #print(bait)
-            submit_job(exper_name,exper_code,bait)
+            print(bait)
+            #submit_job(exper_name,exper_code,bait)
 
 def main():
     #prom_jobs()
