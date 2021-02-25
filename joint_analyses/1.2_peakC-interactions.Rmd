@@ -16,9 +16,9 @@ library("data.table")
 library("tidyverse")
 library("GenomicRanges")
 
-local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
-rescomp.dir <- "/home/jason/science/servers/FUSE5/"
-cbrg.dir <- "/home/jason/science/servers/FUSE2/"
+local.dir <- "/Users/jasont/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+cbrg.dir <- "/Users/jasont/science/servers/FUSE2/"
 plot.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/peakC_plots/"
 output.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/peakC_interactions/"
 
@@ -27,19 +27,23 @@ output.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/peakC_interactions/"
 Capture Compare output files 
 
 ```{r}
-
 # promoter capture files 
-prom.dir <- cbrg.dir %&% "wtsa/promoter_driven/"
-prom.cc.file  <- prom.dir %&% "capture_compare_parameters.txt"
-prom.cc.dir  <- prom.dir %&% "PromCap_cis_analysis/"
+prom.dir <- cbrg.dir %&% "ddownes/04_Collaborations/" %&%
+  "27_Anna_Gloyn_T2D/00_Promoter_centric_design/"
+prom.cc.file  <- prom.dir %&% "03_CapComp_run/Parameters_T2D_Promoter.txt"
+prom.cc.dir  <- prom.dir %&% "03_CapComp_run/T2D_Promoter_cis_analysis/"
 # enhancer capture first round  
-e1.dir <- cbrg.dir %&% "wtsa/enhancer_driven/first_round/"
-e1.cc.file  <- e1.dir %&% "capture_compare_parameters_pruned_chr.txt"
-e1.cc.dir  <- e1.dir %&% "capture_compare_cis_analysis/"
+e1.dir <- cbrg.dir %&% "ddownes/04_Collaborations/" %&%
+  "27_Anna_Gloyn_T2D/01_Enhancer_centric_design_FGWAS/"
+e1.cc.file  <- e1.dir %&% "03_CapComp_run/" %&%
+  "XXXXXXX.txt" # NOT READY YET 
+e1.cc.dir  <- e1.dir %&% "03_CapComp_run/XXXXXX/" # NOT READY YET 
 # enhancer capture second round  
-e2.dir <- cbrg.dir %&% "wtsa/enhancer_driven/second_round/"
-e2.cc.file  <- e2.dir %&% "capture_compare_parameters_pruned_chr.txt"
-e2.cc.dir  <- e2.dir %&% "troubleshoot_cis_analysis/"
+e2.dir <- cbrg.dir %&% "ddownes/04_Collaborations/" %&%
+  "27_Anna_Gloyn_T2D/02_Enhancer_centric_design_credible_sets/"
+e2.cc.file  <- e2.dir %&% "03_CapComp_run/" %&%
+  "Parameters_T2D_Credible.txt"
+e2.cc.dir  <- e2.dir %&% "03_CapComp_run/T2D_Credible_cis_analysis/"
 
 ```
 
@@ -197,8 +201,10 @@ NOTE: Best to run the following code in a regular R script (okay to fun above in
 
 ```{r}
 
-prom.list <- build_experiment_interaction_dfs(experiment.name="promoter",experiment.dir=prom.cc.dir,
-                                             experiment.file=prom.cc.file,celltype="Endo")
+prom.list <- build_experiment_interaction_dfs(experiment.name="promoter",
+  experiment.dir=prom.cc.dir,                                 
+  experiment.file=prom.cc.file,celltype="Endo")
+
 prom.df1 <- prom.list[[1]] %>% get_dist_from_vp(.,experiment.file=prom.cc.file)
 prom.df2 <- prom.list[[2]] %>% get_dist_from_vp(.,experiment.file=prom.cc.file)
 write.table(x=prom.df1,file=output.dir%&%"promoter_endo_peakC-interactions.txt",
@@ -236,8 +242,9 @@ FAILED CAPTURE: LINC01512__55DF__cv__chr6_43814625
 
 ```{r}
 
-e2.list <- build_experiment_interaction_dfs(experiment.name="enhancer.2nd",experiment.dir=e2.cc.dir,
-                                             experiment.file=e2.cc.file,celltype="Endo")
+e2.list <- build_experiment_interaction_dfs(experiment.name="enhancer.2nd",
+  experiment.dir=e2.cc.dir,
+  experiment.file=e2.cc.file,celltype="Endo")
 e2.df1 <- e2.list[[1]] %>% get_dist_from_vp(.,experiment.file=e2.cc.file)
 e2.df2 <- e2.list[[2]] %>% get_dist_from_vp(.,experiment.file=e2.cc.file)
 write.table(x=e2.df1,file=output.dir%&%"enhancer-secondRound_endo_peakC-interactions.txt",
