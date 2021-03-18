@@ -3,7 +3,7 @@
 #library("tidyverse")
 library(peaky)
 options(bitmapType='cairo')
-work.dir <- "/well/mccarthy/users/jason/projects/wtsa/joint_analyses/"
+work.dir <- "/well/mccarthy/users/jason/projects/wtsa/joint_analyses/01_interaction-mapping/"
 output.dir <- work.dir %&% "peaky_interactions/"
 plot.dir <- output.dir %&% "plots/"
 args <- commandArgs(trailingOnly=TRUE)

@@ -19,10 +19,10 @@ library("tidyverse")
 library("GenomicRanges")
 library("DESeq2")
 
-local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/"
+local.dir <- "/home/jason/science/projects/wtsa/joint_analyses/01_interaction-mapping/"
 rescomp.dir <- "/home/jason/science/servers/FUSE5/"
 cbrg.dir <- "/home/jason/science/servers/FUSE2/"
-output.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/DESeq2_interactions/"
+output.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/01_interaction-mapping/DESeq2_interactions/"
 
 ```
 

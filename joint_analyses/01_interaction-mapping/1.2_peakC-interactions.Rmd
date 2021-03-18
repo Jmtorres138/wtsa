@@ -16,11 +16,11 @@ library("data.table")
 library("tidyverse")
 library("GenomicRanges")
 
-local.dir <- "/Users/jasont/science/projects/wtsa/joint_analyses/"
+local.dir <- "/Users/jasont/science/projects/wtsa/joint_analyses/01_interaction-mapping/"
 rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
 cbrg.dir <- "/Users/jasont/science/servers/FUSE2/"
-plot.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/peakC_plots/"
-output.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/peakC_interactions/"
+plot.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/01_interaction-mapping/peakC_plots/"
+output.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/01_interaction-mapping/peakC_interactions/"
 
 ```
 

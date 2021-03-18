@@ -9,7 +9,7 @@ python 1.1.2.1
 import os,sys,gzip
 import subprocess as sp
 serv_dir = "/well/mccarthy/users/jason/"
-work_dir = serv_dir+"projects/wtsa/joint_analyses/"
+work_dir = serv_dir+"projects/wtsa/joint_analyses/01_interaction-mapping/"
 output_dir = work_dir + "peaky_interactions/"
 log_dir = output_dir + "logs/"
 job_dir = output_dir + "jobs/"
