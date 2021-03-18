@@ -24,7 +24,7 @@ input.dir.enhan <- cbrg.serv %&% "wtsa/enhancer_driven/first_round/capture_compa
 #input.dir.enhan2nd <- cbrg.serv %&% "wtsa/enhancer_driven/second_round/troubleshoot_cis_analysis/1_reports/"
 input.dir.enhan2nd <- cbrg.serv %&% "ddownes/04_Collaborations/27_Anna_Gloyn_T2D/02_Enhancer_centric_design_credible_sets/03_CapComp_run/T2D_Credible_cis_analysis/1_reports/"
 input.dir.prom <- cbrg.serv %&% "ddownes/04_Collaborations/27_Anna_Gloyn_T2D/00_Promoter_centric_design/03_CapComp_run/T2D_Promoter_cis_analysis/1_reports/"#"wtsa/promoter_driven/PromCap_cis_analysis/1_reports/"
-plot.dir <- rescomp.serv %&% "projects/wtsa/joint_analyses/capture_summaries/"
+plot.dir <- rescomp.serv %&% "projects/wtsa/joint_analyses/00_capture-summaries/capture_summaries"
 
 ```
 
