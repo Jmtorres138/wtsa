@@ -132,7 +132,7 @@ build_interaction_dfs <- function(experiment.name,experiment.dir,capture,
 build_experiment_interaction_dfs <- function(experiment.name="promoter",experiment.dir=prom.cc.dir,
                                              experiment.file=prom.cc.file,
                                              celltype1="Endo",celltype2="LCL"){
-  ex.df <- fread(experiment.file)
+  ex.df <- read.table(experiment.file,header=F) #fread(experiment.file)
   out.df1 <- c()
   out.df2 <- c()
   pb <- txtProgressBar(min=0,max=dim(ex.df)[1],style=3)
@@ -152,14 +152,20 @@ build_experiment_interaction_dfs <- function(experiment.name="promoter",experime
 }
 
 get_dist_from_vp <- function(int.df,experiment.file){
-  ex.df <- fread(experiment.file)
+  ex.df <- read.table(experiment.file,header=F) #fread(experiment.file)
   pb <- txtProgressBar(min=0,max=dim(int.df)[1],style=3)
   dist.from.vp <- map(1:dim(int.df)[1],function(i){
     setTxtProgressBar(pb,i)
     row.df <- int.df[i,]
-    vp <- filter(ex.df,V1==row.df$capture)$V3
+    vp <- filter(ex.df,V1==row.df$capture)$V3 %>% as.integer(.)
     v <- c(row.df$start,row.df$end)
-    min(abs(v - vp))    
+    val <- min(abs(v - vp))    
+    sign.val <- unique(sign(v-vp))
+    if (length(sign.val)==1){
+      unique(sign(v-vp)) * val
+    } else{
+      c(v-vp)[abs(v-vp)==min(abs(v-vp))]#[grepl(v-vp,pattern=val)]
+    }
   }) %>% as.integer(.)
   int.df$dist.from.vp <- dist.from.vp
   return(int.df)

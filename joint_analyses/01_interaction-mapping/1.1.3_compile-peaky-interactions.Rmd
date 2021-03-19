@@ -60,34 +60,44 @@ extract_sig_interactions <- function(cc.df,peaky.file,experiment="promoter",
   pky.df <- fread(peaky.file)
   sig.df <- filter(pky.df,rjmcmc_pos >= 0.01) %>% 
     dplyr::select(one_of("baitID","preyID","dist","N","rjmcmc_pos"))
-  bait.id <- sig.df$baitID %>% unique(.)
-  bait.df <- filter(dpn.df,ID==bait.id)
-  cap.df <- filter(cc.df,V2=="chr"%&%bait.df$chrom,
-              V3==bait.df$chromStart-2)
-  capture <- cap.df$V1
-  seqnames <- cap.df$V2
-  vp <- cap.df$V3
-  out.df <- c()
-  for (i in 1:dim(sig.df)[1]){
-    row.df <- sig.df[i,]
-    prey.id <- row.df$preyID
-    prey.df <- filter(dpn.df,ID==prey.id)
-    start <- prey.df$chromStart -2; end <- prey.df$chromEnd + 2
-    width <- abs(end-start)
-    v <- c(start,end)
-    dist.from.vp.abs <- min(abs(v-vp))
-    type <- ifelse(dist.from.vp.abs <= 2.5e+05,"proximal","distal")
-    dist.from.vp <- unique(sign(v-vp)) * dist.from.vp.abs
-    n <- row.df$N
-    rjmcmc_pos <- row.df$rjmcmc_pos
-    build.df <- data.frame("experiment"=experiment,"celltype"=celltype,
-                           "capture"=capture,"seqnames"=seqnames,
-                           "start"=start,"end"=end,"width"=width,"type"=type,
-                           "dist.from.vp"=dist.from.vp,"N"=n,
-                           "rjmcmc_pos"=rjmcmc_pos,stringsAsFactors = F)
-    out.df <- rbind(out.df,build.df)
+  if (dim(sig.df)[1]>0){
+    bait.id <- sig.df$baitID %>% unique(.)
+    bait.df <- filter(dpn.df,ID==bait.id)
+    cap.df <- filter(cc.df,V2=="chr"%&%bait.df$chrom,
+                V3==bait.df$chromStart-2)
+    capture <- cap.df$V1
+    seqnames <- cap.df$V2
+    vp <- cap.df$V3 %>% as.integer()
+    out.df <- c()
+    for (i in 1:dim(sig.df)[1]){
+      #print(i)
+      row.df <- sig.df[i,]
+      prey.id <- row.df$preyID
+      prey.df <- filter(dpn.df,ID==prey.id)
+      start <- prey.df$chromStart -2; end <- prey.df$chromEnd + 2
+      width <- abs(end-start)
+      v <- c(start,end)
+      dist.from.vp.abs <- min(abs(v-vp))
+      type <- ifelse(dist.from.vp.abs <= 2.5e+05,"proximal","distal")
+      sign.val <- unique(sign(v-vp))
+      if (length(sign.val)==1){
+        dist.from.vp <- unique(sign(v-vp)) * dist.from.vp.abs
+      } else{
+        dist.from.vp <- c(v-vp)[grepl(v-vp,pattern=dist.from.vp.abs)]
+      }
+      n <- row.df$N
+      rjmcmc_pos <- row.df$rjmcmc_pos
+      build.df <- data.frame("experiment"=experiment,"celltype"=celltype,
+                             "capture"=capture,"seqnames"=seqnames,
+                             "start"=start,"end"=end,"width"=width,"type"=type,
+                             "dist.from.vp"=dist.from.vp,"N"=n,
+                             "rjmcmc_pos"=rjmcmc_pos,stringsAsFactors = F)
+      out.df <- rbind(out.df,build.df)
+    }
+    return(out.df)    
+  } else{
+    return(NULL)
   }
-  return(out.df)
 }
 
 merge_interactions <- function(sig.df){
@@ -121,7 +131,7 @@ get_dist_from_vp <- function(int.df,cc.df){
     #setTxtProgressBar(pb,i)
     #print(i)
     row.df <- int.df[i,]
-    vp <- filter(cc.df,V1==row.df$capture)$V3
+    vp <- filter(cc.df,V1==row.df$capture)$V3 %>% as.integer(.)
     v <- c(row.df$start,row.df$end)
     val <- min(abs(v - vp))
     sign.val <- unique(sign(v-vp))
@@ -140,27 +150,33 @@ get_dist_from_vp <- function(int.df,cc.df){
 
 ```{r}
 
-consolidate_experiment_results <- function(cc.file,peaky.file.dir){
-  cc.df <- fread(cc.file)
-  peaky.file.vec <- list.files(peaky.file.dir)
+consolidate_experiment_results <- function(cc.file,peaky.file.dir,exper="promoter"){
+  #cc.df <- fread(cc.file,fill=TRUE,sep="\t",sep2=" ",header=FALSE)
+  cc.df <- read.table(file=cc.file,header=FALSE)
+  peaky.file.vec <- list.files(peaky.file.dir) #c("promoter-capture.856876.peaky-output.txt")#
   out.df0 <- c()
   out.df1 <- c()
   out.df2 <- c() 
-  pb <- txtProgressBar(min=0,max=length(peaky.file.vec))
+  #pb <- txtProgressBar(min=0,max=length(peaky.file.vec))
   for (i in 1:length(peaky.file.vec)){
-    setTxtProgressBar(pb,i)
+    #setTxtProgressBar(pb,i)
+    print(i)
     peaky.file <- peaky.file.dir %&% peaky.file.vec[i]
     print(peaky.file)
-    sig.df <- extract_sig_interactions(cc.df,peaky.file,experiment="promoter",
+    sig.df <- extract_sig_interactions(cc.df,peaky.file,experiment=exper,
                                         celltype="Endo")
-    merge.list <- merge_interactions(sig.df)
-    sig.df1 <- merge.list[[1]] %>% get_dist_from_vp(.,cc.df)
-    sig.df1$type <- ifelse(abs(sig.df1$dist.from.vp) <= 2.5e+05,"proximal","distal")
-    sig.df2 <- merge.list[[2]] %>% get_dist_from_vp(.,cc.df)
-    sig.df2$type <- ifelse(abs(sig.df2$dist.from.vp) <= 2.5e+05,"proximal","distal")
-    out.df0 <- rbind(out.df0,sig.df)
-    out.df1 <- rbind(out.df1,sig.df1)
-    out.df2 <- rbind(out.df2,sig.df2)
+    if (is.null(sig.df)==FALSE){
+      merge.list <- merge_interactions(sig.df)
+      sig.df1 <- merge.list[[1]] %>% get_dist_from_vp(.,cc.df)
+      sig.df1$type <- ifelse(abs(sig.df1$dist.from.vp) <= 2.5e+05,"proximal","distal")
+      sig.df2 <- merge.list[[2]] %>% get_dist_from_vp(.,cc.df)
+      sig.df2$type <- ifelse(abs(sig.df2$dist.from.vp) <= 2.5e+05,"proximal","distal")
+      out.df0 <- rbind(out.df0,sig.df)
+      out.df1 <- rbind(out.df1,sig.df1)
+      out.df2 <- rbind(out.df2,sig.df2)      
+    } else{
+      print("No significant interactions for file: " %&% peaky.file.vec[i])
+    }
   }
   return(list(out.df0,out.df1,out.df2))
 }
@@ -172,28 +188,30 @@ consolidate_experiment_results <- function(cc.file,peaky.file.dir){
 ```{r}
 prom.list <- consolidate_experiment_results(prom.cc.file,
                                             peaky.dir %&% "promoter-capture/")
-write.table(x=prom.list[[0]],file=output.dir%&%"promoter_endo_peaky-interactions_unmerged-full-info.txt",
+write.table(x=prom.list[[1]],file=peaky.dir%&%"promoter_endo_peaky-interactions_unmerged-full-info.txt",
             sep="\t",quote=F,row.names=F)
-write.table(x=prom.list[[2]],file=output.dir%&%"promoter_endo_peaky-interactions.txt",
+write.table(x=prom.list[[2]],file=peaky.dir%&%"promoter_endo_peaky-interactions.txt",
             sep="\t",quote=F,row.names=F)
-write.table(x=prom.list[[3]],file=output.dir%&%"promoter_endo_peaky-interactions_merge1K.txt",
+write.table(x=prom.list[[3]],file=peaky.dir%&%"promoter_endo_peaky-interactions_merge1K.txt",
             sep="\t",quote=F,row.names=F)
 ```
 
 
+## Enhancer 2nd Round capture 
 
 ```{r}
-cc.file <- 
-cc.df <- fread(cc.file)
-peaky.file <- peaky.dir %&% "promoter-capture/" %&% 
-  "promoter-capture.1022614.peaky-output.txt"
-sig.df <- extract_sig_interactions(cc.df,peaky.file,experiment="promoter",
-                                     celltype="Endo")
-merge.list <- merge_interactions(sig.df)
-sig.df1 <- merge.list[[1]] %>% get_dist_from_vp(.,cc.df)
-sig.df1$type <- ifelse(abs(sig.df1$dist.from.vp) <= 2.5e+05,"proximal","distal")
-sig.df2 <- merge.list[[2]] %>% get_dist_from_vp(.,cc.df)
-sig.df2$type <- ifelse(abs(sig.df2$dist.from.vp) <= 2.5e+05,"proximal","distal")
+e2.list <- consolidate_experiment_results(e2.cc.file,
+                                        peaky.dir %&% "enhancer2nd-capture/",
+                                        exper="enhancer2nd")
+write.table(x=e2.list[[1]],file=peaky.dir%&%
+            "enhancer2nd_endo_peaky-interactions_unmerged-full-info.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=e2.list[[2]],file=peaky.dir%&%
+            "enhancer2nd_endo_peaky-interactions.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=e2.list[[3]],file=peaky.dir%&%
+            "enhancer2nd_endo_peaky-interactions_merge1K.txt",
+            sep="\t",quote=F,row.names=F)
 ```
 
 
