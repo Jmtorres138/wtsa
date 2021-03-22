@@ -1,0 +1,236 @@
+---
+title: "evaluate-promoter-interactions"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+work.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/01_interaction-mapping/"
+output.dir <- work.dir %&% "output_files/"
+```
+
+peakC interactions
+```{r}
+pkc.df1 <- fread(work.dir %&% "peakC_interactions/" %&%
+  "promoter_endo_peakC-interactions.txt")
+pkc.df2 <- fread(work.dir %&% "peakC_interactions/" %&%
+  "promoter_endo_peakC-interactions_merge1K.txt")
+```
+
+deseq2 interactions 
+
+```{r}
+dsq.df1 <- fread(work.dir %&% "DESeq2_interactions/" %&%
+  "promoter_endo_DESeq2-interactions.txt")
+dsq.df2 <- fread(work.dir %&% "DESeq2_interactions/" %&%
+  "promoter_endo_DESeq2-interactions_merge1K.txt")
+```
+
+peaky interactions
+```{r}
+pky.all.df1 <- fread(work.dir %&% "peaky_interactions/" %&%
+  "promoter_endo_peaky-interactions.txt")
+pky.all.df2 <- fread(work.dir %&% "peaky_interactions/" %&%
+  "promoter_endo_peaky-interactions_merge1K.txt")
+```
+
+## Evaluate interactions 
+
+### Interaction set 1: Merged only adjacent interactions 
+
+```{r}
+dim(pkc.df1)[1]
+dim(dsq.df1)[1]
+dim(pky.all.df1)[1] # Note; 50X more interactions than other methods, but chromosome wide! 
+```
+
+**Note: PeakC and DESeq2 interactions were called w/n 1Mb range, whereas peaky didn't have a range limit, will restrict peaky interactions to those w/n 1Mb** 
+
+```{r}
+pky.df1 <- filter(pky.all.df1,abs(dist.from.vp) <= 1e6)
+dim(pky.df1)[1]
+dim(pky.df1)[1]/dim(pkc.df1)[1]
+```
+
+**Note: There are much more peaky interactions than peakC interactions when limited to 1Mb distance, about 13.8X more interactions; 1557 vs 113 (peakC) and 253 (deseq2) ** 
+
+Will now compare the distribution of interaction widths across the three methods
+
+```{r}
+summary(pkc.df1$width)
+summary(dsq.df1$width)
+summary(pky.df1$width)
+median(pkc.df1$width)
+median(dsq.df1$width)
+median(pky.df1$width)
+```
+
+**Note: peakC interactions are much wider than peaky/deseq2 interactions, by a factor of about 10X; 2.956Kb vs 381bp vs 326bp**
+
+Will now evaluate distribution of absolute distance to vp 
+
+```{r}
+summary(pkc.df1$dist.from.vp %>% abs(.))
+summary(dsq.df1$dist.from.vp %>% abs(.))
+summary(pky.df1$dist.from.vp %>% abs(.))
+median(pkc.df1$dist.from.vp %>% abs(.))
+median(dsq.df1$dist.from.vp %>% abs(.))
+median(pky.df1$dist.from.vp %>% abs(.))
+```
+
+**Note: There seems to be a clear distinction between the distance of these interactions to the vp across these methods; DESeq2 interactions are definitely closer to the viewpoint (median ~14Kb) whereas the model-based approaches are more distal with peakC having a median distance of 140Kb and peaky being 297Kb (10X vs 21X greater distances)**
+
+#### Determine extent of overlap between interactions 
+
+```{r}
+pky.gr1 <- GRanges(seqnames = pky.df1$seqnames,
+                   IRanges(start=pky.df1$start,end=pky.df1$end))
+pkc.gr1 <- GRanges(seqnames = pkc.df1$seqnames,
+                   IRanges(start=pkc.df1$start,end=pkc.df1$end))
+dsq.gr1 <- GRanges(seqnames = dsq.df1$seqnames,
+                   IRanges(start=dsq.df1$start,end=dsq.df1$end))
+```
+
+Number of peakC interactions that overlap peaky set 
+```{r}
+sum(pkc.gr1 %over% pky.gr1) # 58
+sum(pkc.gr1 %over% pky.gr1)/length(pkc.gr1) * 100 # 51.3% 
+```
+
+Number of peakC interactions that overlap DESeq2 set 
+```{r}
+sum(pkc.gr1 %over% dsq.gr1) # 20
+sum(pkc.gr1 %over% dsq.gr1)/length(pkc.gr1) * 100 # 17.7% 
+```
+
+Number of Deseq interactions that overlap peaky set 
+```{r}
+sum(dsq.gr1 %over% pky.gr1) # 65
+sum(dsq.gr1 %over% pky.gr1)/length(dsq.gr1) * 100 # 25.7% 
+```
+
+Number of DESeq2 interactions that overlap peakC set 
+```{r}
+sum(dsq.gr1 %over% pkc.gr1) # 39
+sum(dsq.gr1 %over% pkc.gr1)/length(dsq.gr1) * 100 # 15.4% 
+```
+
+Number of peaky interactions that overlap DESeq2 set 
+```{r}
+sum(pky.gr1 %over% dsq.gr1) # 74
+sum(pky.gr1 %over% dsq.gr1)/length(pky.gr1) * 100 # 4.8% 
+```
+
+Number of peaky interactions that overlap peakC set 
+```{r}
+sum(pky.gr1 %over% pkc.gr1) # 112
+sum(pky.gr1 %over% pkc.gr1)/length(pky.gr1) * 100 # 7.2% 
+```
+
+
+
+### Interaction set 2: Merged interactions withn 1Kb of each other 
+
+```{r}
+dim(pkc.df2)[1]
+dim(dsq.df2)[1]
+dim(pky.all.df2)[1] # Note; 33-55X more interactions than other methods, but chromosome wide! 
+```
+
+**Note: PeakC and DESeq2 interactions were called w/n 1Mb range, whereas peaky didn't have a range limit, will restrict peaky interactions to those w/n 1Mb** 
+
+```{r}
+pky.df2 <- filter(pky.all.df2,abs(dist.from.vp) <= 1e6)
+dim(pky.df2)[1]
+dim(pky.df2)[1]/dim(pkc.df2)[1]
+```
+
+**Note: There are still more peaky interactions than peakC interactions when limited to 1Mb distance, about 11.4X more interactions; 915 vs 80 (peakC) and 131 (deseq2) **  
+
+Will now compare the distribution of interaction widths across the three methods
+
+```{r}
+summary(pkc.df2$width)
+summary(dsq.df2$width)
+summary(pky.df2$width)
+median(pkc.df2$width)
+median(dsq.df2$width)
+median(pky.df2$width)
+```
+
+**Note: peakC interactions are  wider than peaky/deseq2 interactions, by a factor of about 2.6X; median 6.7Kb vs 2.6Kb vs 2.6Kb**
+
+Will now evaluate distribution of absolute distance to vp 
+
+```{r}
+summary(pkc.df2$dist.from.vp %>% abs(.))
+summary(dsq.df2$dist.from.vp %>% abs(.))
+summary(pky.df2$dist.from.vp %>% abs(.))
+median(pkc.df2$dist.from.vp %>% abs(.))
+median(dsq.df2$dist.from.vp %>% abs(.))
+median(pky.df2$dist.from.vp %>% abs(.))
+```
+
+**Note: There seems to be a clear distinction between the distance of these interactions to the vp across these methods; DESeq2 interactions are definitely closer to the viewpoint (median ~22.4Kb) whereas the model-based approaches are more distal with peakC having a median distance of 124Kb and peaky being 317Kb (5.5X vs 14.2X greater distances)**
+
+
+#### Determine extent of overlap between interactions 
+
+```{r}
+pky.gr2 <- GRanges(seqnames = pky.df2$seqnames,
+                   IRanges(start=pky.df2$start,end=pky.df2$end))
+pkc.gr2 <- GRanges(seqnames = pkc.df2$seqnames,
+                   IRanges(start=pkc.df2$start,end=pkc.df2$end))
+dsq.gr2 <- GRanges(seqnames = dsq.df2$seqnames,
+                   IRanges(start=dsq.df2$start,end=dsq.df2$end))
+```
+
+Number of peakC interactions that overlap peaky set 
+```{r}
+sum(pkc.gr2 %over% pky.gr2) # 59
+sum(pkc.gr2 %over% pky.gr2)/length(pkc.gr2) * 100 # 73.8% 
+```
+
+Number of peakC interactions that overlap DESeq2 set 
+```{r}
+sum(pkc.gr2 %over% dsq.gr2) # 20
+sum(pkc.gr2 %over% dsq.gr2)/length(pkc.gr2) * 100 # 25% 
+```
+
+Number of Deseq interactions that overlap peaky set 
+```{r}
+sum(dsq.gr2 %over% pky.gr2) # 45
+sum(dsq.gr2 %over% pky.gr2)/length(dsq.gr2) * 100 # 34.4% 
+```
+
+Number of DESeq2 interactions that overlap peakC set 
+```{r}
+sum(dsq.gr2 %over% pkc.gr2) # 24
+sum(dsq.gr2 %over% pkc.gr2)/length(dsq.gr2) * 100 # 18.3% 
+```
+
+Number of peaky interactions that overlap DESeq2 set 
+```{r}
+sum(pky.gr2 %over% dsq.gr2) # 58
+sum(pky.gr2 %over% dsq.gr2)/length(pky.gr2) * 100 # 6.3% 
+```
+
+Number of peaky interactions that overlap peakC set 
+```{r}
+sum(pky.gr2 %over% pkc.gr2) # 94
+sum(pky.gr2 %over% pkc.gr2)/length(pky.gr2) * 100 # 10.3% 
+```
+
+**Note: the overlap of peakC interactions among peaky interactions is much higher with the 1K merge extension 74% vs 51%; overall it seems that peaky overlaps shares of peakC and DEseq2 interactions, but not vice-versa, largely due to the greater number of peaky interactions, but a large share of these interactions overlap those for the other two methods** 
+
+
