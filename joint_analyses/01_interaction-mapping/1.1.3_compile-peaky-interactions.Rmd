@@ -55,10 +55,11 @@ dpn.df <- fread(prom.cc.dir %&% "6_PeakyInputs/hg19_dpnII_Fragments_key.bed",
 
 ```{r}
 # DD used 0.01 as cutoff for rjmcmc_pos significance value 
-extract_sig_interactions <- function(cc.df,peaky.file,experiment="promoter",
+extract_sig_interactions <- function(cc.df,peaky.file,rjmcmc.pos,
+                                     experiment="promoter",
                                      celltype="Endo"){
   pky.df <- fread(peaky.file)
-  sig.df <- filter(pky.df,rjmcmc_pos >= 0.01) %>% 
+  sig.df <- filter(pky.df,rjmcmc_pos >= rjmcmc.pos) %>% 
     dplyr::select(one_of("baitID","preyID","dist","N","rjmcmc_pos"))
   if (dim(sig.df)[1]>0){
     bait.id <- sig.df$baitID %>% unique(.)
@@ -150,7 +151,8 @@ get_dist_from_vp <- function(int.df,cc.df){
 
 ```{r}
 
-consolidate_experiment_results <- function(cc.file,peaky.file.dir,exper="promoter"){
+consolidate_experiment_results <- function(cc.file,peaky.file.dir,rjmcmc.pos,
+                                           exper="promoter"){
   #cc.df <- fread(cc.file,fill=TRUE,sep="\t",sep2=" ",header=FALSE)
   cc.df <- read.table(file=cc.file,header=FALSE)
   peaky.file.vec <- list.files(peaky.file.dir) #c("promoter-capture.856876.peaky-output.txt")#
@@ -163,7 +165,7 @@ consolidate_experiment_results <- function(cc.file,peaky.file.dir,exper="promote
     print(i)
     peaky.file <- peaky.file.dir %&% peaky.file.vec[i]
     print(peaky.file)
-    sig.df <- extract_sig_interactions(cc.df,peaky.file,experiment=exper,
+    sig.df <- extract_sig_interactions(cc.df,peaky.file,rjmcmc.pos,experiment=exper,
                                         celltype="Endo")
     if (is.null(sig.df)==FALSE){
       merge.list <- merge_interactions(sig.df)
@@ -185,14 +187,57 @@ consolidate_experiment_results <- function(cc.file,peaky.file.dir,exper="promote
 
 ## Promoter-capture
 
+rjmcmc.pos threshold >= 0.01
 ```{r}
 prom.list <- consolidate_experiment_results(prom.cc.file,
-                                            peaky.dir %&% "promoter-capture/")
-write.table(x=prom.list[[1]],file=peaky.dir%&%"promoter_endo_peaky-interactions_unmerged-full-info.txt",
+                                            peaky.dir %&% "promoter-capture/",
+                                            rjmcmc.pos=0.01)
+write.table(x=prom.list[[1]],file=peaky.dir%&%
+  "promoter_endo_peaky-interactions_unmerged-full-info_rjmcmc-pos01.txt",
             sep="\t",quote=F,row.names=F)
-write.table(x=prom.list[[2]],file=peaky.dir%&%"promoter_endo_peaky-interactions.txt",
+
+write.table(x=prom.list[[2]],file=peaky.dir%&%
+  "promoter_endo_peaky-interactions_rjmcmc-pos01.txt",
             sep="\t",quote=F,row.names=F)
-write.table(x=prom.list[[3]],file=peaky.dir%&%"promoter_endo_peaky-interactions_merge1K.txt",
+
+write.table(x=prom.list[[3]],file=peaky.dir%&%
+  "promoter_endo_peaky-interactions_merge1K_rjmcmc-pos01.txt",
+            sep="\t",quote=F,row.names=F)
+```
+
+rjmcmc.pos threshold >= 0.05
+```{r}
+prom.list <- consolidate_experiment_results(prom.cc.file,
+                                            peaky.dir %&% "promoter-capture/",
+                                            rjmcmc.pos=0.05)
+write.table(x=prom.list[[1]],file=peaky.dir%&%
+  "promoter_endo_peaky-interactions_unmerged-full-info_rjmcmc-pos05.txt",
+            sep="\t",quote=F,row.names=F)
+
+write.table(x=prom.list[[2]],file=peaky.dir%&%
+  "promoter_endo_peaky-interactions_rjmcmc-pos05.txt",
+            sep="\t",quote=F,row.names=F)
+
+write.table(x=prom.list[[3]],file=peaky.dir%&%
+  "promoter_endo_peaky-interactions_merge1K_rjmcmc-pos05.txt",
+            sep="\t",quote=F,row.names=F)
+```
+
+rjmcmc.pos threshold >= 0.10
+```{r}
+prom.list <- consolidate_experiment_results(prom.cc.file,
+                                            peaky.dir %&% "promoter-capture/",
+                                            rjmcmc.pos=0.10)
+write.table(x=prom.list[[1]],file=peaky.dir%&%
+  "promoter_endo_peaky-interactions_unmerged-full-info_rjmcmc-pos10.txt",
+            sep="\t",quote=F,row.names=F)
+
+write.table(x=prom.list[[2]],file=peaky.dir%&%
+  "promoter_endo_peaky-interactions_rjmcmc-pos10.txt",
+            sep="\t",quote=F,row.names=F)
+
+write.table(x=prom.list[[3]],file=peaky.dir%&%
+  "promoter_endo_peaky-interactions_merge1K_rjmcmc-pos10.txt",
             sep="\t",quote=F,row.names=F)
 ```
 
