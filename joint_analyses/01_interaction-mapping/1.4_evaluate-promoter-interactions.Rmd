@@ -38,10 +38,18 @@ dsq.df2 <- fread(work.dir %&% "DESeq2_interactions/" %&%
 
 peaky interactions
 ```{r}
-pky.all.df1 <- fread(work.dir %&% "peaky_interactions/" %&%
-  "promoter_endo_peaky-interactions.txt")
-pky.all.df2 <- fread(work.dir %&% "peaky_interactions/" %&%
-  "promoter_endo_peaky-interactions_merge1K.txt")
+pky.all.df1a <- fread(work.dir %&% "peaky_interactions/" %&%
+  "promoter_endo_peaky-interactions_rjmcmc-pos01.txt")
+pky.all.df2a <- fread(work.dir %&% "peaky_interactions/" %&%
+  "promoter_endo_peaky-interactions_merge1K_rjmcmc-pos01.txt")
+pky.all.df1b <- fread(work.dir %&% "peaky_interactions/" %&%
+  "promoter_endo_peaky-interactions_rjmcmc-pos05.txt")
+pky.all.df2b <- fread(work.dir %&% "peaky_interactions/" %&%
+  "promoter_endo_peaky-interactions_merge1K_rjmcmc-pos05.txt")
+pky.all.df1c <- fread(work.dir %&% "peaky_interactions/" %&%
+  "promoter_endo_peaky-interactions_rjmcmc-pos10.txt")
+pky.all.df2c <- fread(work.dir %&% "peaky_interactions/" %&%
+  "promoter_endo_peaky-interactions_merge1K_rjmcmc-pos10.txt")
 ```
 
 ## Evaluate interactions 
@@ -51,60 +59,89 @@ pky.all.df2 <- fread(work.dir %&% "peaky_interactions/" %&%
 ```{r}
 dim(pkc.df1)[1]
 dim(dsq.df1)[1]
-dim(pky.all.df1)[1] # Note; 50X more interactions than other methods, but chromosome wide! 
+dim(pky.all.df1a)[1] 
+dim(pky.all.df1b)[1]
+dim(pky.all.df1c)[1]
+# Note; peaky results in between 7-50X more interactions than other methods, but chromosome wide!
 ```
 
 **Note: PeakC and DESeq2 interactions were called w/n 1Mb range, whereas peaky didn't have a range limit, will restrict peaky interactions to those w/n 1Mb** 
 
 ```{r}
-pky.df1 <- filter(pky.all.df1,abs(dist.from.vp) <= 1e6)
-dim(pky.df1)[1]
-dim(pky.df1)[1]/dim(pkc.df1)[1]
+pky.df1a <- filter(pky.all.df1a,abs(dist.from.vp) <= 1e6)
+dim(pky.df1a)[1]
+dim(pky.df1a)[1]/dim(pkc.df1)[1]
+pky.df1b <- filter(pky.all.df1b,abs(dist.from.vp) <= 1e6)
+dim(pky.df1b)[1]
+dim(pky.df1b)[1]/dim(pkc.df1)[1]
+pky.df1c <- filter(pky.all.df1c,abs(dist.from.vp) <= 1e6)
+dim(pky.df1c)[1]
+dim(pky.df1c)[1]/dim(pkc.df1)[1]
 ```
 
-**Note: There are much more peaky interactions than peakC interactions when limited to 1Mb distance, about 13.8X more interactions; 1557 vs 113 (peakC) and 253 (deseq2) ** 
+**Note: There are much more peaky interactions than peakC interactions when limited to 1Mb distance, about 3.3X-13.8X more interaction, depending on the rjmcmc_pos threshold used; 1557 (rjmcmc>=0.01), 626 (rjmcmc>=0.05), 374 (rjmcmc>=0.10) vs 113 (peakC) and 253 (deseq2) ** 
 
 Will now compare the distribution of interaction widths across the three methods
 
 ```{r}
 summary(pkc.df1$width)
 summary(dsq.df1$width)
-summary(pky.df1$width)
+summary(pky.df1a$width)
+summary(pky.df1b$width)
+summary(pky.df1c$width)
+
 median(pkc.df1$width)
 median(dsq.df1$width)
-median(pky.df1$width)
+median(pky.df1a$width)
+median(pky.df1b$width)
+median(pky.df1c$width)
 ```
 
-**Note: peakC interactions are much wider than peaky/deseq2 interactions, by a factor of about 10X; 2.956Kb vs 381bp vs 326bp**
+**Note: peakC interactions are much wider than peaky/deseq2 interactions, by a factor of about 10X; 2.956Kb vs 337bp-381bp(peaky) vs 326bp**
 
 Will now evaluate distribution of absolute distance to vp 
 
 ```{r}
 summary(pkc.df1$dist.from.vp %>% abs(.))
 summary(dsq.df1$dist.from.vp %>% abs(.))
-summary(pky.df1$dist.from.vp %>% abs(.))
+summary(pky.df1a$dist.from.vp %>% abs(.))
+summary(pky.df1b$dist.from.vp %>% abs(.))
+summary(pky.df1c$dist.from.vp %>% abs(.))
+
 median(pkc.df1$dist.from.vp %>% abs(.))
 median(dsq.df1$dist.from.vp %>% abs(.))
-median(pky.df1$dist.from.vp %>% abs(.))
+median(pky.df1a$dist.from.vp %>% abs(.))
+median(pky.df1b$dist.from.vp %>% abs(.))
+median(pky.df1c$dist.from.vp %>% abs(.))
 ```
 
-**Note: There seems to be a clear distinction between the distance of these interactions to the vp across these methods; DESeq2 interactions are definitely closer to the viewpoint (median ~14Kb) whereas the model-based approaches are more distal with peakC having a median distance of 140Kb and peaky being 297Kb (10X vs 21X greater distances)**
+**Note: There seems to be a clear distinction between the distance of these interactions to the vp across these methods; DESeq2 interactions are definitely closer to the viewpoint (median ~14Kb) whereas the model-based approaches are more distal with peakC having a median distance of 140Kb and peaky being 267Kb-297Kb (10X vs 19X-21X greater distances)**
 
 #### Determine extent of overlap between interactions 
 
 ```{r}
-pky.gr1 <- GRanges(seqnames = pky.df1$seqnames,
-                   IRanges(start=pky.df1$start,end=pky.df1$end))
 pkc.gr1 <- GRanges(seqnames = pkc.df1$seqnames,
                    IRanges(start=pkc.df1$start,end=pkc.df1$end))
 dsq.gr1 <- GRanges(seqnames = dsq.df1$seqnames,
                    IRanges(start=dsq.df1$start,end=dsq.df1$end))
+pky.gr1a <- GRanges(seqnames = pky.df1a$seqnames,
+                   IRanges(start=pky.df1a$start,end=pky.df1a$end))
+pky.gr1b <- GRanges(seqnames = pky.df1b$seqnames,
+                   IRanges(start=pky.df1b$start,end=pky.df1b$end))
+pky.gr1c <- GRanges(seqnames = pky.df1c$seqnames,
+                   IRanges(start=pky.df1c$start,end=pky.df1c$end))
 ```
 
 Number of peakC interactions that overlap peaky set 
 ```{r}
-sum(pkc.gr1 %over% pky.gr1) # 58
-sum(pkc.gr1 %over% pky.gr1)/length(pkc.gr1) * 100 # 51.3% 
+sum(pkc.gr1 %over% pky.gr1a) # 58
+sum(pkc.gr1 %over% pky.gr1a)/length(pkc.gr1) * 100 # 51.3% 
+
+sum(pkc.gr1 %over% pky.gr1b) # 49
+sum(pkc.gr1 %over% pky.gr1b)/length(pkc.gr1) * 100 # 43.4% 
+
+sum(pkc.gr1 %over% pky.gr1c) # 45
+sum(pkc.gr1 %over% pky.gr1c)/length(pkc.gr1) * 100 # 39.8% 
 ```
 
 Number of peakC interactions that overlap DESeq2 set 
@@ -115,8 +152,14 @@ sum(pkc.gr1 %over% dsq.gr1)/length(pkc.gr1) * 100 # 17.7%
 
 Number of Deseq interactions that overlap peaky set 
 ```{r}
-sum(dsq.gr1 %over% pky.gr1) # 65
-sum(dsq.gr1 %over% pky.gr1)/length(dsq.gr1) * 100 # 25.7% 
+sum(dsq.gr1 %over% pky.gr1a) # 65
+sum(dsq.gr1 %over% pky.gr1a)/length(dsq.gr1) * 100 # 25.7% 
+
+sum(dsq.gr1 %over% pky.gr1b) # 28
+sum(dsq.gr1 %over% pky.gr1b)/length(dsq.gr1) * 100 # 11.1% 
+
+sum(dsq.gr1 %over% pky.gr1c) # 23
+sum(dsq.gr1 %over% pky.gr1c)/length(dsq.gr1) * 100 # 9.1% 
 ```
 
 Number of DESeq2 interactions that overlap peakC set 
@@ -127,14 +170,26 @@ sum(dsq.gr1 %over% pkc.gr1)/length(dsq.gr1) * 100 # 15.4%
 
 Number of peaky interactions that overlap DESeq2 set 
 ```{r}
-sum(pky.gr1 %over% dsq.gr1) # 74
-sum(pky.gr1 %over% dsq.gr1)/length(pky.gr1) * 100 # 4.8% 
+sum(pky.gr1a %over% dsq.gr1) # 74
+sum(pky.gr1a %over% dsq.gr1)/length(pky.gr1a) * 100 # 4.8% 
+
+sum(pky.gr1b %over% dsq.gr1) # 28
+sum(pky.gr1b %over% dsq.gr1)/length(pky.gr1b) * 100 # 4.5% 
+
+sum(pky.gr1c %over% dsq.gr1) # 21
+sum(pky.gr1c %over% dsq.gr1)/length(pky.gr1c) * 100 # 5.6% 
 ```
 
 Number of peaky interactions that overlap peakC set 
 ```{r}
-sum(pky.gr1 %over% pkc.gr1) # 112
-sum(pky.gr1 %over% pkc.gr1)/length(pky.gr1) * 100 # 7.2% 
+sum(pky.gr1a %over% pkc.gr1) # 112
+sum(pky.gr1a %over% pkc.gr1)/length(pky.gr1a) * 100 # 7.2% 
+
+sum(pky.gr1b %over% pkc.gr1) # 84
+sum(pky.gr1b %over% pkc.gr1)/length(pky.gr1b) * 100 # 13.4% 
+
+sum(pky.gr1c %over% pkc.gr1) # 62
+sum(pky.gr1c %over% pkc.gr1)/length(pky.gr1c) * 100 # 16.6% 
 ```
 
 
@@ -144,61 +199,92 @@ sum(pky.gr1 %over% pkc.gr1)/length(pky.gr1) * 100 # 7.2%
 ```{r}
 dim(pkc.df2)[1]
 dim(dsq.df2)[1]
-dim(pky.all.df2)[1] # Note; 33-55X more interactions than other methods, but chromosome wide! 
+dim(pky.all.df2a)[1] 
+dim(pky.all.df2b)[1] 
+dim(pky.all.df2c)[1] 
+# Note; peaky rjmcmc_pos>=0.10 interactions about 5X-8X more than other methods; peaky rjmcmc_pos>=0.01 interactions about 33-55X more interactions than other methods, but chromosome wide! 
 ```
 
 **Note: PeakC and DESeq2 interactions were called w/n 1Mb range, whereas peaky didn't have a range limit, will restrict peaky interactions to those w/n 1Mb** 
 
 ```{r}
-pky.df2 <- filter(pky.all.df2,abs(dist.from.vp) <= 1e6)
-dim(pky.df2)[1]
-dim(pky.df2)[1]/dim(pkc.df2)[1]
+pky.df2a <- filter(pky.all.df2a,abs(dist.from.vp) <= 1e6)
+dim(pky.df2a)[1]
+dim(pky.df2a)[1]/dim(pkc.df2)[1]
+
+pky.df2b <- filter(pky.all.df2b,abs(dist.from.vp) <= 1e6)
+dim(pky.df2b)[1]
+dim(pky.df2b)[1]/dim(pkc.df2)[1]
+
+pky.df2c <- filter(pky.all.df2c,abs(dist.from.vp) <= 1e6)
+dim(pky.df2c)[1]
+dim(pky.df2c)[1]/dim(pkc.df2)[1]
 ```
 
-**Note: There are still more peaky interactions than peakC interactions when limited to 1Mb distance, about 11.4X more interactions; 915 vs 80 (peakC) and 131 (deseq2) **  
+**Note: There are still more peaky interactions than peakC interactions when limited to 1Mb distance, about 3.7X-11.4X more interaction, depending on the rjmcmc_pos threshold used; 915 (rjmcmc>=0.01), 460 (rjmcmc>=0.05), 296 (rjmcmc>=0.10) vs 80 (peakC) and 131 (deseq2) ** 
 
 Will now compare the distribution of interaction widths across the three methods
 
 ```{r}
 summary(pkc.df2$width)
 summary(dsq.df2$width)
-summary(pky.df2$width)
+summary(pky.df2a$width)
+summary(pky.df2b$width)
+summary(pky.df2c$width)
+
 median(pkc.df2$width)
 median(dsq.df2$width)
-median(pky.df2$width)
+median(pky.df2a$width)
+median(pky.df2b$width)
+median(pky.df2c$width)
 ```
 
-**Note: peakC interactions are  wider than peaky/deseq2 interactions, by a factor of about 2.6X; median 6.7Kb vs 2.6Kb vs 2.6Kb**
+**Note: peakC interactions are  wider than peaky/deseq2 interactions, by a factor of about 2.6X; median 6.7Kb vs 2.6Kb (deseq) vs 2.6Kb-2.7Kb (peaky)**
 
 Will now evaluate distribution of absolute distance to vp 
 
 ```{r}
 summary(pkc.df2$dist.from.vp %>% abs(.))
 summary(dsq.df2$dist.from.vp %>% abs(.))
-summary(pky.df2$dist.from.vp %>% abs(.))
+summary(pky.df2a$dist.from.vp %>% abs(.))
+summary(pky.df2b$dist.from.vp %>% abs(.))
+summary(pky.df2c$dist.from.vp %>% abs(.))
+
 median(pkc.df2$dist.from.vp %>% abs(.))
 median(dsq.df2$dist.from.vp %>% abs(.))
-median(pky.df2$dist.from.vp %>% abs(.))
+median(pky.df2a$dist.from.vp %>% abs(.))
+median(pky.df2b$dist.from.vp %>% abs(.))
+median(pky.df2c$dist.from.vp %>% abs(.))
 ```
 
-**Note: There seems to be a clear distinction between the distance of these interactions to the vp across these methods; DESeq2 interactions are definitely closer to the viewpoint (median ~22.4Kb) whereas the model-based approaches are more distal with peakC having a median distance of 124Kb and peaky being 317Kb (5.5X vs 14.2X greater distances)**
+**Note: There seems to be a clear distinction between the distance of these interactions to the vp across these methods; DESeq2 interactions are definitely closer to the viewpoint (median ~22.4Kb) whereas the model-based approaches are more distal with peakC having a median distance of 124Kb and peaky being 267Kb-317Kb (5.5X vs 11.9X-14.2X greater distances)**
 
 
 #### Determine extent of overlap between interactions 
 
 ```{r}
-pky.gr2 <- GRanges(seqnames = pky.df2$seqnames,
-                   IRanges(start=pky.df2$start,end=pky.df2$end))
 pkc.gr2 <- GRanges(seqnames = pkc.df2$seqnames,
                    IRanges(start=pkc.df2$start,end=pkc.df2$end))
 dsq.gr2 <- GRanges(seqnames = dsq.df2$seqnames,
                    IRanges(start=dsq.df2$start,end=dsq.df2$end))
+pky.gr2a <- GRanges(seqnames = pky.df2a$seqnames,
+                   IRanges(start=pky.df2a$start,end=pky.df2a$end))
+pky.gr2b <- GRanges(seqnames = pky.df2b$seqnames,
+                   IRanges(start=pky.df2b$start,end=pky.df2b$end))
+pky.gr2c <- GRanges(seqnames = pky.df2c$seqnames,
+                   IRanges(start=pky.df2c$start,end=pky.df2c$end))
 ```
 
 Number of peakC interactions that overlap peaky set 
 ```{r}
-sum(pkc.gr2 %over% pky.gr2) # 59
-sum(pkc.gr2 %over% pky.gr2)/length(pkc.gr2) * 100 # 73.8% 
+sum(pkc.gr2 %over% pky.gr2a) # 59
+sum(pkc.gr2 %over% pky.gr2a)/length(pkc.gr2) * 100 # 73.8% 
+
+sum(pkc.gr2 %over% pky.gr2b) #  50
+sum(pkc.gr2 %over% pky.gr2b)/length(pkc.gr2) * 100 # 62.5% 
+
+sum(pkc.gr2 %over% pky.gr2c) # 46
+sum(pkc.gr2 %over% pky.gr2c)/length(pkc.gr2) * 100 # 57.5% 
 ```
 
 Number of peakC interactions that overlap DESeq2 set 
@@ -209,8 +295,14 @@ sum(pkc.gr2 %over% dsq.gr2)/length(pkc.gr2) * 100 # 25%
 
 Number of Deseq interactions that overlap peaky set 
 ```{r}
-sum(dsq.gr2 %over% pky.gr2) # 45
-sum(dsq.gr2 %over% pky.gr2)/length(dsq.gr2) * 100 # 34.4% 
+sum(dsq.gr2 %over% pky.gr2a) # 45
+sum(dsq.gr2 %over% pky.gr2a)/length(dsq.gr2) * 100 # 34.4% 
+
+sum(dsq.gr2 %over% pky.gr2b) # 31
+sum(dsq.gr2 %over% pky.gr2b)/length(dsq.gr2) * 100 # 23.7% 
+
+sum(dsq.gr2 %over% pky.gr2c) # 22
+sum(dsq.gr2 %over% pky.gr2c)/length(dsq.gr2) * 100 # 16.8% 
 ```
 
 Number of DESeq2 interactions that overlap peakC set 
@@ -221,16 +313,28 @@ sum(dsq.gr2 %over% pkc.gr2)/length(dsq.gr2) * 100 # 18.3%
 
 Number of peaky interactions that overlap DESeq2 set 
 ```{r}
-sum(pky.gr2 %over% dsq.gr2) # 58
-sum(pky.gr2 %over% dsq.gr2)/length(pky.gr2) * 100 # 6.3% 
+sum(pky.gr2a %over% dsq.gr2) # 58
+sum(pky.gr2a %over% dsq.gr2)/length(pky.gr2a) * 100 # 6.3% 
+
+sum(pky.gr2b %over% dsq.gr2) # 29
+sum(pky.gr2b %over% dsq.gr2)/length(pky.gr2b) * 100 # 6.3% 
+
+sum(pky.gr2c %over% dsq.gr2) # 23
+sum(pky.gr2c %over% dsq.gr2)/length(pky.gr2c) * 100 # 7.7% 
 ```
 
 Number of peaky interactions that overlap peakC set 
 ```{r}
-sum(pky.gr2 %over% pkc.gr2) # 94
-sum(pky.gr2 %over% pkc.gr2)/length(pky.gr2) * 100 # 10.3% 
+sum(pky.gr2a %over% pkc.gr2) # 94
+sum(pky.gr2a %over% pkc.gr2)/length(pky.gr2a) * 100 # 10.3% 
+
+sum(pky.gr2b %over% pkc.gr2) # 76
+sum(pky.gr2b %over% pkc.gr2)/length(pky.gr2b) * 100 # 16.5% 
+
+sum(pky.gr2c %over% pkc.gr2) # 69
+sum(pky.gr2c %over% pkc.gr2)/length(pky.gr2c) * 100 # 23.3% 
 ```
 
-**Note: the overlap of peakC interactions among peaky interactions is much higher with the 1K merge extension 74% vs 51%; overall it seems that peaky overlaps shares of peakC and DEseq2 interactions, but not vice-versa, largely due to the greater number of peaky interactions, but a large share of these interactions overlap those for the other two methods** 
+**Note: the overlap of peakC interactions among peaky interactions is much higher with the 1K merge extension 58%-74% vs 40%-51%; overall it seems that peaky overlaps shares of peakC and DEseq2 interactions, but not vice-versa, largely due to the greater number of peaky interactions, but a large share of these interactions overlap those for the other two methods** 
 
 
