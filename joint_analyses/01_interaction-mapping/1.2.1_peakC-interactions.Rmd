@@ -99,6 +99,11 @@ build_interaction_df <- function(experiment.name,experiment.dir,capture,
     ##png(filename = plot.name) # Must run in R not RStudio 
     ##plot_C(res) # Must run in R not RStudio
     ##dev.off() # Must run in R not RStudio
+    results.df <- data.frame(start=res$dbR$frag_pos,p.value=res$p.value,
+                             ratio=res$ratio,stringsAsFactors = F)
+    results.df <- dplyr::inner_join(bg.df,results.df,by="start") %>% 
+      dplyr::select(one_of("chrom","start","end","p.value","ratio"))
+    results.df$start <- results.df$start %>% as.integer(.)
     peak.vec <- as.integer(res$peak)
     if (length(peak.vec)>0){
       df <- res$dbR 
@@ -111,11 +116,11 @@ build_interaction_df <- function(experiment.name,experiment.dir,capture,
       out.df$p.value <- pval.vec; out.df$ratio <- ratio.vec
       out.df$experiment <- experiment.name; out.df$celltype <- celltype; out.df$capture <- capture
       out.df <- dplyr::select(out.df,one_of("experiment","celltype",
-                                            "capture","seqnames","start","end",
+                                            "capture","chrom","start","end",
                                             "width","p.value","ratio"))
-      return(out.df)   
+      return(list(results.df,out.df))   
     } else{
-      return(NULL)
+      return(list(results.df,NULL))
     }    
   } else{
     print("FAILED CAPTURE: " %&% capture)
@@ -146,25 +151,27 @@ build_experiment_interaction_df <- function(experiment.name="promoter",experimen
                                              experiment.file=prom.cc.file,celltype="Endo"){
   ex.df <- read.table(experiment.file,header=F) #fread(experiment.file)
   out.df <- c()
+  full.df <- c() 
   pb <- txtProgressBar(min=0,max=dim(ex.df)[1],style=3)
   for (i in 1:dim(ex.df)[1]){
     print(i)
     capture <- ex.df$V1[i]
     chromo <- ex.df$V2[i]
     vp <- ex.df$V3[i]
-    build.prox <- build_interaction_df(experiment.name,experiment.dir,
+    build.prox.list <- build_interaction_df(experiment.name,experiment.dir,
                                         capture,vp,chromo,range=2.5e+05,celltype)
-    build.dist <- build_interaction_df(experiment.name,experiment.dir,
+    build.dist.list <- build_interaction_df(experiment.name,experiment.dir,
                                         capture,vp,chromo,range=1e+06,celltype)
-    if (!is.null(build.dist)){
-      check <- extract_distal(vp,build.dist)
+    if (!is.null(build.dist.list[[2]])){
+      check <- extract_distal(vp,build.dist.list[[2]])
       if (is.null(check)){
         build.dist <- NULL
       } else{
         build.dist <- check
       }      
     }
-    if (!is.null(build.prox)){
+    if (!is.null(build.prox.list[[2]])){
+      build.prox <- build.prox.list[[2]]
       build.prox$type <- "proximal"
       out.df <- rbind(out.df,build.prox)
     }
@@ -172,9 +179,14 @@ build_experiment_interaction_df <- function(experiment.name="promoter",experimen
       build.dist$type <- "distal"
       out.df <- rbind(out.df,build.dist)
     }
+    build.full.dfa <- build.prox.list[[1]]
+    build.full.dfb <- filter(build.dist.list[[1]],
+                             !(start %in% build.full.dfa$start))
+    build.full.df <- rbind(build.full.dfa,build.full.dfb)
+    full.df <- rbind(full.df,build.full.df)
     setTxtProgressBar(pb,i)
   }
-  return(out.df)
+  return(list(full.df,out.df))
 }
 
 get_dist_from_vp <- function(int.df,experiment.file){
@@ -204,21 +216,25 @@ NOTE: Best to run the following code in a regular R script (okay to fun above in
 # Promoter Capture 
 
 ```{r}
-prom.df <- build_experiment_interaction_df(experiment.name="promoter",
+prom.list <- build_experiment_interaction_df(experiment.name="promoter",
   experiment.dir=prom.cc.dir,                                 
   experiment.file=prom.cc.file,celltype="Endo")
-prom.full.df <- prom.df %>% get_dist_from_vp(.,experiment.file=prom.cc.file)
-write.table(x=prom.full.df,file=output.dir%&%"promoter_endo_peakC-interactions.txt",
+prom.df <- prom.list[[2]] %>% get_dist_from_vp(.,experiment.file=prom.cc.file)
+write.table(x=prom.df,file=output.dir%&%"promoter_endo_peakC-interactions.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=prom.list[[1]],file=output.dir%&%"promoter_endo_peakC-output.txt",
             sep="\t",quote=F,row.names=F)
 ```
 
 # Enhancer Capture (first round)
 
 ```{r}
-e1.df <- build_experiment_interaction_df(experiment.name="enhancer.1st",experiment.dir=e1.cc.dir,
+e1.list <- build_experiment_interaction_df(experiment.name="enhancer.1st",experiment.dir=e1.cc.dir,
                                              experiment.file=e1.cc.file,celltype="Endo")
-e1.df <- e1.df %>% get_dist_from_vp(.,experiment.file=e1.cc.file)
+e1.df <- e1.list[[2]] %>% get_dist_from_vp(.,experiment.file=e1.cc.file)
 write.table(x=e1.df,file=output.dir%&%"enhancer-firstRound_endo_peakC-interactions.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=e1.list[[1]],file=output.dir%&%"enhancer-firstRound_endo_peakC-output.txt",
             sep="\t",quote=F,row.names=F)
 ```
 
@@ -234,11 +250,13 @@ FAILED CAPTURE: LINC01512__55DF__cv__chr6_43814625
 # Enhancer Capture (second round)
 
 ```{r}
-e2.df <- build_experiment_interaction_df(experiment.name="enhancer.2nd",
+e2.list <- build_experiment_interaction_df(experiment.name="enhancer.2nd",
   experiment.dir=e2.cc.dir,
   experiment.file=e2.cc.file,celltype="Endo")
-e2.full.df <- e2.df %>% get_dist_from_vp(.,experiment.file=e2.cc.file)
-write.table(x=e2.full.df,file=output.dir%&%"enhancer-secondRound_endo_peakC-interactions.txt",
+e2.df <- e2.list[[2]] %>% get_dist_from_vp(.,experiment.file=e2.cc.file)
+write.table(x=e2.df,file=output.dir%&%"enhancer-secondRound_endo_peakC-interactions.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=e2.list[[1]],file=output.dir%&%"enhancer-secondRound_endo_peakC-output.txt",
             sep="\t",quote=F,row.names=F)
 ```
 
