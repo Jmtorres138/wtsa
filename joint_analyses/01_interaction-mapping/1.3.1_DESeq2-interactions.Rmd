@@ -265,9 +265,9 @@ e2.list <- build_experiment_interaction_dfs(experiment.name="enhancer.2nd",exper
                                             celltype1="Endo",celltype2="hESC")
 e2.df <- e2.list[[2]] %>% get_dist_from_vp(.,experiment.file=e2.cc.file)
 e2.df$type <- ifelse(e2.df$dist.from.vp <= 2.5e+05,"proximal","distal")
-write.table(x=e2.df,file=output.dir%&%"enhancer-secondRound_DESeq2_peakC-interactions.txt",
+write.table(x=e2.df,file=output.dir%&%"enhancer-secondRound_DESeq2-interactions.txt",
             sep="\t",quote=F,row.names=F)
-write.table(x=e2.list[[1]],file=output.dir%&%"enhancer-secondRound_DESeq2_peakC-output.txt",
+write.table(x=e2.list[[1]],file=output.dir%&%"enhancer-secondRound_DESeq2-output.txt",
             sep="\t",quote=F,row.names=F)
 ```
 
