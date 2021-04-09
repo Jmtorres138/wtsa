@@ -80,6 +80,7 @@ run_deseq2 <- function(bg.df,vp,chrom,celltype1="Endo",celltype2="LCL"){
   # phenotype data frame 
   celltype <- c(rep(celltype1,dim(a.df)[2]),rep(celltype2,dim(b.df)[2]))
   pheno.df <- as.data.frame(celltype)
+  pheno.df$celltype <- as.factor(pheno.df$celltype)
   row.names(pheno.df) <- c(names(a.df),names(b.df))
   ddsFullCountTable <- DESeqDataSetFromMatrix(
     countData = data.mat,
@@ -100,24 +101,27 @@ run_deseq2 <- function(bg.df,vp,chrom,celltype1="Endo",celltype2="LCL"){
     finally={
       message("")
     }
-  )    
-  if (is.na(res.df)){
-    frag.vec <- sub.bkup$chrom %&% ":" %&% sub.bkup$start %&% "-" %&% sub.bkup$end
-    a.df <- dplyr::select(sub.bkup,contains(celltype1))
-    b.df <- dplyr::select(sub.bkup,contains(celltype2))
-    data.mat <- cbind(a.df,b.df) %>% as.matrix(.)
-    row.names(data.mat)<-frag.vec
-    # phenotype data frame 
-    celltype <- c(rep(celltype1,dim(a.df)[2]),rep(celltype2,dim(b.df)[2]))
-    pheno.df <- as.data.frame(celltype)
-    row.names(pheno.df) <- c(names(a.df),names(b.df))
-    ddsFullCountTable <- DESeqDataSetFromMatrix(
-      countData = data.mat,
-      colData = pheno.df,
-      design = ~ celltype )  
-    dds <- suppressMessages(DESeq(ddsFullCountTable))
-    res <- results(dds, contrast = c("celltype",celltype1,celltype2))
-    res.df <- as.data.frame(res)
+  )
+  if (length(res.df)<2){ # Will be the case for NA as lenght is one, to prevent warning message 
+    if (is.na(res.df)){
+      frag.vec <- sub.bkup$chrom %&% ":" %&% sub.bkup$start %&% "-" %&% sub.bkup$end
+      a.df <- dplyr::select(sub.bkup,contains(celltype1))
+      b.df <- dplyr::select(sub.bkup,contains(celltype2))
+      data.mat <- cbind(a.df,b.df) %>% as.matrix(.)
+      row.names(data.mat)<-frag.vec
+      # phenotype data frame 
+      celltype <- c(rep(celltype1,dim(a.df)[2]),rep(celltype2,dim(b.df)[2]))
+      pheno.df <- as.data.frame(celltype)
+      pheno.df$celltype <- as.factor(pheno.df$celltype)
+      row.names(pheno.df) <- c(names(a.df),names(b.df))
+      ddsFullCountTable <- DESeqDataSetFromMatrix(
+        countData = data.mat,
+        colData = pheno.df,
+        design = ~ celltype )  
+      dds <- suppressMessages(DESeq(ddsFullCountTable))
+      res <- results(dds, contrast = c("celltype",celltype1,celltype2))
+      res.df <- as.data.frame(res)
+    }    
   }
   return(res.df)
 }
@@ -127,24 +131,23 @@ build_interaction_dfs <- function(experiment.name,experiment.dir,capture,
   # celltype is a pattern string that is checked in the union bedgraph file used for extraction
   bg.file <- experiment.dir %&% "2_unionBedgraphs/A_raw_counts/" %&% capture %&% "_raw.unionbdg"
   bg.df <- fread(bg.file)  
+  #bg.df$chrom <- as.factor(bg.df$chrom)
   if (dim(bg.df)[1]>=1000){ # Capture must contain at least 1000 fragments in unionbedgraph 
     res.df <- run_deseq2(bg.df,vp,chrom,celltype1,celltype2)
     res.df$fragment <- row.names(res.df)
+    res.df$seqnames <- purrr::map(res.df$fragment,function(s){
+      strsplit(x=s,split=":")[[1]][1]
+    }) %>% as.character(.)
+    res.df$start <- purrr::map(res.df$fragment,function(s){
+      (strsplit(x=s,split=":")[[1]][2] %>% strsplit(.,split="-"))[[1]][1]
+    }) %>% as.integer(.)
+    res.df$end <- purrr::map(res.df$fragment,function(s){
+      (strsplit(x=s,split=":")[[1]][2] %>% strsplit(.,split="-"))[[1]][2]
+    }) %>% as.integer(.)    
     peak.df <- filter(na.omit(res.df),padj<0.05) # FDR 5% 
     peak.df <- filter(peak.df,sign(stat)>0) # retain interactions that are higher in Endos 
     if (dim(peak.df)[1]>0){
-      peak.vec <- map(peak.df$fragment,function(s){
-        (strsplit(s,split=":")[[1]][2] %>% strsplit(.,split="-"))[[1]][1]}) %>% as.integer(.)
       out.df <- peak.df
-      out.df$seqnames <- purrr::map(peak.df$fragment,function(s){
-        strsplit(x=s,split=":")[[1]][1]
-      }) %>% as.character(.)
-      out.df$start <- purrr::map(peak.df$fragment,function(s){
-        (strsplit(x=s,split=":")[[1]][2] %>% strsplit(.,split="-"))[[1]][1]
-      }) %>% as.integer(.)
-      out.df$end <- purrr::map(peak.df$fragment,function(s){
-        (strsplit(x=s,split=":")[[1]][2] %>% strsplit(.,split="-"))[[1]][2]
-      }) %>% as.integer(.)
       out.df$width <- out.df$end - out.df$start
       out.df$experiment <- experiment.name; out.df$celltype1 <- celltype1; 
       out.df$celltype2 <- celltype2; out.df$capture <- capture
@@ -152,9 +155,9 @@ build_interaction_dfs <- function(experiment.name,experiment.dir,capture,
         one_of("experiment","celltype1","celltype2","capture","seqnames",
                "start","end","width","baseMean","log2FoldChange","lfcSE","stat",
                "pvalue","padj"))
-      return(out.df)    
+      return(list(res.df,out.df))    
     } else{
-      return(NULL)
+      return(list(res.df,NULL))
     }    
   } else{
     print("FAILED CAPTURE: " %&% capture)
@@ -173,20 +176,24 @@ build_experiment_interaction_dfs <- function(experiment.name="promoter",experime
                                              celltype1="Endo",celltype2="LCL"){
   ex.df <- read.table(experiment.file,header=F) #fread(experiment.file)
   out.df <- c()
+  full.df <- c() 
   pb <- txtProgressBar(min=0,max=dim(ex.df)[1],style=3)
   for (i in 1:dim(ex.df)[1]){
     print(i)
     capture <- ex.df$V1[i]
     chrom <- ex.df$V2[i]
     vp <- ex.df$V3[i]
-    build.df <- build_interaction_dfs(experiment.name,experiment.dir,capture,
+    build.list <- build_interaction_dfs(experiment.name,experiment.dir,capture,
                                         chrom,vp,celltype1,celltype2)
-    if (!is.null(build.df)){
-      out.df <- rbind(out.df,build.df)
+    if (!is.null(build.list)){
+      full.df <- rbind(full.df,build.list[[1]])
+      if (!is.null(build.list[[2]])){
+        out.df <- rbind(out.df,build.list[[2]])
+      }
     }
     setTxtProgressBar(pb,i)
   }
-  return(out.df)
+  return(list(full.df,out.df))
 }
 
 get_dist_from_vp <- function(int.df,experiment.file){
@@ -215,13 +222,14 @@ get_dist_from_vp <- function(int.df,experiment.file){
 # Promoter Capture 
 
 ```{r}
-
-prom.df <- build_experiment_interaction_dfs(experiment.name="promoter",experiment.dir=prom.cc.dir,
+prom.list <- build_experiment_interaction_dfs(experiment.name="promoter",experiment.dir=prom.cc.dir,
                                              experiment.file=prom.cc.file,
                                              celltype1="Endo",celltype2="LCL")
-prom.df.full <- prom.df %>% get_dist_from_vp(.,experiment.file=prom.cc.file)
-prom.df.full$type <- ifelse(prom.df.full$dist.from.vp <= 2.5e+05,"proximal","distal")
-write.table(x=prom.df.full,file=output.dir%&%"promoter_endo_DESeq2-interactions.txt",
+prom.df <- prom.list[[2]] %>% get_dist_from_vp(.,experiment.file=prom.cc.file)
+prom.df$type <- ifelse(prom.df$dist.from.vp <= 2.5e+05,"proximal","distal")
+write.table(x=prom.df,file=output.dir%&%"promoter_endo_DESeq2-interactions.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=prom.list[[1]],file=output.dir%&%"promoter_endo_DESeq2-output.txt",
             sep="\t",quote=F,row.names=F)
 ```
 
@@ -229,14 +237,15 @@ write.table(x=prom.df.full,file=output.dir%&%"promoter_endo_DESeq2-interactions.
 # Enhancer Capture (first round)
 
 ```{r}
-e1.df <- build_experiment_interaction_dfs(experiment.name="enhancer.1st",experiment.dir=e1.cc.dir,
+e1.list <- build_experiment_interaction_dfs(experiment.name="enhancer.1st",experiment.dir=e1.cc.dir,
                                              experiment.file=e1.cc.file,
                                             celltype1="Endo",celltype2="hESC")
-e1.df.full <- e1.df %>% get_dist_from_vp(.,experiment.file=e1.cc.file)
-e1.df.full$type <- ifelse(e1.df.full$dist.from.vp <= 2.5e+05,"proximal","distal")
+e1.df <- e1.list[[2]] %>% get_dist_from_vp(.,experiment.file=e1.cc.file)
+e1.df$type <- ifelse(e1.df.full$dist.from.vp <= 2.5e+05,"proximal","distal")
 write.table(x=e1.df.full,file=output.dir%&%"enhancer-firstRound_endo_DESeq2-interactions.txt",
             sep="\t",quote=F,row.names=F)
-
+write.table(x=e1.list[[1]],file=output.dir%&%"enhancer-firstRound_endo_DESeq2-output.txt",
+            sep="\t",quote=F,row.names=F)
 ```
 
 
@@ -251,14 +260,16 @@ FAILED CAPTURE: LINC01512__55DF__cv__chr6_43814625
 # Enhancer Capture (second round)
 
 ```{r}
-e2.df<- build_experiment_interaction_dfs(experiment.name="enhancer.2nd",experiment.dir=e2.cc.dir,
+e2.list <- build_experiment_interaction_dfs(experiment.name="enhancer.2nd",experiment.dir=e2.cc.dir,
                                              experiment.file=e2.cc.file,
                                             celltype1="Endo",celltype2="hESC")
-e2.df.full <- e2.df %>% get_dist_from_vp(.,experiment.file=e2.cc.file)
-e2.df.full$type <- ifelse(e2.df.full$dist.from.vp <= 2.5e+05,"proximal","distal")
-write.table(x=e2.df.full,file=output.dir%&%"enhancer-secondRound_DESeq2_peakC-interactions.txt",
+e2.df <- e2.list[[2]] %>% get_dist_from_vp(.,experiment.file=e2.cc.file)
+e2.df$type <- ifelse(e2.df$dist.from.vp <= 2.5e+05,"proximal","distal")
+write.table(x=e2.df,file=output.dir%&%"enhancer-secondRound_DESeq2_peakC-interactions.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=e2.list[[1]],file=output.dir%&%"enhancer-secondRound_DESeq2_peakC-output.txt",
             sep="\t",quote=F,row.names=F)
 ```
 
 NOTE: captures corresponding to these indices initially failed without the 1Mb range constraint: 
-25;27;36;56;60;65;75;106;119;163;171;172;
+25;27;36;57;60;65;75;106;119;163;171;172;173
