@@ -41,9 +41,9 @@ fragments_file <- input.dir.prom %&% "hg19_dpnII_Fragments_key.bed"
 ```{r}
 interactions = data.table::fread(interactions_file)
 fragments = data.table::fread(fragments_file)
-BI = bin_interactions(interactions, fragments, bins=5)
-models = by(BI$interactions, BI$interactions$dist.bin, model_bin, subsample_size=1000)
-
+BI = bin_interactions(interactions, fragments, bins=10,max_dist=1e6)
+models = by(BI$interactions, BI$interactions$dist.bin, model_bin, subsample_size=NA)
+BI$bins 
 
 png(filename = plot.dir %&% experiment.name %&% ".model-plots.png",
     width=600,height=600,units="px")
@@ -75,8 +75,8 @@ fragments_file <- input.dir.prom %&% "hg19_dpnII_Fragments_key.bed"
 ```{r}
 interactions = data.table::fread(interactions_file)
 fragments = data.table::fread(fragments_file)
-BI = bin_interactions(interactions, fragments, bins=5)
-models = by(BI$interactions, BI$interactions$dist.bin, model_bin, subsample_size=1000)
+BI = bin_interactions(interactions, fragments, bins=10,max_dist=1e6)
+models = by(BI$interactions, BI$interactions$dist.bin, model_bin, subsample_size=NA)
 
 
 png(filename = plot.dir %&% experiment.name %&% ".model-plots.png",
@@ -109,8 +109,8 @@ fragments_file <- input.dir.prom %&% "hg19_dpnII_Fragments_key.bed"
 ```{r}
 interactions = data.table::fread(interactions_file)
 fragments = data.table::fread(fragments_file)
-BI = bin_interactions(interactions, fragments, bins=5)
-models = by(BI$interactions, BI$interactions$dist.bin, model_bin, subsample_size=1000)
+BI = bin_interactions(interactions, fragments, bins=10,max_dist=1e6)
+models = by(BI$interactions, BI$interactions$dist.bin, model_bin, subsample_size=NA)
 # Needed to rerun, until no error 
 
 

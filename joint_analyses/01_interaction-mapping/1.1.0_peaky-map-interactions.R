@@ -76,11 +76,11 @@ try_fit_omega <- function(single_peak) {
     return(omega_power_value)
 }
 
-omega_power <- try_fit_omega(single_peak)
+omega_power <- -3.8 #try_fit_omega(single_peak) # Manually setting to -3.8
 
 relevant_bait = BTS[baitID==bait.id]
 
-PKS = peaky(relevant_bait, omega_power, iterations=1e6)
+PKS = peaky(relevant_bait, omega_power, iterations=10e6) # crank up to 10 million 
 
 P = interpret_peaky(relevant_bait, PKS, omega_power)
 P$omega.power <- omega_power
