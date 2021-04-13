@@ -82,12 +82,12 @@ def e2_jobs():
         outfile = output_dir + exper_name +"/"+ exper_name +"."+bait+".peaky-output.txt"
         if os.path.isfile(outfile)==False:
             print(bait)
-            #submit_job(exper_name,exper_code,bait)
+            submit_job(exper_name,exper_code,bait)
 
 def main():
-    #prom_jobs()
+    prom_jobs()
     #e1_jobs()
-    e2_jobs()
+    #e2_jobs()
 
 if (__name__=="__main__"):
     main()
