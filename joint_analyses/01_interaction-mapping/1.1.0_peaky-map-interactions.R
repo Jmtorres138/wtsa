@@ -80,15 +80,18 @@ omega_power <- -3.8 #try_fit_omega(single_peak) # Manually setting to -3.8
 
 relevant_bait = BTS[baitID==bait.id]
 
-PKS = peaky(relevant_bait, omega_power, iterations=10e6) # crank up to 10 million 
+PKS = peaky(relevant_bait, omega_power, iterations=10e6) # crank up to 10 million
 
 P = interpret_peaky(relevant_bait, PKS, omega_power)
 P$omega.power <- omega_power
-write.table(x=P,file=output.dir %&% experiment.name %&% "/" %&%
+#write.table(x=P,file=output.dir %&% experiment.name %&% "/" %&%
+#            experiment.name %&% "." %&% bait.id %&%
+#            ".peaky-output.txt",sep="\t",quote=F,row.names=F,col.names=T)
+write.table(x=P,file=output.dir %&% experiment.name %&% "/chain_2/" %&%
             experiment.name %&% "." %&% bait.id %&%
-            ".peaky-output.txt",sep="\t",quote=F,row.names=F,col.names=T)
+            ".peaky-output.txt",sep="\t",quote=F,row.names=F,col.names=T) # running second chain for promoter capture experiment to enable comparision between runs
 
-png(filename = plot.dir %&% "mppc-plots/" %&% experiment.name %&%
+png(filename = plot.dir %&% "mppc-plots/chain_2/" %&% experiment.name %&%
       "." %&% bait.id %&% ".mppc.png")
   par(mfrow=c(3,1))
   zoom = P[abs(P$dist)<1e6]
