@@ -68,7 +68,8 @@ summary(out.df$correlation) # median correlation 0.87
  0.7606  0.8002  0.8730  0.8589  0.8984  0.9624
  
 ```{r}
-
+write.table(x=out.df,file=file.dir %&% "promoter-capture_peaky-chain-correlations.txt",
+            sep="\t",quote=F,row.names=F)
 ```
  
  
