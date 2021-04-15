@@ -1,0 +1,121 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+local.dir <- "/Users/jasont/science/projects/wtsa/joint_analyses/01_interaction-mapping/"
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+cbrg.dir <- "/Users/jasont/science/servers/FUSE2/"
+work.dir <- rescomp.dir %&% 
+  "projects/wtsa/joint_analyses/01_interaction-mapping/"
+input.dir <- work.dir %&% "peaky_interactions/"
+output.dir <- work.dir %&% "peaky_interactions/track_files/"
+```
+
+```{r}
+prom.df <- fread(input.dir %&% "promoter_endo_peaky-interactions.txt")
+prom.full.df <- fread(input.dir %&% "promoter_endo_peaky-output.txt")
+e2.df <- fread(input.dir %&% "enhancer2nd_endo_peaky-interactions.txt")
+e2.full.df <- fread(input.dir %&% "enhancer2nd_endo_peaky-output.txt")
+```
+
+Note: For visualization purposes, need to remove duplicate fragments to generate bigwig files 
+```{r}
+library("GenomicRanges")
+create_track_dfs <- function(peak.df,full.df){
+  # baseMean	log2FoldChange	lfcSE	stat	pvalue	padj
+  bed.df <- dplyr::select(peak.df,one_of("seqnames","start","end","capture"))
+  full.sub.df <- dplyr::select(full.df,one_of("seqnames","start","end"))
+  ##full.sub.df <- full.sub.df[!duplicated(full.sub.df$start),]
+  full.gr <- GRanges(seqnames=full.df$seqnames,
+                           IRanges(start=full.df$start,end=full.df$end))
+  narrow.gr <- narrow(full.gr,4,-4)
+  narrow.df <- as.data.frame(narrow.gr)
+  narrow.df$seqnames <- as.character(narrow.df$seqnames)
+
+  rjmcmc.df <- narrow.df[,1:3]
+  rjmcmc.df$rjmcmc_pos <- full.df$rjmcmc_pos
+  ##disjoin.df <- disjoin(narrow.gr) %>% as.data.frame() %>% dplyr::filter(width!=4)
+  ##counts.obj  <- countOverlaps(narrow.gr,narrow.gr)
+  rjmcmc.df <- rjmcmc.df[!duplicated(rjmcmc.df$start),]
+  
+  residual.df <- narrow.df[,1:3]
+  residual.df <- residual.df[,1:3]
+  residual.df$residual <- full.df$residual
+  residual.df <- residual.df[!duplicated(residual.df$start),]
+
+  out.list <- list(bed.df,rjmcmc.df,residual.df)
+  return(out.list)
+}
+```
+
+## Promoter files 
+```{r}
+prom.list <- create_track_dfs(prom.df,prom.full.df)
+write.table(x=prom.list[[1]],file=output.dir %&% 
+              "promoter_endo_peaky-interactions.bed",sep="\t",row.names=F,
+            col.names=F,quote=F)
+write.table(x=prom.list[[2]],file=output.dir %&% 
+              "promoter_endo_peaky-interactions_rjmcmc-pos.bedGraph",sep="\t",row.names=F,
+            col.names=F,quote=F)
+write.table(x=prom.list[[3]],file=output.dir %&% 
+              "promoter_endo_peaky-interactions_residual.bedGraph",sep="\t",row.names=F,
+            col.names=F,quote=F)
+```
+
+## Enhancer 2nd round files 
+```{r}
+e2.list <- create_track_dfs(e2.df,e2.full.df)
+write.table(x=e2.list[[1]],file=output.dir %&% 
+              "enhancer2nd_endo_peaky-interactions.bed",sep="\t",row.names=F,
+            col.names=F,quote=F)
+write.table(x=e2.list[[2]],file=output.dir %&% 
+              "enhancer2nd_endo_peaky-interactions_rjmcmc-pos.bedGraph",sep="\t",row.names=F,
+            col.names=F,quote=F)
+```
+
+
+## Create big bed files with these commands on the command line:
+./bedToBigBed bedExample.txt hg19.chrom.sizes myBigBed.bb
+
+```{bash}
+sort -k1,1 -k2,2n promoter_endo_peaky-interactions.bed > promoter_endo_peaky-interactions.sorted.bed
+./bedToBigBed promoter_endo_peaky-interactions.sorted.bed hg19.chrom.sizes promoter_endo_peaky-interactions.bb
+```
+
+```{bash}
+sort -k1,1 -k2,2n enhancer2nd_endo_peaky-interactions.bed > enhancer2nd_endo_peaky-interactions.sorted.bed 
+./bedToBigBed enhancer2nd_endo_peaky-interactions.sorted.bed  hg19.chrom.sizes enhancer2nd_endo_peaky-interactions.bb
+```
+
+
+## Create bigWig files by converting from the bedGraph files  
+./bedGraphToBigWig in.bedGraph chrom.sizes myBigWig.bw
+ 
+NOTE: some of the start/end coordinates had a "+" character in the sorted 
+bedGraph files, needed to manually remove these very few lines (none were significant)
+```{bash}
+sort -k1,1 -k2,2n promoter_endo_peaky-interactions_rjmcmc-pos.bedGraph > promoter_endo_peaky-interactions_rjmcmc-pos.sorted.bedGraph 
+./bedGraphToBigWig promoter_endo_peaky-interactions_rjmcmc-pos.sorted.bedGraph hg19.chrom.sizes promoter_endo_peaky-interactions_rjmcmc-pos.bw
+
+sort -k1,1 -k2,2n promoter_endo_peaky-interactions_residual.bedGraph > promoter_endo_peaky-interactions_residual.sorted.bedGraph 
+./bedGraphToBigWig promoter_endo_peaky-interactions_residual.sorted.bedGraph hg19.chrom.sizes promoter_endo_peaky-interactions_residual.bw
+```
+
+```{bash}
+sort -k1,1 -k2,2n enhancer2nd_endo_peaky-interactions_rjmcmc-pos.bedGraph > enhancer2nd_endo_peaky-interactions_rjmcmc-pos.sorted.bedGraph 
+./bedGraphToBigWig enhancer2nd_endo_peaky-interactions_rjmcmc-pos.sorted.bedGraph hg19.chrom.sizes enhancer2nd_endo_peaky-interactions_rjmcmc-pos.bw
+```
+
+
