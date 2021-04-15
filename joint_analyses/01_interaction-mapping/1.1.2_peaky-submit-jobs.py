@@ -11,8 +11,8 @@ import subprocess as sp
 serv_dir = "/well/mccarthy/users/jason/"
 work_dir = serv_dir+"projects/wtsa/joint_analyses/01_interaction-mapping/"
 output_dir = work_dir + "peaky_interactions/"
-log_dir = output_dir + "logs/"
-job_dir = output_dir + "jobs/"
+log_dir = output_dir + "logs/promoter-capture/vary_omega/" # trying w/ varying omega values for promoter capture baits
+job_dir = output_dir + "jobs/promoter-capture/vary_omega/" # trying w/ varying omega values for promoter capture baits
 
 def read_bait_list(bts_file):
     fin = open(bts_file,'r')
@@ -60,7 +60,7 @@ def prom_jobs():
     bait_list = read_bait_list(output_dir + exper_name + ".BTS.txt")
     for bait in bait_list:
         #outfile = output_dir + exper_name +"/"+ exper_name +"."+bait+".peaky-output.txt" # first chain
-        outfile = output_dir + exper_name +"/chain_2/"+ exper_name +"."+bait+".peaky-output.txt" # adding a second chain in order to compare correlation in rjmcmc_pos output between runs
+        outfile = output_dir + exper_name +"/vary_omega/"+ exper_name +"."+bait+".peaky-output.txt" # this time allowing omega value to vary
         if os.path.isfile(outfile)==False:
             #print(bait)
             submit_job(exper_name,exper_code,bait)
