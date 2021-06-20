@@ -1,0 +1,129 @@
+---
+title: "Peaky Interactions"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+#install.packages("devtools")
+#library(devtools)
+#install_github("cqgd/R2BGLiMS")
+#install_github("cqgd/pky")
+library("peaky")
+
+local.dir <- "/Users/jasont/science/projects/wtsa/joint_analyses/"
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+cbrg.dir <- "/Users/jasont/science/servers/FUSE2/"
+output.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/01_interaction-mapping/peaky_interactions/"
+plot.dir <- output.dir %&% "plots/"
+```
+
+## Promoter Capture 
+
+```{r}
+experiment.name <- "promoter-capture"
+input.dir.prom <- cbrg.dir %&% "ddownes/04_Collaborations/27_Anna_Gloyn_T2D/00_Promoter_centric_design/03_CapComp_run/T2D_Promoter_cis_analysis/6_PeakyInputs/"
+interactions_file <- input.dir.prom %&% "EndoB_counts.tsv"
+fragments_file <- input.dir.prom %&% "hg19_dpnII_Fragments_key.bed"
+
+```
+
+
+```{r}
+interactions = data.table::fread(interactions_file)
+fragments = data.table::fread(fragments_file)
+BI = bin_interactions(interactions, fragments, bins=10,max_dist=1e6)
+models = by(BI$interactions, BI$interactions$dist.bin, model_bin, subsample_size=NA)
+BI$bins 
+
+png(filename = plot.dir %&% experiment.name %&% ".model-plots.png",
+    width=600,height=600,units="px")
+plot(models[[1]]$fit)
+dev.off()
+
+residuals = lapply(models, "[[", "residuals")
+bins = split(BI$interactions, BI$interactions$dist.bin)
+BTS = split_baits(bins, residuals)
+
+saveRDS(object=BTS,file=output.dir %&% experiment.name %&% ".BTS.RDS")
+write.table(x=BTS,file=output.dir %&% experiment.name %&% ".BTS.txt",
+            sep="\t",quote=F,row.names=F,col.names=T)
+```
+
+
+## Enhancer Capture (1st) Round 
+
+
+```{r}
+experiment.name <- "enhancer1st-capture"
+input.dir.prom <- cbrg.dir %&% "ddownes/04_Collaborations/27_Anna_Gloyn_T2D/01_Enhancer_centric_design_FGWAS/03_CapComp_run/????_cis_analysis/6_PeakyInputs/" # Awaiting completion of Damien's run .... 
+interactions_file <- input.dir.prom %&% "EndoB_counts.tsv"
+fragments_file <- input.dir.prom %&% "hg19_dpnII_Fragments_key.bed"
+
+```
+
+
+```{r}
+interactions = data.table::fread(interactions_file)
+fragments = data.table::fread(fragments_file)
+BI = bin_interactions(interactions, fragments, bins=10,max_dist=1e6)
+models = by(BI$interactions, BI$interactions$dist.bin, model_bin, subsample_size=NA)
+
+
+png(filename = plot.dir %&% experiment.name %&% ".model-plots.png",
+    width=600,height=600,units="px")
+plot(models[[1]]$fit)
+dev.off()
+
+residuals = lapply(models, "[[", "residuals")
+bins = split(BI$interactions, BI$interactions$dist.bin)
+BTS = split_baits(bins, residuals)
+
+saveRDS(object=BTS,file=output.dir %&% experiment.name %&% ".BTS.RDS")
+write.table(x=BTS,file=output.dir %&% experiment.name %&% ".BTS.txt",
+            sep="\t",quote=F,row.names=F,col.names=T)
+```
+
+
+## Enhancer capture (2nd Round) 
+
+
+```{r}
+experiment.name <- "enhancer2nd-capture"
+input.dir.prom <- cbrg.dir %&% "ddownes/04_Collaborations/27_Anna_Gloyn_T2D/02_Enhancer_centric_design_credible_sets/03_CapComp_run/T2D_Credible_cis_analysis/6_PeakyInputs/"
+interactions_file <- input.dir.prom %&% "EndoB_counts.tsv"
+fragments_file <- input.dir.prom %&% "hg19_dpnII_Fragments_key.bed"
+
+```
+
+
+```{r}
+interactions = data.table::fread(interactions_file)
+fragments = data.table::fread(fragments_file)
+BI = bin_interactions(interactions, fragments, bins=10,max_dist=1e6)
+models = by(BI$interactions, BI$interactions$dist.bin, model_bin, subsample_size=NA)
+# Needed to rerun, until no error 
+
+
+png(filename = plot.dir %&% experiment.name %&% ".model-plots.png",
+    width=600,height=600,units="px")
+plot(models[[1]]$fit)
+dev.off()
+
+residuals = lapply(models, "[[", "residuals")
+bins = split(BI$interactions, BI$interactions$dist.bin)
+BTS = split_baits(bins, residuals)
+
+saveRDS(object=BTS,file=output.dir %&% experiment.name %&% ".BTS.RDS")
+write.table(x=BTS,file=output.dir %&% experiment.name %&% ".BTS.txt",
+            sep="\t",quote=F,row.names=F,col.names=T)
+```
