@@ -5,7 +5,7 @@
 #$ -q short.qc
 #$ -o /well/mccarthy/users/jason/projects/wtsa/promoter_driven/logs/endoR1_ccanalyser.out
 #$ -e /well/mccarthy/users/jason/projects/wtsa/promoter_driven/logs/endoR1_ccanalyser.err
-#$ -pe shmem 16
+#$ -pe shmem 20
 
 echo "------------------------------------------------"
 echo "Run on host: "`hostname`
