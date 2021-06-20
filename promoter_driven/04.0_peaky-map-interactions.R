@@ -3,12 +3,12 @@
 #library("tidyverse")
 library(peaky)
 options(bitmapType='cairo')
-work.dir <- "/well/mccarthy/users/jason/projects/wtsa/joint_analyses/01_interaction-mapping/"
+work.dir <- "/well/mccarthy/users/jason/projects/wtsa/promoter_driven/"
 output.dir <- work.dir %&% "peaky_interactions/"
 plot.dir <- output.dir %&% "plots/"
 args <- commandArgs(trailingOnly=TRUE)
 experiment.name <- args[1] #"promoter-capture"
-bait.id <- args[2] #471258
+bait.id <- args[2] 
 BTS <- readRDS(file=output.dir %&% experiment.name %&% ".BTS.RDS")
 
 relevant_bait = BTS[baitID==bait.id]
@@ -76,8 +76,8 @@ try_fit_omega <- function(single_peak) {
     return(omega_power_value)
 }
 
-##omega_power <- -3.8 #try_fit_omega(single_peak) # Manually setting to -3.8 # initially set omega to a fixed value
-omega_power <- try_fit_omega(single_peak)  # defaults to -3.8 if fitting procedure fails
+omega_power <- -3.8 #try_fit_omega(single_peak) # Manually setting to -3.8 # initially set omega to a fixed value
+## omega_power <- try_fit_omega(single_peak)  # defaults to -3.8 if fitting procedure fails
 
 
 relevant_bait = BTS[baitID==bait.id]
@@ -86,14 +86,15 @@ PKS = peaky(relevant_bait, omega_power, iterations=10e6) # crank up to 10 millio
 
 P = interpret_peaky(relevant_bait, PKS, omega_power)
 P$omega.power <- omega_power
-#write.table(x=P,file=output.dir %&% experiment.name %&% "/" %&%
-#            experiment.name %&% "." %&% bait.id %&%
-#            ".peaky-output.txt",sep="\t",quote=F,row.names=F,col.names=T)
-write.table(x=P,file=output.dir %&% experiment.name %&% "/vary_omega/" %&%
+write.table(x=P,file=output.dir %&% experiment.name %&% "/" %&%
             experiment.name %&% "." %&% bait.id %&%
-            ".peaky-output.txt",sep="\t",quote=F,row.names=F,col.names=T) # this time allowing omega value to vary
+            ".peaky-output.txt",sep="\t",quote=F,row.names=F,col.names=T)
 
-png(filename = plot.dir %&% "mppc-plots/vary_omega/" %&% experiment.name %&%
+#write.table(x=P,file=output.dir %&% experiment.name %&% "/vary_omega/" %&%
+#            experiment.name %&% "." %&% bait.id %&%
+#            ".peaky-output.txt",sep="\t",quote=F,row.names=F,col.names=T) # this time allowing omega value to vary
+
+png(filename = plot.dir %&% "mppc-plots/" %&% experiment.name %&%
       "." %&% bait.id %&% ".mppc.png")
   par(mfrow=c(3,1))
   zoom = P[abs(P$dist)<1e6]
