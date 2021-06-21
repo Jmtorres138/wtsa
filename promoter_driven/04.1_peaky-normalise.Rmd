@@ -22,7 +22,7 @@ library("peaky")
 
 local.dir <- "/Users/jasont/science/projects/wtsa/promoter_driven/"
 rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
-output.dir <- rescomp.dir %&% "projects/wtsa/wtsa/promoter_driven/peaky_interactions/"
+output.dir <- rescomp.dir %&% "projects/wtsa/promoter_driven/peaky_interactions/"
 plot.dir <- output.dir %&% "plots/"
 ```
 
