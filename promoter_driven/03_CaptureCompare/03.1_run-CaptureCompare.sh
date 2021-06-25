@@ -1,5 +1,18 @@
 #!/bin/bash
 #$ -cwd
+#$ -P mccarthy.prjc
+#$ -N capcom
+#$ -q short.qc
+#$ -o /well/mccarthy/users/jason/projects/wtsa/promoter_driven/logs/capture-compare.out
+#$ -e /well/mccarthy/users/jason/projects/wtsa/promoter_driven/logs/capture-compare.err
+#$ -pe shmem 1
+
+echo "------------------------------------------------"
+echo "Run on host: "`hostname`
+echo "Operating system: "`uname -s`
+echo "Username: "`whoami`
+echo "Started at: "`date`
+echo "------------------------------------------------"
 
 ############################
 ###     Input Options    ###
