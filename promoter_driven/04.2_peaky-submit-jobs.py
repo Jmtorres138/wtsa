@@ -59,7 +59,8 @@ def run_jobs():
     exper_code = "p"
     bait_list = read_bait_list(output_dir + exper_name + ".BTS.txt")
     for bait in bait_list:
-        outfile = output_dir + exper_name +"/"+ exper_name +"."+bait+".peaky-output.txt" # first chain
+        #outfile = output_dir + exper_name +"/"+ exper_name +"."+bait+".peaky-output.txt" # first chain
+        outfile = output_dir + exper_name +"/chain_2/"+ exper_name +"."+bait+".peaky-output.txt" # second chain
         if os.path.isfile(outfile)==False:
             print(bait)
             submit_job(exper_name,exper_code,bait)
