@@ -47,7 +47,7 @@ Rscript %s %s %s
     ''' % (exp_code,bait_id,
     log_dir+exeriment+"."+bait_id,
     log_dir+exeriment+"."+bait_id,
-    work_dir+"4.0_peaky-map-interactions.R",exeriment,bait_id)
+    work_dir+"04.0_peaky-map-interactions.R",exeriment,bait_id)
     fout = open(job_dir+exeriment+"."+bait_id + ".job.sh",'w')
     fout.write(script)
     fout.close()

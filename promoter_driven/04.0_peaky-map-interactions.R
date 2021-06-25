@@ -8,13 +8,13 @@ output.dir <- work.dir %&% "peaky_interactions/"
 plot.dir <- output.dir %&% "plots/"
 args <- commandArgs(trailingOnly=TRUE)
 experiment.name <- args[1] #"promoter-capture"
-bait.id <- args[2] 
+bait.id <- args[2]
 BTS <- readRDS(file=output.dir %&% experiment.name %&% ".BTS.RDS")
 
 relevant_bait = BTS[baitID==bait.id]
 zoom = relevant_bait[abs(relevant_bait$dist)<1e6]
 
-png(filename = plot.dir %&% "adj-readcount/" %&% experiment.name %&%
+png(filename = plot.dir %&% "adj-readcount/chain_2/" %&% experiment.name %&%
       "." %&% bait.id %&% ".adj-readcount.png")
   plot(x=zoom$dist,
      y=zoom$residual,
@@ -86,7 +86,7 @@ PKS = peaky(relevant_bait, omega_power, iterations=10e6) # crank up to 10 millio
 
 P = interpret_peaky(relevant_bait, PKS, omega_power)
 P$omega.power <- omega_power
-write.table(x=P,file=output.dir %&% experiment.name %&% "/" %&%
+write.table(x=P,file=output.dir %&% experiment.name %&% "/chain_2/" %&%
             experiment.name %&% "." %&% bait.id %&%
             ".peaky-output.txt",sep="\t",quote=F,row.names=F,col.names=T)
 
@@ -94,7 +94,7 @@ write.table(x=P,file=output.dir %&% experiment.name %&% "/" %&%
 #            experiment.name %&% "." %&% bait.id %&%
 #            ".peaky-output.txt",sep="\t",quote=F,row.names=F,col.names=T) # this time allowing omega value to vary
 
-png(filename = plot.dir %&% "mppc-plots/" %&% experiment.name %&%
+png(filename = plot.dir %&% "mppc-plots/chain_2/" %&% experiment.name %&%
       "." %&% bait.id %&% ".mppc.png")
   par(mfrow=c(3,1))
   zoom = P[abs(P$dist)<1e6]
