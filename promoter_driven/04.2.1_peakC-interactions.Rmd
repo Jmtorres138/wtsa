@@ -10,50 +10,29 @@ knitr::opts_chunk$set(echo = TRUE)
 # Setup 
 
 ```{r}
-
 "%&%" <- function(a,b) paste0(a,b)
 library("data.table")
 library("tidyverse")
 library("GenomicRanges")
-
-local.dir <- "/Users/jasont/science/projects/wtsa/joint_analyses/01_interaction-mapping/"
+local.dir <- "/Users/jasont/science/projects/wtsa/promoter_driven/"
 rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
-cbrg.dir <- "/Users/jasont/science/servers/FUSE2/"
-plot.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/01_interaction-mapping/peakC_plots/"
-output.dir <- rescomp.dir %&% "projects/wtsa/joint_analyses/01_interaction-mapping/peakC_interactions/"
-
+work.dir <- rescomp.dir %&% "projects/wtsa/promoter_driven/"
+output.dir <- work.dir %&% "peakC_interactions/"
+plot.dir <- output.dir %&% "peakC_plots/"
 ```
 
 Capture Compare output files 
 
 ```{r}
 # promoter capture files 
-prom.dir <- cbrg.dir %&% "ddownes/04_Collaborations/" %&%
-  "27_Anna_Gloyn_T2D/00_Promoter_centric_design/"
-prom.cc.file  <- prom.dir %&% "03_CapComp_run/Parameters_T2D_Promoter.txt"
-prom.cc.dir  <- prom.dir %&% "03_CapComp_run/T2D_Promoter_cis_analysis/"
-# enhancer capture first round  
-e1.dir <- cbrg.dir %&% "ddownes/04_Collaborations/" %&%
-  "27_Anna_Gloyn_T2D/01_Enhancer_centric_design_FGWAS/"
-e1.cc.file  <- e1.dir %&% "03_CapComp_run/" %&%
-  "XXXXXXX.txt" # NOT READY YET 
-e1.cc.dir  <- e1.dir %&% "03_CapComp_run/XXXXXX/" # NOT READY YET 
-# enhancer capture second round  
-e2.dir <- cbrg.dir %&% "ddownes/04_Collaborations/" %&%
-  "27_Anna_Gloyn_T2D/02_Enhancer_centric_design_credible_sets/"
-e2.cc.file  <- e2.dir %&% "03_CapComp_run/" %&%
-  "Parameters_T2D_Credible.txt"
-e2.cc.dir  <- e2.dir %&% "03_CapComp_run/T2D_Credible_cis_analysis/"
-
+prom.cc.file  <- work.dir %&% "03_CaptureCompare/capture-compare-input_hg38.txt"
+prom.cc.dir  <- work.dir %&% "03_CaptureCompare/T2D_Promoter_cis_analysis/"
 ```
 
 peakC: a flexible, non-parametric peak calling package for 4C and Capture-C data
 
 ```{r}
-#library("devtools")
-#install_github("deWitLab/peakC")
 library("peakC")
-
 ```
 
 
@@ -211,7 +190,7 @@ get_dist_from_vp <- function(int.df,experiment.file){
 
 ```
 
-NOTE: Best to run the following code in a regular R script (okay to fun above in RMarkdown) but for some reason cannot write png / pdf using png() or pdf() function from WITHIN RMarkdonw file 
+NOTE: Best to run the following code in a regular R script (okay to run above in RMarkdown) but for some reason cannot write png / pdf using png() or pdf() function from WITHIN RMarkdonw file 
 
 # Promoter Capture 
 
@@ -225,39 +204,3 @@ write.table(x=prom.df,file=output.dir%&%"promoter_endo_peakC-interactions.txt",
 write.table(x=prom.list[[1]],file=output.dir%&%"promoter_endo_peakC-output.txt",
             sep="\t",quote=F,row.names=F)
 ```
-
-# Enhancer Capture (first round)
-
-```{r}
-e1.list <- build_experiment_interaction_df(experiment.name="enhancer.1st",experiment.dir=e1.cc.dir,
-                                             experiment.file=e1.cc.file,celltype="Endo")
-e1.df <- e1.list[[2]] %>% get_dist_from_vp(.,experiment.file=e1.cc.file)
-write.table(x=e1.df,file=output.dir%&%"enhancer-firstRound_endo_peakC-interactions.txt",
-            sep="\t",quote=F,row.names=F)
-write.table(x=e1.list[[1]],file=output.dir%&%"enhancer-firstRound_endo_peakC-output.txt",
-            sep="\t",quote=F,row.names=F)
-```
-
-
-FAILED CAPTURE: CDC123__86DF__cv__chr10_12307894
-FAILED CAPTURE: rs11257658_CAMK1D__5QTL__eQTL__chr10_12309268
-FAILED CAPTURE: CDKAL1__50DF__cv__chr6_20673880
-FAILED CAPTURE: CDKAL1__50DF__cv__chr6_20686573
-FAILED CAPTURE: CDKAL1__50DF__cv__chr6_20688121
-FAILED CAPTURE: LINC01512__55DF__cv__chr6_43814625
-
-
-# Enhancer Capture (second round)
-
-```{r}
-e2.list <- build_experiment_interaction_df(experiment.name="enhancer.2nd",
-  experiment.dir=e2.cc.dir,
-  experiment.file=e2.cc.file,celltype="Endo")
-e2.df <- e2.list[[2]] %>% get_dist_from_vp(.,experiment.file=e2.cc.file)
-write.table(x=e2.df,file=output.dir%&%"enhancer-secondRound_endo_peakC-interactions.txt",
-            sep="\t",quote=F,row.names=F)
-write.table(x=e2.list[[1]],file=output.dir%&%"enhancer-secondRound_endo_peakC-output.txt",
-            sep="\t",quote=F,row.names=F)
-```
-
-
