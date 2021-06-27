@@ -14,9 +14,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library("data.table")
 library("tidyverse")
 rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
-cbrg.dir <- "/Users/jasont/science/servers/FUSE2/"
 work.dir <- rescomp.dir %&% 
-  "projects/wtsa/joint_analyses/01_interaction-mapping/"
+  "projects/wtsa/promoter_driven/"
 input.dir <- work.dir %&% "DESeq2_interactions/"
 output.dir <- work.dir %&% "DESeq2_interactions/track_files/"
 ```
@@ -25,8 +24,6 @@ output.dir <- work.dir %&% "DESeq2_interactions/track_files/"
 ```{r}
 prom.df <- fread(input.dir %&% "promoter_endo_DESeq2-interactions.txt")
 prom.full.df <- fread(input.dir %&% "promoter_endo_DESeq2-output.txt")
-e2.df <- fread(input.dir %&% "enhancer-secondRound_endo_DESeq2-interactions.txt")
-e2.full.df <- fread(input.dir %&% "enhancer-secondRound_endo_DESeq2-output.txt")
 ```
 
 Note: For visualization purposes, need to remove duplicate fragments to generate bigwig files 
@@ -78,44 +75,12 @@ write.table(x=prom.list[[7]],file=output.dir %&%
             col.names=F,quote=F)
 ```
 
-## Enhancer 2nd round files 
-```{r}
-e2.list <- create_track_dfs(e2.df,e2.full.df)
-write.table(x=e2.list[[1]],file=output.dir %&% 
-              "enhancer-secondRound_endo_DESeq2-interactions.bed",sep="\t",
-            row.names=F,col.names=F,quote=F)
-write.table(x=e2.list[[2]],file=output.dir %&% 
-              "enhancer-secondRound_endo_DESeq2-interactions_bm.bedGraph",sep="\t",row.names=F,
-            col.names=F,quote=F)
-write.table(x=e2.list[[3]],file=output.dir %&% 
-              "enhancer-secondRound_endo_DESeq2-interactions_l2fc.bedGraph",sep="\t",row.names=F,
-            col.names=F,quote=F)
-write.table(x=e2.list[[4]],file=output.dir %&% 
-              "enhancer-secondRound_endo_DESeq2-interactions_lfcSE.bedGraph",sep="\t",row.names=F,
-            col.names=F,quote=F)
-write.table(x=e2.list[[5]],file=output.dir %&% 
-              "enhancer-secondRound_endo_DESeq2-interactions_stat.bedGraph",sep="\t",row.names=F,
-            col.names=F,quote=F)
-write.table(x=e2.list[[6]],file=output.dir %&% 
-              "enhancer-secondRound_endo_DESeq2-interactions_pval.bedGraph",sep="\t",row.names=F,
-            col.names=F,quote=F)
-write.table(x=e2.list[[7]],file=output.dir %&% 
-              "enhancer-secondRound_endo_DESeq2-interactions_padj.bedGraph",sep="\t",row.names=F,
-            col.names=F,quote=F)
-```
-
-
 ## Create big bed files with these commands on the command line:
-./bedToBigBed bedExample.txt hg19.chrom.sizes myBigBed.bb
+./bedToBigBed bedExample.txt hg38.chrom.sizes myBigBed.bb
 
 ```{bash}
 sort -k1,1 -k2,2n promoter_endo_DESeq2-interactions.bed > promoter_endo_DESeq2-interactions.sorted.bed
-./bedToBigBed promoter_endo_DESeq2-interactions.sorted.bed hg19.chrom.sizes promoter_endo_DESeq2-interactions.bb
-```
-
-```{bash}
-sort -k1,1 -k2,2n enhancer-secondRound_endo_DESeq2-interactions.bed > enhancer-secondRound_endo_DESeq2-interactions.sorted.bed 
-./bedToBigBed enhancer-secondRound_endo_DESeq2-interactions.sorted.bed hg19.chrom.sizes enhancer-secondRound_endo_DESeq2-interactions.bb
+./bedToBigBed promoter_endo_DESeq2-interactions.sorted.bed hg38.chrom.sizes promoter_endo_DESeq2-interactions.bb
 ```
 
 ## Create bigWig files by converting from the bedGraph files  
@@ -123,40 +88,20 @@ sort -k1,1 -k2,2n enhancer-secondRound_endo_DESeq2-interactions.bed > enhancer-s
  
 ```{bash}
 sort -k1,1 -k2,2n promoter_endo_DESeq2-interactions_bm.bedGraph > promoter_endo_DESeq2-interactions_bm.sorted.bedGraph 
-./bedGraphToBigWig promoter_endo_DESeq2-interactions_bm.sorted.bedGraph hg19.chrom.sizes promoter_endo_DESeq2-interactions_bm.bw
+./bedGraphToBigWig promoter_endo_DESeq2-interactions_bm.sorted.bedGraph hg38.chrom.sizes promoter_endo_DESeq2-interactions_bm.bw
 
 sort -k1,1 -k2,2n promoter_endo_DESeq2-interactions_l2fc.bedGraph > promoter_endo_DESeq2-interactions_l2fc.sorted.bedGraph 
-./bedGraphToBigWig promoter_endo_DESeq2-interactions_l2fc.sorted.bedGraph hg19.chrom.sizes promoter_endo_DESeq2-interactions_l2fc.bw
+./bedGraphToBigWig promoter_endo_DESeq2-interactions_l2fc.sorted.bedGraph hg38.chrom.sizes promoter_endo_DESeq2-interactions_l2fc.bw
 
 sort -k1,1 -k2,2n promoter_endo_DESeq2-interactions_lfcSE.bedGraph > promoter_endo_DESeq2-interactions_lfcSE.sorted.bedGraph 
-./bedGraphToBigWig promoter_endo_DESeq2-interactions_lfcSE.sorted.bedGraph hg19.chrom.sizes promoter_endo_DESeq2-interactions_lfcSE.bw
+./bedGraphToBigWig promoter_endo_DESeq2-interactions_lfcSE.sorted.bedGraph hg38.chrom.sizes promoter_endo_DESeq2-interactions_lfcSE.bw
 
 sort -k1,1 -k2,2n promoter_endo_DESeq2-interactions_stat.bedGraph > promoter_endo_DESeq2-interactions_stat.sorted.bedGraph 
-./bedGraphToBigWig promoter_endo_DESeq2-interactions_stat.sorted.bedGraph hg19.chrom.sizes promoter_endo_DESeq2-interactions_stat.bw
+./bedGraphToBigWig promoter_endo_DESeq2-interactions_stat.sorted.bedGraph hg38.chrom.sizes promoter_endo_DESeq2-interactions_stat.bw
 
 sort -k1,1 -k2,2n promoter_endo_DESeq2-interactions_pval.bedGraph > promoter_endo_DESeq2-interactions_pval.sorted.bedGraph 
-./bedGraphToBigWig promoter_endo_DESeq2-interactions_pval.sorted.bedGraph hg19.chrom.sizes promoter_endo_DESeq2-interactions_pval.bw
+./bedGraphToBigWig promoter_endo_DESeq2-interactions_pval.sorted.bedGraph hg38.chrom.sizes promoter_endo_DESeq2-interactions_pval.bw
 
 sort -k1,1 -k2,2n promoter_endo_DESeq2-interactions_padj.bedGraph > promoter_endo_DESeq2-interactions_padj.sorted.bedGraph 
-./bedGraphToBigWig promoter_endo_DESeq2-interactions_padj.sorted.bedGraph hg19.chrom.sizes promoter_endo_DESeq2-interactions_padj.bw
-```
-
-```{bash}
-sort -k1,1 -k2,2n promoter_endo_DESeq2-interactions_bm.bedGraph > enhancer-secondRound_endo_DESeq2-interactions_bm.sorted.bedGraph 
-./bedGraphToBigWig enhancer-secondRound_endo_DESeq2-interactions_bm.sorted.bedGraph hg19.chrom.sizes enhancer-secondRound_endo_DESeq2-interactions_bm.bw
-
-sort -k1,1 -k2,2n enhancer-secondRound_endo_DESeq2-interactions_l2fc.bedGraph > enhancer-secondRound_endo_DESeq2-interactions_l2fc.sorted.bedGraph 
-./bedGraphToBigWig enhancer-secondRound_endo_DESeq2-interactions_l2fc.sorted.bedGraph hg19.chrom.sizes enhancer-secondRound_endo_DESeq2-interactions_l2fc.bw
-
-sort -k1,1 -k2,2n enhancer-secondRound_endo_DESeq2-interactions_lfcSE.bedGraph > enhancer-secondRound_endo_DESeq2-interactions_lfcSE.sorted.bedGraph 
-./bedGraphToBigWig enhancer-secondRound_endo_DESeq2-interactions_lfcSE.sorted.bedGraph hg19.chrom.sizes enhancer-secondRound_endo_DESeq2-interactions_lfcSE.bw
-
-sort -k1,1 -k2,2n enhancer-secondRound_endo_DESeq2-interactions_stat.bedGraph > enhancer-secondRound_endo_DESeq2-interactions_stat.sorted.bedGraph 
-./bedGraphToBigWig enhancer-secondRound_endo_DESeq2-interactions_stat.sorted.bedGraph hg19.chrom.sizes enhancer-secondRound_endo_DESeq2-interactions_stat.bw
-
-sort -k1,1 -k2,2n enhancer-secondRound_endo_DESeq2-interactions_pval.bedGraph > enhancer-secondRound_endo_DESeq2-interactions_pval.sorted.bedGraph 
-./bedGraphToBigWig enhancer-secondRound_endo_DESeq2-interactions_pval.sorted.bedGraph hg19.chrom.sizes enhancer-secondRound_endo_DESeq2-interactions_pval.bw
-
-sort -k1,1 -k2,2n enhancer-secondRound_endo_DESeq2-interactions_padj.bedGraph > enhancer-secondRound_endo_DESeq2-interactions_padj.sorted.bedGraph 
-./bedGraphToBigWig enhancer-secondRound_endo_DESeq2-interactions_padj.sorted.bedGraph hg19.chrom.sizes enhancer-secondRound_endo_DESeq2-interactions_padj.bw
+./bedGraphToBigWig promoter_endo_DESeq2-interactions_padj.sorted.bedGraph hg38.chrom.sizes promoter_endo_DESeq2-interactions_padj.bw
 ```
