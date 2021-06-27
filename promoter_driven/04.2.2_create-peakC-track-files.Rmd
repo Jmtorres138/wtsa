@@ -1,5 +1,5 @@
 ---
-title: "1.2.2"
+title: "04.2.2"
 output: html_document
 ---
 
@@ -15,9 +15,8 @@ library("data.table")
 library("tidyverse")
 library("GenomicRanges")
 rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
-cbrg.dir <- "/Users/jasont/science/servers/FUSE2/"
 work.dir <- rescomp.dir %&% 
-  "projects/wtsa/joint_analyses/01_interaction-mapping/"
+  "projects/wtsa/promoter_driven/"
 input.dir <- work.dir %&% "peakC_interactions/"
 output.dir <- work.dir %&% "peakC_interactions/track_files/"
 ```
@@ -25,8 +24,6 @@ output.dir <- work.dir %&% "peakC_interactions/track_files/"
 ```{r}
 prom.df <- fread(input.dir %&% "promoter_endo_peakC-interactions.txt")
 prom.full.df <- fread(input.dir %&% "promoter_endo_peakC-output.txt")
-e2.df <- fread(input.dir %&% "enhancer-secondRound_endo_peakC-interactions.txt")
-e2.full.df <- fread(input.dir %&% "enhancer-secondRound_endo_peakC-output.txt")
 ```
 
 Note: For visualization purposes, need to remove duplicate fragments to generate bigwig files 
@@ -57,32 +54,13 @@ write.table(x=prom.list[[3]],file=output.dir %&%
             col.names=F,quote=F)
 ```
 
-## Enhancer 2nd round files 
-```{r}
-e2.list <- create_track_dfs(e2.df,e2.full.df)
-write.table(x=e2.list[[1]],file=output.dir %&% 
-              "enhancer-secondRound_endo_peakC-interactions.bed",sep="\t",
-            row.names=F,col.names=F,quote=F)
-write.table(x=e2.list[[2]],file=output.dir %&% 
-              "enhancer-secondRound_endo_peakC-interactions_nlp.bedGraph",
-            sep="\t",row.names=F,col.names=F,quote=F)
-write.table(x=e2.list[[3]],file=output.dir %&% 
-              "enhancer-secondRound_endo_peakC-interactions_ratio.bedGraph",sep="\t",
-            row.names=F,col.names=F,quote=F)
-```
-
 
 ## Create big bed files with these commands on the command line:
-./bedToBigBed bedExample.txt hg19.chrom.sizes myBigBed.bb
+./bedToBigBed bedExample.txt hg38.chrom.sizes myBigBed.bb
 
 ```{bash}
 sort -k1,1 -k2,2n promoter_endo_peakC-interactions.bed > promoter_endo_peakC-interactions.sorted.bed 
-./bedToBigBed promoter_endo_peakC-interactions.sorted.bed hg19.chrom.sizes promoter_endo_peakC-interactions.bb
-```
-
-```{bash}
-sort -k1,1 -k2,2n enhancer-secondRound_endo_peakC-interactions.bed > enhancer-secondRound_endo_peakC-interactions.sorted.bed 
-./bedToBigBed enhancer-secondRound_endo_peakC-interactions.sorted.bed hg19.chrom.sizes enhancer-secondRound_endo_peakC-interactions.bb
+./bedToBigBed promoter_endo_peakC-interactions.sorted.bed hg38.chrom.sizes promoter_endo_peakC-interactions.bb
 ```
 
 ## Create bigWig files by converting from the bedGraph files  
@@ -90,17 +68,9 @@ sort -k1,1 -k2,2n enhancer-secondRound_endo_peakC-interactions.bed > enhancer-se
 
 ```{bash}
 sort -k1,1 -k2,2n promoter_endo_peakC-interactions_nlp.bedGraph > promoter_endo_peakC-interactions_nlp.sorted.bedGraph 
-./bedGraphToBigWig promoter_endo_peakC-interactions_nlp.sorted.bedGraph hg19.chrom.sizes promoter_endo_peakC-interactions_nlp.bw
+./bedGraphToBigWig promoter_endo_peakC-interactions_nlp.sorted.bedGraph hg38.chrom.sizes promoter_endo_peakC-interactions_nlp.bw
 
 sort -k1,1 -k2,2n promoter_endo_peakC-interactions_ratio.bedGraph > promoter_endo_peakC-interactions_ratio.sorted.bedGraph 
-./bedGraphToBigWig promoter_endo_peakC-interactions_ratio.sorted.bedGraph hg19.chrom.sizes promoter_endo_peakC-interactions_ratio.bw
-```
-
-```{bash}
-sort -k1,1 -k2,2n enhancer-secondRound_endo_peakC-interactions_nlp.bedGraph > enhancer-secondRound_endo_peakC-interactions_nlp.sorted.bedGraph 
-./bedGraphToBigWig enhancer-secondRound_endo_peakC-interactions_nlp.sorted.bedGraph hg19.chrom.sizes enhancer-secondRound_endo_peakC-interactions_nlp.bw
-
-sort -k1,1 -k2,2n enhancer-secondRound_endo_peakC-interactions_ratio.bedGraph > enhancer-secondRound_endo_peakC-interactions_ratio.sorted.bedGraph 
-./bedGraphToBigWig enhancer-secondRound_endo_peakC-interactions_ratio.sorted.bedGraph hg19.chrom.sizes enhancer-secondRound_endo_peakC-interactions_ratio.bw
+./bedGraphToBigWig promoter_endo_peakC-interactions_ratio.sorted.bedGraph hg38.chrom.sizes promoter_endo_peakC-interactions_ratio.bw
 ```
 
