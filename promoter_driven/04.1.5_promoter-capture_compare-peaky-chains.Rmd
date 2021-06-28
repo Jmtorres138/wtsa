@@ -1,0 +1,75 @@
+---
+title: 'promoter-capture_compare-peaky-chains'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+local.dir <- "/Users/jasont/science/projects/wtsa/joint_analyses/01_interaction-mapping/"
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+cbrg.dir <- "/Users/jasont/science/servers/FUSE2/"
+work.dir <- rescomp.dir %&% 
+  "projects/wtsa/joint_analyses/01_interaction-mapping/"
+file.dir <- work.dir %&% "peaky_interactions/"
+```
+
+```{r}
+prom.df1 <- fread(file.dir %&% "promoter_endo_peaky-output.txt")
+prom.df2 <- fread(file.dir %&% "promoter_endo_peaky-output_chain-2.txt")
+```
+
+Compare bait correlations 
+```{r}
+assess_bait_corr <- function(bait){
+  sub.df1 <- filter(prom.df1,capture==bait) %>%
+    dplyr::select(one_of("preyID","rjmcmc_pos"))
+  sub.df2 <- filter(prom.df2,capture==bait) %>%
+    dplyr::select(one_of("preyID","rjmcmc_pos"))
+  bait.df <- dplyr::inner_join(sub.df1,sub.df2,by="preyID")
+  num.preys <- dim(bait.df)[1]
+  cor <- cor.test(bait.df$rjmcmc_pos.x,bait.df$rjmcmc_pos.y)
+  pval <- cor$p.value
+  tstat <- cor$statistic
+  corrval <- cor$estimate
+  out.df <- data.frame("capture"=bait,"num.preys"=num.preys,
+                       "correlation"=corrval,"t.stat"=tstat,"p.val"=pval,
+                       stringsAsFactors = F)
+  return(out.df)
+}
+```
+
+```{r}
+bait.vec <- prom.df1$capture %>% unique(.)
+out.df <- c()
+pb <- txtProgressBar(min=0,max=length(bait.vec),style=3)
+for (i in 1:length(bait.vec)){
+  setTxtProgressBar(pb,i)
+  bait <- bait.vec[i]
+  build.df <- assess_bait_corr(bait)
+  out.df <- rbind(out.df,build.df)
+}
+```
+
+```{r}
+sum(out.df$correlation >= 0.75) # 27; all captures exceeded this threshold
+summary(out.df$correlation) # median correlation 0.87 
+```
+
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.7606  0.8002  0.8730  0.8589  0.8984  0.9624
+ 
+```{r}
+write.table(x=out.df,file=file.dir %&% "promoter-capture_peaky-chain-correlations.txt",
+            sep="\t",quote=F,row.names=F)
+```
+ 
+ 
