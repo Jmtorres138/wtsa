@@ -154,3 +154,16 @@ write.table(x=prom.list[[2]],file=peaky.dir%&%
             sep="\t",quote=F,row.names=F)
 ```
 
+## Promoter-capture (Chain)
+
+rjmcmc.pos threshold >= 0.01
+```{r}
+prom.list <- consolidate_experiment_results(prom.cc.file, peaky.dir %&%
+                                      "promoter-capture/chain_2/")
+write.table(x=prom.list[[1]],file=peaky.dir%&%
+  "promoter_endo_peaky-output_chain-2.txt",
+            sep="\t",quote=F,row.names=F)
+write.table(x=prom.list[[2]],file=peaky.dir%&%
+  "promoter_endo_peaky-interactions_chain-2.txt",
+            sep="\t",quote=F,row.names=F)
+```
