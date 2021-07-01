@@ -265,6 +265,7 @@ append_mapped_read_info <- function(grfrag.df){
 
 ```{r}
 grjunct.df <- append_mapped_read_info(grfrag.df) 
+grjunct.df <- arrange(grjunct.df,gene)
 write.table(x=grjunct.df,file=out.dir%&%
   "genomic-regions_ligation-junctions.txt",sep="\t",quote=F,
   row.names=F,col.names=T)
