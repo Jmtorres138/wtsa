@@ -1,0 +1,272 @@
+---
+title: "05.1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script will extract values for Table 1 in the manuscript 
+
+Note: HGNC symbol for gene C15orf38-AP3S2 has been replaced with ARPIN-AP3S2
+Note: HGNC symbol for gene WARS has been replaced with WARS1
+
+# Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+work.dir <- rescomp.dir %&% "projects/wtsa/promoter_driven/"
+out.dir <- work.dir %&% "output_files/"
+```
+
+Capture Compare output files 
+
+```{r}
+# promoter capture files 
+prom.cc.file  <- work.dir %&% "03_CaptureCompare/capture-compare-input_hg38.txt"
+prom.cc.dir  <- work.dir %&% "03_CaptureCompare/T2D_Promoter_cis_analysis/"
+```
+
+
+```{r}
+gene.df <- fread(work.dir %&% "reference_files/" %&% 
+                   "GENCODE-V36-knownGene-hg38.gz",header=T)
+gencode.df <- fread(work.dir %&% "reference_files/" %&% 
+    "GENCODE-V37-wgEncodeGencodeBasic-hg38.txt.gz",header=T)
+```
+
+
+```{r}
+cc.df <- fread(prom.cc.file)
+cc.df$V1 <- purrr::map(cc.df$V1,function(s){
+  gsub("C15orf38-AP3S2","ARPIN-AP3S2",x=s)
+}) %>% as.character(.)
+cc.df$V1 <- purrr::map(cc.df$V1,function(s){
+  gsub("NKX6_3","NKX6-3",x=s)
+}) %>% as.character(.)
+cc.df$V1 <- purrr::map(cc.df$V1,function(s){
+  gsub("WARS","WARS1",x=s)
+}) %>% as.character(.)
+cc.df$V1[!(cc.df$V1 %in% gencode.df$geneName)]
+```
+
+## Determine genomic region boundaries (+/- Mb of TSS)
+
+```{r}
+genomic_regions_df <- function(){
+  out.df <- c() 
+  for (g in cc.df$V1){
+    row.df <- filter(cc.df,V1==g)
+    vp.gr <- GRanges(seqnames = row.df$V2,
+                IRanges(start=row.df$V3,end=row.df$V4)) # viewpoint 
+    ex.gr <- GRanges(seqnames = row.df$V2,
+                IRanges(start=row.df$V5,end=row.df$V6)) # exclusion region 
+    # Subset GENCODE information for Gene 
+    sub.df <- filter(gencode.df,name2==g)
+    sub.df$tss <- purrr::map(1:dim(sub.df)[1],function(i){
+      r.df <- sub.df[i,]
+      ifelse(r.df$strand=="+",r.df$txStart,r.df$txEnd)
+    }) %>% as.integer(.)
+    sub.gr <- GRanges(seqnames=sub.df$chrom,
+                IRanges(start=sub.df$tss,end=sub.df$tss))
+    names(sub.gr) <- sub.df$name
+    if (vp.gr %over% sub.gr){
+      overlap.df <- sub.gr[sub.gr %over% vp.gr] %>% as.data.frame()
+      overlap.type <- "viewpoint"
+    } else if (ex.gr %over% sub.gr){
+      overlap.df <- sub.gr[sub.gr %over% ex.gr] %>% as.data.frame()    
+      overlap.type <- "exclusion"
+    } else{
+      overlap.df <- c()
+      overlap.type <- NULL
+    }
+    if (!is.null(overlap.type)){
+      tss <- unique(overlap.df$start) %>% paste0(.,collapse=",")
+      transcript <- unique(row.names(overlap.df)) %>% paste0(.,collapse=",")
+      print(g)
+      chrom <- overlap.df$seqnames %>% unique(.)
+      tss.pos <- round(mean(unique(overlap.df$start)),0) # taking average 
+      # where there are multiple tss that overlap vp/exclusion region 
+      start.pos <- tss.pos - 1e+06; end.pos <- tss.pos+1e+06
+      reg.string <- chrom%&%":"%&%start.pos%&%"-"%&%end.pos
+      build.df <- data.frame("gene"=g,"tss"=tss,"transcripts"=transcript,
+                            "overlap.region"=overlap.type,"chrom"=chrom,
+                            "start.pos"=start.pos,"end.pos"=end.pos,
+                            "genomic.region"=reg.string,
+                           stringsAsFactors = F)
+      out.df <- rbind(out.df,build.df)
+    } else{
+      print("Capture is null: " %&% g)
+      build.df <- data.frame("gene"=g,"tss"=NA,"transcripts"=NA,
+                            "overlap.region"=NA,"chrom"=NA,
+                            "start.pos"=NA,"end.pos"=NA,
+                            "genomic.region"=NA,
+                           stringsAsFactors = F)
+      out.df <- rbind(out.df,build.df)
+    }
+  }
+  return(out.df)
+}
+```
+
+Genomic Region data frame 
+```{r}
+genreg.df <- genomic_regions_df()
+```
+
+Append DpnII viewpoint fragment and exclusion zone 
+```{r}
+genreg.df$viewpoint.fragment <- cc.df$V2 %&% ":" %&% cc.df$V3 %&% 
+  "-" %&% cc.df$V4
+genreg.df$exclusion.zone <- cc.df$V2 %&% ":" %&% cc.df$V5 %&% 
+  "-" %&% cc.df$V6
+```
+
+Sanity check that TSS maps withing viewpoint fragment 
+```{r}
+for (i in 1:dim(genreg.df)[1]){
+  row.df <- genreg.df[i,]
+  tss.vec <- strsplit(row.df$tss,split=",")[[1]] %>% as.integer(.)
+  tss.gr <- GRanges(seqnames = row.df$chrom,
+                    IRanges(start=tss.vec,end=tss.vec))
+  vp.vec <- ((row.df$viewpoint.fragment %>% strsplit(.,split=":"))[[1]][2] %>% 
+    strsplit(.,split="-"))[[1]]
+  vp.gr <- GRanges(seqnames = row.df$chrom,
+            IRanges(start=as.integer(vp.vec[1]),end=as.integer(vp.vec[2])))
+  print(row.df$gene %&% ":" %&% GenomicRanges::distance(tss.gr,vp.gr))
+}
+```
+
+[1] "ADCY5:0"
+[1] "AP3S2:194" "AP3S2:207" "AP3S2:95" 
+[1] "ARPIN-AP3S2:0"
+[1] "CAMK1D:0" "CAMK1D:0"
+[1] "CARD9:209" "CARD9:221"
+[1] "CDKAL1:0" "CDKAL1:0"
+[1] "DGKB:0"
+[1] "DNLZ:0" "DNLZ:0"
+[1] "ERAP2:0" "ERAP2:0"
+[1] "GCK:0" "GCK:0"
+[1] "GPSM1:0" "GPSM1:0"
+[1] "HMG20A:0" "HMG20A:0"
+[1] "IGF2BP2:0" "IGF2BP2:0" "IGF2BP2:0"
+[1] "KCNK17:0" "KCNK17:0"
+[1] "LARP6:220" "LARP6:256"
+[1] "MADD:0" "MADD:0" "MADD:0" "MADD:0" "MADD:0"
+[1] "NKX6-3:0"
+[1] "POLR2A:0"
+[1] "RDH5:0" "RDH5:0" "RDH5:0"
+[1] "SOX4:0"
+[1] "STARD10:27"  "STARD10:121" "STARD10:41" 
+[1] "TCF7L2:0" "TCF7L2:0"
+[1] "UBE2E2:0" "UBE2E2:0"
+[1] "WARS1:0" "WARS1:0"
+[1] "PAX5:21"  "PAX5:248" "PAX5:104" "PAX5:258"
+[1] "TNFSF11:0" "TNFSF11:0" "TNFSF11:0"
+[1] "CR2:788" "CR2:690"
+
+
+```{r}
+write.table(x=genreg.df,file=out.dir%&%"genomic-regions.txt",sep="\t",
+            quote=F,row.names=F,col.names=T)
+```
+
+## Determine number  and mean length of DpnII fragments within each window
+
+```{r}
+dpnII.df <- fread(work.dir %&% "03_CaptureCompare/" %&% 
+   "T2D_Promoter_cis_analysis/6_PeakyInputs/hg38_dpnII_Fragments_key.bed")
+dpnII.gr <- GRanges(seqnames="chr"%&%dpnII.df$chrom,
+    IRanges(start=dpnII.df$chromStart,end=dpnII.df$chromEnd))
+```
+
+```{r}
+append_frag_info <- function(genreg.df){
+  pb <- txtProgressBar(min=0,max=dim(genreg.df)[1],style=3)
+  num.dpnII.frags <- c()
+  mean.frag.length <- c()
+  for (i in 1:dim(genreg.df)[1]){
+    setTxtProgressBar(pb,i)
+    row.df <- genreg.df[i,]
+    window.gr <- GRanges(seqnames=row.df$chrom,
+      IRanges(start=row.df$start.pos,end=row.df$end.pos))
+    overlap.df <- suppressWarnings(dpnII.gr[dpnII.gr %over% window.gr]) %>% 
+      as.data.frame()
+    num.frags <- dim(overlap.df)[1] 
+    mean.value <- mean(overlap.df$width) %>% round(.,0)
+    sd.value <- sd(overlap.df$width) %>% round(.,0)
+    mean.sd <- mean.value %&% "±" %&% sd.value
+    num.dpnII.frags <- append(num.dpnII.frags,num.frags)
+    mean.frag.length <- append(mean.frag.length,mean.sd)
+  }
+  out.df <- genreg.df
+  out.df$num.dpnII.frags <- num.dpnII.frags
+  out.df$mean.frag.length <- mean.frag.length
+  return(out.df)
+}
+```
+
+```{r}
+grfrag.df <- append_frag_info(genreg.df) 
+write.table(x=grfrag.df,file=out.dir%&%"genomic-regions_frag-info.txt",sep="\t",
+            quote=F,row.names=F,col.names=T)
+```
+
+## Lookup mapped reads (ligation junction) information per capture window
+
+```{r}
+count.dir <- work.dir %&% "03_CaptureCompare/T2D_Promoter_cis_analysis/" %&% 
+  "2_unionBedgraphs/A_raw_counts/"
+
+lookup_mapped_read_info <- function(capture,grfrag.df){
+  capname <- gsub("ARPIN-AP3S2","C15orf38-AP3S2",capture)
+  capname <- gsub("NKX6-3","NKX6_3",capname)
+  capname <- gsub("WARS1","WARS",capname)
+  count.file <- count.dir %&% capname %&% "_raw.unionbdg"
+  count.df <- fread(count.file,header=TRUE)
+  win.df <- filter(grfrag.df,gene==capture)
+  count.sub <- filter(count.df,chrom==win.df$chrom,
+                      start>=win.df$start.pos,end<=win.df$end.pos) %>% 
+    dplyr::select(contains("Endo"))
+  cell.counts <- colSums(count.sub)
+  mean.value <- mean(cell.counts) %>% round(.,0)
+  sd.value <- sd(cell.counts) %>% round(.,0)
+  mean.sd <- mean.value %&% "±" %&% sd.value
+  counts.per.frag <- cell.counts / win.df$num.dpnII.frags
+  mean.value2 <- mean(counts.per.frag) %>% round(.,3)
+  sd.value2 <- sd(counts.per.frag) %>% round(.,3)
+  mean.sd2 <- mean.value2 %&% "±" %&% sd.value2
+  return(list(mean.sd,mean.sd2))
+}
+
+append_mapped_read_info <- function(grfrag.df){
+  junction.vec1 <- c()
+  junction.vec2 <- c()
+  pb <- txtProgressBar(min=0,max=dim(grfrag.df)[1],style=3)
+  for (i in 1:dim(grfrag.df)[1]){
+    setTxtProgressBar(pb,i)
+    row.df <- grfrag.df[i,]
+    junct.list <- lookup_mapped_read_info(row.df$gene,grfrag.df)
+    junction.vec1 <- append(junction.vec1,junct.list[[1]])
+    junction.vec2 <- append(junction.vec2,junct.list[[2]])    
+  }
+  out.df <- grfrag.df
+  out.df$num.mapped.reads <- junction.vec1
+  out.df$reads.per.frag <- junction.vec2
+  return(out.df)
+}
+
+```
+
+```{r}
+grjunct.df <- append_mapped_read_info(grfrag.df) 
+write.table(x=grjunct.df,file=out.dir%&%
+  "genomic-regions_ligation-junctions.txt",sep="\t",quote=F,
+  row.names=F,col.names=T)
+```
+
