@@ -1,0 +1,173 @@
+---
+title: "05.2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script will extract values for Table 2 in the manuscript 
+
+Note: HGNC symbol for gene C15orf38-AP3S2 has been replaced with ARPIN-AP3S2
+Note: HGNC symbol for gene WARS has been replaced with WARS1
+
+# Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+work.dir <- rescomp.dir %&% "projects/wtsa/promoter_driven/"
+out.dir <- work.dir %&% "output_files/"
+pky.dir <- work.dir %&% "peaky_interactions/"
+```
+
+Capture Compare output files 
+
+```{r}
+# promoter capture files 
+prom.cc.file  <- work.dir %&% "03_CaptureCompare/capture-compare-input_hg38.txt"
+prom.cc.dir  <- work.dir %&% "03_CaptureCompare/T2D_Promoter_cis_analysis/"
+```
+
+
+```{r}
+cc.df <- fread(prom.cc.file)
+cc.df$V1 <- purrr::map(cc.df$V1,function(s){
+  gsub("C15orf38-AP3S2","ARPIN-AP3S2",x=s)
+}) %>% as.character(.)
+cc.df$V1 <- purrr::map(cc.df$V1,function(s){
+  gsub("NKX6_3","NKX6-3",x=s)
+}) %>% as.character(.)
+cc.df$V1 <- purrr::map(cc.df$V1,function(s){
+  gsub("WARS","WARS1",x=s)
+}) %>% as.character(.)
+```
+
+## Lookup peaky chain correlations 
+
+```{r}
+corr.df <- fread(pky.dir %&% "promoter-capture_peaky-chain-correlations.txt")
+corr.df$capname <- purrr::map(corr.df$capture,function(cap){
+  capname <- gsub("C15orf38-AP3S2","ARPIN-AP3S2",cap)
+  capname <- gsub("NKX6_3","NKX6-3",capname)
+  capname <- gsub("WARS","WARS1",capname)
+  return(capname)
+}) %>% as.character(.)
+res.df <- dplyr::select(corr.df,one_of("capture","capname","correlation")) %>% 
+  arrange(capture)
+names(res.df)[2] <- "gencodeV37.name"
+```
+
+Append genomic region boundaries 
+
+```{r}
+genreg.df <- fread(out.dir %&% "genomic-regions_ligation-junctions.txt")
+res.df$genomic.region <- purrr::map(res.df$gencodeV37.name,function(g){
+  filter(genreg.df,gene==g)$genomic.region
+}) %>% as.character(.)
+```
+
+## Lookup and append significant peaky interaction information 
+
+```{r}
+pky.df <- fread(pky.dir %&% "promoter_endo_peaky-interactions.txt")
+```
+
+Subset to results within region (should already be within range, but done as a check)
+```{r}
+sig.df <- c()
+for (cap in unique(pky.df$capture)){
+  reg <- filter(res.df,capture==cap)$genomic.region
+  chrom <- strsplit(reg,":")[[1]][1]
+  vec <- (strsplit(reg,":")[[1]][2] %>% strsplit(.,split="-"))[[1]]
+  start.pos <- as.integer(vec[1]); end.pos <- as.integer(vec[2])
+  sub.df <- filter(pky.df,capture==cap,seqnames==chrom,start>=start.pos,end<=end.pos)
+  sig.df <- rbind(sig.df,sub.df)
+}
+dim(pky.df)[1]==dim(sig.df)[1] # results are all within the expected range 
+```
+
+Append numbers of significant interactions 
+
+```{r}
+append_sig_counts <- function(res.df,sig.df){
+  prox.count <- c()
+  dist.count <- c()
+  tot.count <- c()
+  pb <- txtProgressBar(min=0,max=dim(res.df)[1],style=3)
+  for (i in 1:dim(res.df)[1]){
+    setTxtProgressBar(pb,i)
+    row.df <- res.df[i,]
+    cap <- row.df$capture
+    sub.df <- filter(sig.df,capture==cap)
+    tot <- dim(sub.df)[1]
+    prox <- dim(filter(sub.df,type=="proximal"))[1]
+    dist <- dim(filter(sub.df,type=="distal"))[1]
+    prox.count <- append(prox.count,prox)
+    dist.count <- append(dist.count,dist)
+    tot.count <- append(tot.count,tot)    
+  }
+  out.df <- res.df
+  out.df$prox.count <- prox.count
+  out.df$dist.count <- dist.count
+  out.df$tot.count <- tot.count
+  return(out.df)
+}
+```
+
+```{r}
+rescount.df <- append_sig_counts(res.df,sig.df)
+all((rescount.df$prox.count + rescount.df$dist.count) == rescount.df$tot.count)
+# Sanity check that all interactions are accounted for 
+```
+
+## Profile interaction "streches" (i.e. elements) from contiguous sig.frags 
+
+```{r}
+get_strech_df <- function(cap,sig.df){
+  sub.df <- filter(sig.df,capture==cap)
+  sub.gr <- GRanges(seqnames=sub.df$seqnames,
+                    IRanges(start=sub.df$start,end=sub.df$end))
+  reduce.df <- reduce(sub.gr) %>% as.data.frame()
+  reduce.df$peak <- row.names(reduce.df)
+  names(reduce.df)[4] <- "peak.width"
+  num.peaks <- dim(reduce.df)[1]
+  reduce.df$max.mppc <- purrr::map(1:dim(reduce.df)[1],function(i){
+    row.df <- reduce.df[i,]
+    pk.df <- filter(sub.df,seqnames==row.df$seqnames,
+                    start>=row.df$start,end<=row.df$end)
+    max(pk.df$rjmcmc_pos)
+  }) %>% as.numeric(.)
+  med.value <- median(reduce.df$peak.width) %>% round(.,0)
+  sd.value <- sd(reduce.df$peak.width) %>% round(.,0)
+  med.sd <- med.value %&% "±" %&% sd.value
+  med.value2 <- median(reduce.df$max.mppc) %>% round(.,3)
+  sd.value2 <- sd(reduce.df$max.mppc) %>% round(.,3)
+  med.sd2 <- med.value2 %&% "±" %&% sd.value2
+  out.df <- data.frame("capture"=cap,"num.peaks"=num.peaks,
+                       "median.width"=med.sd,"median.max.mppc"=med.sd2)
+  return(out.df)
+}
+
+build_strech_df <- function(rescount.df,sig.df){
+  out.df <- c()
+  for (cap in rescount.df$capture){
+    build.df <- get_strech_df(cap,sig.df)
+    out.df <- rbind(out.df,build.df)
+  }
+  return(out.df)
+}
+```
+
+```{r}
+resstrecth.df <- build_strech_df(rescount.df,sig.df)
+resstrecth.df <- left_join(rescount.df,resstrecth.df,by="capture")
+
+write.table(x=resstrecth.df,file=out.dir %&% "peaky-interaction-summary.txt",
+            sep="\t",quote=F,row.names=F,col.names=T)
+```
+
