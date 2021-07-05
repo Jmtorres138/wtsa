@@ -1,0 +1,119 @@
+---
+title: "05.3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script will determine the extent to which peaky interactions at capture 
+sites involve trait GWAS SNPs/ eSNPs used in locus selection 
+
+
+# Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+work.dir <- rescomp.dir %&% "projects/wtsa/promoter_driven/"
+out.dir <- work.dir %&% "output_files/"
+pky.dir <- work.dir %&% "peaky_interactions/"
+ref.dir <- work.dir %&% "reference_files/"
+```
+
+Read relevant peaky output
+
+```{r}
+pky.df <- fread(pky.dir %&% "promoter_endo_peaky-interactions.txt")
+summ.df <- fread(file=out.dir %&% "peaky-interaction-summary.txt",
+            header=T)
+```
+
+
+## Prepare / process trait variant bed files 
+
+```{r}
+eqtl.df <- fread(ref.dir %&% "eQTL-index.bed")
+gwas.df <- fread(ref.dir %&% "gwas-index.bed")
+rsid.esnp.vec <- purrr::map(eqtl.df$V4,function(s){
+  strsplit(s,split="_")[[1]][1]
+}) %>% as.character(.)
+rsid.gwas.vec <- purrr::map(gwas.df$V4,function(s){
+  strsplit(s,split="_")[[1]][1]
+}) %>% as.character(.)
+write.table(x=rsid.esnp.vec,file=ref.dir%&%"eSNP-rsids.txt",sep="\t",quote=F,
+            row.names=F,col.names=F)
+write.table(x=rsid.gwas.vec,file=ref.dir%&%"gwas-rsids.txt",sep="\t",quote=F,
+            row.names=F,col.names=F)
+```
+
+Submitted these SNP lists to UCSC Table Browser tool (July 5th 2021)
+Settings: 
+Assembly: December 2013 (GRCh38/hg38)
+Group: Variation; Track = Common SNPs 151; Table: snp151Common
+
+Reading in outputted files from browser 
+Note: the correct SNP position corresponds to the "chromEnd" column 
+```{r}
+esnp.ucsc.df <- fread(ref.dir %&% "eSNP-rsid-ucsc-table-browser-query.txt")
+gwas.ucsc.df <- fread(ref.dir %&% "gwas-rsid-ucsc-table-browser-query.txt")
+```
+
+Updating files to include GRCh38 coordinates 
+
+```{r}
+eqtl.df$pos.hg38 <- purrr::map(eqtl.df$V4,function(s){
+  rsid <- strsplit(s,split="_")[[1]][1]
+  pos <- filter(esnp.ucsc.df,name==rsid)$chromEnd
+}) %>% as.integer(.)
+eqtl.df$func <- purrr::map(eqtl.df$V4,function(s){
+  rsid <- strsplit(s,split="_")[[1]][1]
+  pos <- filter(esnp.ucsc.df,name==rsid)$func
+}) %>% as.character(.)
+gwas.df$pos.hg38 <- purrr::map(gwas.df$V4,function(s){
+  rsid <- strsplit(s,split="_")[[1]][1]
+  pos <- filter(gwas.ucsc.df,name==rsid)$chromEnd
+}) %>% as.integer(.)
+gwas.df$func <- purrr::map(gwas.df$V4,function(s){
+  rsid <- strsplit(s,split="_")[[1]][1]
+  pos <- filter(gwas.ucsc.df,name==rsid)$func
+}) %>% as.character(.)
+```
+
+Write updated text and bed files with hg38 coordinates 
+
+```{r}
+esnp.full.df <- dplyr::select(eqtl.df,one_of("V1","V2","pos.hg38","V4","func"))
+gwas.full.df <- dplyr::select(gwas.df,one_of("V1","V2","pos.hg38","V4","func"))
+names(esnp.full.df) <- c("chrom","pos.hg19","pos.hg38","name","annotation")
+names(gwas.full.df) <- c("chrom","pos.hg19","pos.hg38","name","annotation")
+esnp.full.df <- esnp.full.df[!duplicated(esnp.full.df$name),]
+gwas.full.df <- gwas.full.df[!duplicated(gwas.full.df$name),]
+write.table(esnp.full.df,file=ref.dir %&% "eQTL-index-hg38.txt",sep="\t",
+            quote=F,row.names=F,col.names=T)
+write.table(gwas.full.df,file=ref.dir %&% "gwas-index-hg38.txt",sep="\t",
+            quote=F,row.names=F,col.names=T)
+ensp.bed <- data.frame("V1"=esnp.full.df$chrom,"V2"=esnp.full.df$pos.hg38,
+                       "V3"=esnp.full.df$pos.hg38,"V4"=esnp.full.df$name,
+                       stringsAsFactors = F)
+gwas.bed <- data.frame("V1"=gwas.full.df$chrom,"V2"=gwas.full.df$pos.hg38,
+                       "V3"=gwas.full.df$pos.hg38,"V4"=gwas.full.df$name,
+                       stringsAsFactors = F)
+write.table(ensp.bed,file=ref.dir %&% "eQTL-index-hg38.bed",sep="\t",
+            quote=F,row.names=F,col.names=T)
+write.table(gwas.bed,file=ref.dir %&% "gwas-index-hg38.bed",sep="\t",
+            quote=F,row.names=F,col.names=T)
+```
+
+## Determine if there is compelling trait interactions at each capture-c locus 
+
+```{r}
+
+```
+
+
+
