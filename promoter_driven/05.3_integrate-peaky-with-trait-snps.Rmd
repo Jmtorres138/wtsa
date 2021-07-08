@@ -31,6 +31,7 @@ Read relevant peaky output
 pky.df <- fread(pky.dir %&% "promoter_endo_peaky-interactions.txt")
 summ.df <- fread(file=out.dir %&% "peaky-interaction-summary.txt",
             header=T)
+frag.df <- fread(file=out.dir %&% "genomic-regions_frag-info.txt",header=T)
 ```
 
 
@@ -113,7 +114,172 @@ write.table(gwas.bed,file=ref.dir %&% "gwas-index-hg38.bed",sep="\t",
 
 ```{r}
 
+assess_5kb_proximty <- function(cap){
+  esnp.gr <- GRanges(seqnames=esnp.full.df$chrom,
+                     IRanges(start=esnp.full.df$pos.hg38,end=esnp.full.df$pos.hg38))
+  names(esnp.gr) <- esnp.full.df$name
+  gwas.gr <- GRanges(seqnames=gwas.full.df$chrom,
+                     IRanges(start=gwas.full.df$pos.hg38,end=gwas.full.df$pos.hg38))
+  names(gwas.gr) <- gwas.full.df$name
+  if (!(cap %in% frag.df$gene)){
+    cap <- filter(summ.df,capture==cap)$gencodeV37.name
+  }
+  frag.sub <- filter(frag.df,gene==cap)
+  if (dim(frag.sub)[1]>0){
+    tss.chrom <- frag.sub$chrom
+    tss.vec <- strsplit(frag.sub$tss,split=",")[[1]] %>% as.integer()
+    # expand start and end coordinates by 5kb
+    # may have multiple TSS captured by viewpoint 
+    tss.gr <- GRanges(seqnames=tss.chrom,
+                      IRanges(start=tss.vec-5000,
+                              end=tss.vec+5000))
+    esnp.over <- esnp.gr[esnp.gr%over%tss.gr]
+    esnp.over.df <- as.data.frame(esnp.over)
+    esnp.over.df$name <- names(esnp.over)
+    gwas.over <- gwas.gr[gwas.gr%over%tss.gr]
+    gwas.over.df <- as.data.frame(gwas.over)
+    gwas.over.df$name <- names(gwas.over)
+    if (dim(gwas.over.df)[1]>0){
+      rsid <- purrr::map(gwas.over.df$name,function(s){
+        strsplit(s,split="_")[[1]][1]
+      }) %>% as.character() 
+      trait <- purrr::map(gwas.over.df$name,function(s){
+        svec <- strsplit(s,split="_")[[1]]
+        paste0(svec[2:length(svec)],collapse="-")
+      }) %>% as.character(.) %>% paste0(.,collapse = ",") 
+      snp <- paste0(gwas.over.df$seqnames%&%":"%&%
+                      gwas.over.df$start%&%" ("%&%rsid%&%")",collapse = ",")
+      gwas.build <- data.frame("capture"=cap,"gwas.snp"=snp,"gwas.trait"=trait,
+                               stringsAsFactors = F)
+    } else{
+      gwas.build <- data.frame("capture"=cap,"gwas.snp"=NA,"gwas.trait"=NA,
+                               stringsAsFactors = F)      
+    }
+    if (dim(esnp.over.df)[1]>0){
+      rsid <- purrr::map(esnp.over.df$name,function(s){
+        strsplit(s,split="_")[[1]][1]
+      }) %>% as.character() 
+      egene <- purrr::map(esnp.over.df$name,function(s){
+        strsplit(s,split="_")[[1]][2]
+      }) %>% as.character(.) %>% paste0(.,collapse = ",") 
+      snp <- paste0(esnp.over.df$seqnames%&%":"%&%
+                      esnp.over.df$start%&%" ("%&%rsid%&%")",collapse = ",")
+      esnp.build <- data.frame("capture"=cap,"esnp"=snp,"egene"=egene,
+                               stringsAsFactors = F)
+    } else{
+      esnp.build <- data.frame("capture"=cap,"esnp"=NA,"egene"=NA,
+                               stringsAsFactors = F)
+    }
+    out.df <- inner_join(gwas.build,esnp.build,by="capture")
+  } else{
+    print("Capture: "%&%cap%&%" is not present in fragment file!")
+    out.df <- data.frame("capture"=cap,"gwas.snp"=NA,"gwas.trait"=NA,"esnp"=NA,
+                         "egene"=NA,stringsAsFactors = F)
+  }
+  return(out.df)
+}
+
+build_5kb_proximity_df <- function(){
+  out.df <- c()
+  for (cap in summ.df$capture){
+    print(cap)
+    build.df <- assess_5kb_proximty(cap)
+    out.df <- rbind(out.df,build.df)
+  }
+  return(out.df)
+}
+
+
+asses_peaky_overlap <- function(cap){
+  esnp.gr <- GRanges(seqnames=esnp.full.df$chrom,
+                     IRanges(start=esnp.full.df$pos.hg38,end=esnp.full.df$pos.hg38))
+  names(esnp.gr) <- esnp.full.df$name
+  gwas.gr <- GRanges(seqnames=gwas.full.df$chrom,
+                     IRanges(start=gwas.full.df$pos.hg38,end=gwas.full.df$pos.hg38))
+  names(gwas.gr) <- gwas.full.df$name
+  if (!(cap %in% frag.df$gene)){
+    cap <- filter(summ.df,capture==cap)$gencodeV37.name
+  }
+  lookup.cap <- filter(summ.df,gencodeV37.name==cap)$capture
+  pky.sub <- filter(pky.df,capture==lookup.cap)
+  if (dim(pky.sub)[1]>0){
+    # expand start and end coordinates by 500bp
+    pky.sub$start.expand <- pky.sub$start-500
+    pky.sub$end.expand <- pky.sub$end+500
+    pky.sub.gr <- GRanges(seqnames=pky.sub$seqnames,
+                          IRanges(start=pky.sub$start.expand,
+                                  end=pky.sub$end.expand))
+    esnp.over <- esnp.gr[esnp.gr%over%pky.sub.gr]
+    esnp.over.df <- as.data.frame(esnp.over)
+    esnp.over.df$name <- names(esnp.over)
+    gwas.over <- gwas.gr[gwas.gr%over%pky.sub.gr]
+    gwas.over.df <- as.data.frame(gwas.over)
+    gwas.over.df$name <- names(gwas.over)
+    if (dim(gwas.over.df)[1]>0){
+      rsid <- purrr::map(gwas.over.df$name,function(s){
+        strsplit(s,split="_")[[1]][1]
+      }) %>% as.character() 
+      trait <- purrr::map(gwas.over.df$name,function(s){
+        svec <- strsplit(s,split="_")[[1]]
+        paste0(svec[2:length(svec)],collapse="-")
+      }) %>% as.character(.) %>% paste0(.,collapse = ",") 
+      snp <- paste0(gwas.over.df$seqnames%&%":"%&%
+                      gwas.over.df$start%&%" ("%&%rsid%&%")",collapse = ",")
+      
+      gwas.build <- data.frame("capture"=cap,"gwas.snp"=snp,"gwas.trait"=trait,
+                               stringsAsFactors = F)
+    } else{
+      gwas.build <- data.frame("capture"=cap,"gwas.snp"=NA,"gwas.trait"=NA,
+                               stringsAsFactors = F)      
+    }
+    if (dim(esnp.over.df)[1]>0){
+      rsid <- purrr::map(esnp.over.df$name,function(s){
+        strsplit(s,split="_")[[1]][1]
+      }) %>% as.character() 
+      egene <- purrr::map(esnp.over.df$name,function(s){
+        strsplit(s,split="_")[[1]][2]
+      }) %>% as.character(.) %>% paste0(.,collapse = ",") 
+      snp <- paste0(esnp.over.df$seqnames%&%":"%&%
+                      esnp.over.df$start%&%" ("%&%rsid%&%")",collapse = ",")
+      esnp.build <- data.frame("capture"=cap,"esnp"=snp,"egene"=egene,
+                               stringsAsFactors = F)
+    } else{
+      esnp.build <- data.frame("capture"=cap,"esnp"=NA,"egene"=NA,
+                               stringsAsFactors = F)
+    }
+    out.df <- inner_join(gwas.build,esnp.build,by="capture")
+  } else{
+    print("Capture: "%&%cap%&%" had no significant peaky interactions!")
+    out.df <- data.frame("capture"=cap,"gwas.snp"=NA,"gwas.trait"=NA,"esnp"=NA,
+                         "egene"=NA,stringsAsFactors = F)
+  }
+  return(out.df)
+}
+
+build_5kb_proximity_df <- function(){
+  out.df <- c()
+  for (cap in summ.df$capture){
+    print(cap)
+    build.df <- assess_5kb_proximty(cap)
+    out.df <- rbind(out.df,build.df)
+  }
+  return(out.df)
+}
+
+build_pky_overlap_df <- function(){
+  out.df <- c()
+  for (cap in summ.df$capture){
+    print(cap)
+    build.df <- asses_peaky_overlap(cap)
+    out.df <- rbind(out.df,build.df)
+  }
+  return(out.df)
+}
 ```
 
+```{r}
+prox5kb.df <- build_5kb_proximity_df()
+pky.overlap.df <- build_pky_overlap_df()
+```
 
 
