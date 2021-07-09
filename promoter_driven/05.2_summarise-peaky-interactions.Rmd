@@ -150,24 +150,31 @@ get_strech_df <- function(cap,sig.df){
   med.sd2 <- med.value2 %&% "±" %&% sd.value2
   out.df <- data.frame("capture"=cap,"num.peaks"=num.peaks,
                        "median.width"=med.sd,"median.max.mppc"=med.sd2)
-  return(out.df)
+  out.df2 <- reduce.df
+  return(list(out.df,out.df2))
 }
 
 build_strech_df <- function(rescount.df,sig.df){
   out.df <- c()
+  out.df2 <- c()
   for (cap in rescount.df$capture){
-    build.df <- get_strech_df(cap,sig.df)
-    out.df <- rbind(out.df,build.df)
+    build.list <- get_strech_df(cap,sig.df)
+    out.df <- rbind(out.df,build.list[[1]])
+    out.df2 <- rbind(out.df2,build.list[[2]])
   }
-  return(out.df)
+  return(list(out.df,out.df2))
 }
 ```
 
 ```{r}
-resstrecth.df <- build_strech_df(rescount.df,sig.df)
+resstrecth.list <- build_strech_df(rescount.df,sig.df)
+resstrecth.df <- resstrecth.list[[1]]
 resstrecth.df <- left_join(rescount.df,resstrecth.df,by="capture")
+peaks.df <- resstrecth.list[[2]]
 
 write.table(x=resstrecth.df,file=out.dir %&% "peaky-interaction-summary.txt",
+            sep="\t",quote=F,row.names=F,col.names=T)
+write.table(x=peaks.df,file=out.dir %&% "peaky-interaction-peaks.txt",
             sep="\t",quote=F,row.names=F,col.names=T)
 ```
 
