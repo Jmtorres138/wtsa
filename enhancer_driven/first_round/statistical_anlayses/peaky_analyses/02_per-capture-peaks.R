@@ -30,16 +30,3 @@ PKS = peaky(relevant_bait, omega_power, iterations=1e6)
 P = interpret_peaky(relevant_bait, PKS, omega_power)
 
 write.table(x=P,file=save.name,sep="\t",quote=F,row.names=F)
-
-#par(mfrow=c(3,1))
-#zoom = P[abs(P$dist)<1e6]
-#plot(x=zoom$dist, xlab="Distance from bait (bp)",
-#     y=zoom$residual, ylab="Adjusted readcount")
-#
-#plot(x=zoom$dist, xlab="Distance from bait (bp)",
-#     y=zoom$beta_mean, ylab="Mean contact strength",
-#     col="green")
-#
-#plot(x=zoom$dist, xlab="Distance from bait (bp)",
-#     y=zoom$rjmcmc_pos, ylab="MPPC",
-#     col="blue")

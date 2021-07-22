@@ -24,30 +24,34 @@ def submit_jobs():
     header = fin.readline()
     for line in fin:
         l = line.strip().split()
+        capname =l[0]
         bait = l[1]
-        print bait
-        command_list = ["Rscript", "--vanilla", r_script, bait]
+        filename = file_dir + capname + "_" + bait +".pky.txt"
+        #print bait
+        command_list = ["/apps/well/R/3.4.3-openblas-0.2.18-omp-gcc5.4.0/bin/Rscript", "--vanilla", r_script, bait]
         command = " ".join(command_list)
         job_file = job_dir + "job_" + bait + ".sh"
         fout = open(job_file,'w')
+        #module load gcc/5.4.0
         script='''
 #$ -N %s
-#$ -pe shmem 1
+#$ -cwd -V
+#$ -pe shmem 2
 #$ -P mccarthy.prjc
-#$ -q short.qc
+#$ -q long.qc
 #$ -e %s%s.error
 #$ -o %s%s.out
 echo "start time" `date`
-module load R/3.4.3-openblas-0.2.18-omp-gcc5.4.0
-module load gcc/5.4.0
 %s
 echo "end time" `date`
         ''' % ("job_"+bait, log_dir,"bait_"+bait,log_dir,"bait_"+bait,command)
         fout.write(script)
         fout.close()
-        call = ["qsub", job_file]
-        sp.check_call(call)
+        call = ["sh", job_file]
+        if os.path.isfile(filename)==False:
+            sp.check_call(call)
     fin.close()
+    bait_file.close()
 
 def main():
     submit_jobs()
