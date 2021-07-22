@@ -34,16 +34,16 @@ gzip $OUTDIR/hESC_A_R1.combined.fastq
 #  $OUTDIR/hESC_A_R2.combined.fastq
 gzip $OUTDIR/hESC_A_R2.combined.fastq
 echo hESC_B
-#zcat $ORIGDIR/hESC_B_R1.fastq.gz $ADDDIR/hESC_B_1.fastq.gz > \
-#  $OUTDIR/hESC_B_R1.combined.fastq
+zcat $ORIGDIR/hESC_B_R1.fastq.gz $ADDDIR/hESC_B_1.fastq.gz > \
+  $OUTDIR/hESC_B_R1.combined.fastq
 gzip $OUTDIR/hESC_B_R1.combined.fastq
-#zcat $ORIGDIR/hESC_B_R2.fastq.gz $ADDDIR/hESC_B_2.fastq.gz > \
-#  $OUTDIR/hESC_B_R2.combined.fastq
+zcat $ORIGDIR/hESC_B_R2.fastq.gz $ADDDIR/hESC_B_2.fastq.gz > \
+  $OUTDIR/hESC_B_R2.combined.fastq
 gzip $OUTDIR/hESC_B_R2.combined.fastq
 echo hESC_C
-#zcat $ORIGDIR/hESC_C_R1.fastq.gz $ADDDIR/hESC_C_1.fastq.gz > \
-#  $OUTDIR/hESC_C_R1.combined.fastq
+zcat $ORIGDIR/hESC_C_R1.fastq.gz $ADDDIR/hESC_C_1.fastq.gz > \
+  $OUTDIR/hESC_C_R1.combined.fastq
 gzip $OUTDIR/hESC_C_R1.combined.fastq
-#zcat $ORIGDIR/hESC_C_R2.fastq.gz $ADDDIR/hESC_C_2.fastq.gz > \
-#  $OUTDIR/hESC_C_R2.combined.fastq
+zcat $ORIGDIR/hESC_C_R2.fastq.gz $ADDDIR/hESC_C_2.fastq.gz > \
+  $OUTDIR/hESC_C_R2.combined.fastq
 gzip $OUTDIR/hESC_C_R2.combined.fastq
