@@ -1,0 +1,151 @@
+---
+title: "00.1_probes-to-oligo-file.Rmd"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The purpose of this script is to take as input probe information and generate 
+non-overlapping capture regions that will be targetted in the Oligo file to be 
+provided to CCAnalyser 
+Note: The T1D captures requested by Anthony Cutler are rightfully excluded here
+
+## Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+serv.dir <- "/Users/jasont/science/servers/FUSE5/"
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/second_round/"
+```
+
+Read in probe input file
+```{r}
+##probe.df <- fread(work.dir%&%"probe_design/from_Vibe/"%&%
+##    "2019.02.21_probes_2nd_enhancer.txt")
+probe.df <- fread(work.dir%&%"probe_design/"%&%
+    "probe-file-expanded-info.txt") # Note: using this file as I previously
+# annotated the probeset with script probe_design/evaluate_probes.Rmd
+probe.df <- dplyr::arrange(probe.df,chrom,frag)
+```
+
+## Evaluate probeset 
+
+```{r}
+# Note start and end coordinates correspond to the probes, not the fragments 
+dim(probe.df)[1] # There are 313 probes 
+summary(probe.df$Density) # Median probe density is 6.890
+summary(probe.df$Percent_CG) # Median 1.43%
+summary(probe.df$Percent_GC) # Median 47.14% 
+unique(probe.df$Oligo_Size) # 70 
+table(probe.df$probe.type) # There are 258 paired and 55 single probes 
+table(probe.df$Duplication) # There are no duplicates 
+length(unique(probe.df$frag)) # 184 fragments 
+```
+
+There are 313 probes. 
+Here is the probe density distribution:
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  1.260   4.870   6.890   8.346   9.800  30.710 
+All probes are 70 bp 
+There are 258 paired and 55 single probes
+
+In total, the probes correspond to 184 fragments BEFORE MERGING 
+
+## Create OlioFile (GRCh37) 
+```{r}
+
+build_row_df <- function(frag.id){
+  sub.df <- filter(probe.df,frag==frag.id)
+  dpnII.start <- min(sub.df$frag.start)
+  dpnII.end <- min(sub.df$frag.end)
+  chrom <- sub.df$chr[1]
+  excl.start <- as.integer(dpnII.start-1000)
+  excl.end <- as.integer(dpnII.end+1000)
+  row.df <- data.frame("V1"=frag.id,"V2"=chrom,"V3"=dpnII.start,"V4"=dpnII.end,
+                       "V5"=chrom,"V6"=excl.start,"V7"=excl.end,"V8"=1,"V9"="A",
+                       stringsAsFactors = F)
+  return(row.df)
+}
+
+build_oligo_df <- function(probe.df){
+  frag.vec <- probe.df$frag %>% unique(.)
+  out.df <- c()
+  pb <- txtProgressBar(min=0,max=length(frag.vec),style=3)
+  for (i in 1:length(frag.vec)){
+    setTxtProgressBar(pb,i)
+    f <- frag.vec[i]
+    build.df <- build_row_df(f)
+    out.df <- rbind(out.df,build.df)
+  }
+  return(out.df)
+}
+
+```
+
+```{r}
+oligo.df <- build_oligo_df(probe.df)
+```
+
+Merge overlapping regions and create key file 
+
+```{r}
+build_merged_list <- function(oligo.df){
+  oligo.gr <- GRanges(seqnames = oligo.df$V2,
+                    IRanges(start=oligo.df$V6,end=oligo.df$V7))
+  out.df1 <- c()
+  out.df2 <- c()
+  reduce.df <- reduce(oligo.gr) %>% as.data.frame()
+  for (i in 1:dim(reduce.df)[1]){
+    query.chrom <- reduce.df[i,]$seqnames
+    query.start <- reduce.df[i,]$start
+    query.end <- reduce.df[i,]$end
+    sub.df <- filter(oligo.df,V2==query.chrom,V6>=query.start,V7<=query.end)
+    if (dim(sub.df)[1]>1){
+      v1 <- "e2_" %&% strsplit(sub.df$V1[1],split="_")[[1]][3] %&% "_cap"%&%i
+      v2 <- sub.df$V2[1]
+      v3 <- min(sub.df$V3); v4 <- max(sub.df$V4); v5 <- v2 
+      v6 <- min(sub.df$V6); v7 <- max(sub.df$V7)
+      v8 <- unique(sub.df$V8); v9 <- unique(sub.df$V9)
+      build.df1 <- data.frame(v1,v2,v3,v4,v5,v6,v7,v8,v9,stringsAsFactors = F)
+      build.df2 <- data.frame("merged.capture.name"=v1,
+                              "captures"=paste0(sub.df$V1,collapse=","),
+                              stringsAsFactors = F)
+    } else{
+      v1 <- "e2_" %&% strsplit(sub.df$V1,split="_")[[1]][3] %&% "_cap"%&%i
+      v2 <- sub.df$V2
+      v3 <- sub.df$V3; v4 <- sub.df$V4; v5 <- v2 
+      v6 <- sub.df$V6; v7 <- sub.df$V7
+      v8 <- sub.df$V8; v9 <- sub.df$V9
+      build.df1 <- data.frame(v1,v2,v3,v4,v5,v6,v7,v8,v9,stringsAsFactors = F)
+      build.df2 <- data.frame("merged.capture.name"=v1,
+                              "captures"=paste0(sub.df$V1,collapse=","),
+                              stringsAsFactors = F)      
+    }
+    out.df1 <- rbind(out.df1,build.df1)
+    out.df2 <- rbind(out.df2,build.df2)
+  }
+  return(list(out.df1,out.df2))
+}
+```
+
+```{r}
+merged.list <- build_merged_list(oligo.df)
+merged.df <- merged.list[[1]]
+key.df <- merged.list[[2]]
+```
+
+Write files 
+```{r}
+write.table(x=oligo.df,file=work.dir%&%"input_files/Oligo-file_unmerged_GRCh37.txt",
+            sep="\t",quote=F,row.names=F,col.names=F)
+write.table(x=merged.df,file=work.dir%&%"input_files/Oligo-file_merged_GRCh37.txt",
+            sep="\t",quote=F,row.names=F,col.names=F)
+write.table(x=key.df,file=work.dir%&%"input_files/Oligo-file_merged-key_GRCh37.txt",
+            sep="\t",quote=F,row.names=F,col.names=F)
+```
+
