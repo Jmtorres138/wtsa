@@ -109,7 +109,7 @@ build_merged_list <- function(oligo.df){
     query.end <- reduce.df[i,]$end
     sub.df <- filter(oligo.df,V2==query.chrom,V6>=query.start,V7<=query.end)
     if (dim(sub.df)[1]>1){
-      v1 <- "e2_" %&% strsplit(sub.df$V1[1],split="__")[[1]][1] %&% "_cap"%&%i
+      v1 <- "e1_" %&% strsplit(sub.df$V1[1],split="__")[[1]][1] %&% "_cap"%&%i
       v2 <- sub.df$V2[1]
       v3 <- min(sub.df$V3); v4 <- max(sub.df$V4); v5 <- v2 
       v6 <- min(sub.df$V6); v7 <- max(sub.df$V7)
@@ -119,7 +119,7 @@ build_merged_list <- function(oligo.df){
                               "captures"=paste0(sub.df$V1,collapse=","),
                               stringsAsFactors = F)
     } else{
-      v1 <- "e2_" %&% strsplit(sub.df$V1[1],split="__")[[1]][1] %&% "_cap"%&%i
+      v1 <- "e1_" %&% strsplit(sub.df$V1[1],split="__")[[1]][1] %&% "_cap"%&%i
       v2 <- sub.df$V2
       v3 <- sub.df$V3; v4 <- sub.df$V4; v5 <- v2 
       v6 <- sub.df$V6; v7 <- sub.df$V7
