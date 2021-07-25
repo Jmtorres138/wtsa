@@ -18,6 +18,7 @@ oligo_file = work_dir + "input_files/Oligo-file_merged_GRCh38_no-chr.txt"
 fastq_dir = work_dir + "fastq_files/combined/"
 fastq_prefix = "Endo_A_R" # example of full name expected: Endo_A_R1.combined.fastq.gz
 out_dir = blat_dir + "output_files/"
+reuse_dir = work_dir + "01_REUSE_blat/"
 
 def write_blat_script(cap):
     script = '''#!/bin/bash
@@ -71,6 +72,35 @@ sh %s
     command = ["qsub",job_dir+cap+".job.sh"]
     sp.check_call(command)
 
+def submit_job_long(cap):
+    command0 = ["mkdir",out_dir+cap]
+    if os.path.isdir(out_dir+cap)==False:
+        sp.check_call(command0)
+    script = '''#!/bin/bash
+#$ -P mccarthy.prjc
+#$ -N blat-%s
+#$ -q long.qc
+#$ -pe shmem 2
+#$ -o %s.out
+#$ -e %s.err
+#$ -wd %s
+
+echo "------------------------------------------------"
+echo "Run on host: "`hostname`
+echo "Operating system: "`uname -s`
+echo "Username: "`whoami`
+echo "Started at: "`date`
+echo "------------------------------------------------"
+
+sh %s
+    ''' % (cap,log_dir+cap,log_dir+cap,out_dir+cap,
+    job_dir+cap+".blat.sh")
+    fout = open(job_dir+cap+".job.sh",'w')
+    fout.write(script)
+    fout.close()
+    command = ["qsub",job_dir+cap+".job.sh"]
+    sp.check_call(command)
+
 def run_blat_jobs():
     fin = open(oligo_file,'r')
     for line in fin:
@@ -84,7 +114,16 @@ def run_blat_jobs():
     fin.close()
 
 def main():
-    run_blat_jobs()
+    #run_blat_jobs() # Run once then run remaining code when all jobs completed
+    fin = open(oligo_file,'r')
+    for line in fin:
+        l = line.strip().split()
+        cap = l[0]
+        blat_file = reuse_dir + "TEMP_"+cap+"_blat.psl"
+        if os.path.isfile(blat_file)==False:
+            print(cap)
+            submit_job_long(cap)
+    fin.close()
 
 if (__name__=="__main__"):
     main()
