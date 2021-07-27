@@ -1,0 +1,214 @@
+---
+title: "Capture Summaries"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("viridis")
+library("grid");library("gridExtra")
+rescomp.serv <- "/Users/jasont/science/servers/FUSE5/"
+work.dir <- rescomp.serv %&% "projects/wtsa/promoter_driven/"
+input.dir <- work.dir %&% "03_CaptureCompare/T2D_Promoter_cis_analysis/1_reports/"
+plot.dir <- work.dir %&% "03_CaptureCompare/plots/"
+```
+
+# Functions 
+
+```{r}
+build_input_df <- function(input.dir,input.vec){
+  out.df <- c()
+  for (s in input.vec){
+    fname <- input.dir %&% s %&% "_cisReport.txt"
+    build.df <- fread(fname)
+    build.df$Sample <- s
+    out.df <- rbind(out.df,build.df)
+  }
+  return(out.df)
+}
+total.count.plot <- function(df,yscale="1M",
+                             input.vec=c("Endo_A","Endo_B","Endo_C","hESC_A","hESC_B","hESC_C")){
+  v1 <- c()
+  v2 <- c()
+  for (s in input.vec){
+    val1 <- filter(df,Sample==s)$Total %>% sum(.)
+    val2 <- filter(df,Sample==s)$Cis %>% sum(.)
+    v1 <- append(v1,val1); v2 <- append(v2,val2)
+  }
+  plot.df <- data.frame(Sample=input.vec,Total.Count=v1,Cis.Count=v2)
+  if (yscale=="1M"){
+    plot.df$Total.Count <- plot.df$Total.Count/1000000
+    plot.df$Cis.Count <- plot.df$Cis.Count/1000000    
+  } else{
+    plot.df$Total.Count <- plot.df$Total.Count/100000
+    plot.df$Cis.Count <- plot.df$Cis.Count/100000
+  }
+  plot.df$Sample <- factor(plot.df$Sample,levels=input.vec)
+  plt <- ggplot(data=plot.df,aes(x=Sample,y=Total.Count)) + 
+    geom_bar(stat="identity",color="black",fill=viridis(10)[8]) + 
+    geom_bar(stat="identity",aes(x=Sample,y=Cis.Count),color="black",fill=viridis(10)[3]) + 
+    geom_text(size=3,aes(x=Sample,y=Cis.Count+0.3,label=prettyNum(Cis.Count,digits=3))) + 
+    geom_text(size=3,aes(x=Sample,y=Cis.Count-0.3,label="(" %&% prettyNum(Cis.Count/Total.Count,digits=2) %&% ")")) + 
+    geom_text(size=3,aes(x=Sample,y=Total.Count+0.3,label=prettyNum(Total.Count,digits=3))) + 
+    theme_classic() 
+  
+  if (yscale=="1M"){
+    plt = plt + ylab("Interaction Counts (Million)") +
+      scale_y_continuous(breaks=1:10) 
+  } else{
+    plt = plt + ylab("Interaction Counts (100K)") +
+      scale_y_continuous(breaks=1:17) 
+  }
+  plt
+}
+
+cis.hist.v1 <- function(df){
+  df$CellType <- map(df$Sample,function(s){
+    strsplit(x=s,split="_")[[1]][1]
+  }) %>% as.character(.)
+  plt <- ggplot(data=df,aes(x=Cis/1000)) +
+    geom_histogram(color=viridis(10)[1],
+                   fill=viridis(10)[2]) + 
+    facet_wrap(~CellType) + 
+    scale_x_continuous(breaks=seq(0,100,20)) + 
+    ylab("Count") + xlab("Cis Interactions (thousands)") + 
+    theme_classic()
+}
+
+cis.hist.v2 <- function(df){
+  plt <- ggplot(data=df,aes(x=Cis/1000)) +
+    geom_histogram(color=viridis(10)[1],
+                   fill=viridis(10)[2]) + 
+    facet_wrap(~Sample) + 
+    scale_x_continuous(breaks=seq(0,100,20)) + 
+    ylab("Count") + xlab("Cis Interactions (thousands)") +
+    theme_classic()
+}
+
+cis.table.v1 <- function(df){
+  df$CellType <- map(df$Sample,function(s){
+    strsplit(x=s,split="_")[[1]][1]
+  }) %>% as.character(.)
+  sub1 <- df %>% group_by(CellType) %>%
+    summarise_at(vars("Cis"),
+              list(Mean=mean,Q1=quantile,
+                   Median=median),
+              probs=0.25) %>% as.data.frame(.)
+  sub2 <- df %>% group_by(CellType) %>%
+    summarise_at(vars("Cis"),
+              list(Q3=quantile,Max=max),
+              probs=0.75) %>% as.data.frame(.)
+  tab.df <- inner_join(sub1,sub2,by='CellType')
+  return(tab.df)
+}
+
+cis.table.v2 <- function(df){
+  sub1 <- df %>% group_by(Sample) %>%
+    summarise_at(vars("Cis"),
+              list(Mean=mean,Q1=quantile,
+                   Median=median),
+              probs=0.25) %>% as.data.frame(.)
+  sub2 <- df %>% group_by(Sample) %>%
+    summarise_at(vars("Cis"),
+              list(Q3=quantile,Max=max),
+              probs=0.75) %>% as.data.frame(.)
+  tab.df <- inner_join(sub1,sub2,by='Sample')
+  percGreater25K <- map(tab.df$Sample,function(s){
+    sub <- filter(df,Sample==s)
+    (sum(sub$Cis > 25000) / length(sub$Cis)) * 100
+  }) %>% as.numeric(.) %>% prettyNum(.,digits=3)
+  percGreater10K <- map(tab.df$Sample,function(s){
+    sub <- filter(df,Sample==s)
+    (sum(sub$Cis > 10000) / length(sub$Cis)) * 100
+  }) %>% as.numeric(.) %>% prettyNum(.,digits=3)
+  percGreater20K <- map(tab.df$Sample,function(s){
+    sub <- filter(df,Sample==s)
+    (sum(sub$Cis > 20000) / length(sub$Cis)) * 100
+  }) %>% as.numeric(.) %>% prettyNum(.,digits=3)
+  tab.df$'>10K (%)' <- percGreater10K
+  tab.df$'>20K (%)' <- percGreater20K
+  tab.df$'>25K (%)'<- percGreater25K
+  return(tab.df)
+}
+```
+
+
+# Promoter Capture 
+
+```{r}
+
+count.df <- build_input_df(input.dir=input.dir,
+                     input.vec=c("EndoB_rep1","EndoB_rep2","EndoB_rep3",
+                                 "LCL_rep1","LCL_rep2","LCL_rep3"))
+
+tot.plt <- total.count.plot(count.df,yscale="10K",
+                            input.vec=c("EndoB_rep1","EndoB_rep2","EndoB_rep3",
+                                 "LCL_rep1","LCL_rep2","LCL_rep3"))
+ggsave(plot=tot.plt,filename=plot.dir%&%"summary_counts.png",width=5,height=5)
+ggsave(plot=tot.plt,filename=plot.dir%&%"summary_counts.pdf",width=5,height=5)
+
+cishist.plt1 <- cis.hist.v1(count.df)
+ggsave(plot=cishist.plt1,filename=plot.dir%&%"hist.png",
+       width=5,height=3)
+ggsave(plot=cishist.plt1,filename=plot.dir%&%"hist.pdf",
+       width=5,height=3)
+
+cistab1 <- tableGrob(cis.table.v1(count.df))
+ggsave(plot=cistab1,filename=plot.dir%&%"table.png",
+       width=5,height=1)
+ggsave(plot=cistab1,filename=plot.dir%&%"table.pdf",
+       width=5,height=1)
+
+cishist.plt2 <- cis.hist.v2(count.df)
+ggsave(plot=cishist.plt2,filename=plot.dir%&%"histAll.png",
+       width=9,height=6)
+ggsave(plot=cishist.plt2,filename=plot.dir%&%"histAll.pdf",
+       width=9,height=6)
+
+cistab2 <- tableGrob(cis.table.v2(count.df))
+ggsave(plot=cistab2,filename=plot.dir%&%"tableAll.png",
+       width=8,height=2.5)
+ggsave(plot=cistab2,filename=plot.dir%&%"tableAll.pdf",
+       width=8,height=2.5)
+```
+
+
+
+# Endo capture distribution 
+
+
+```{r}
+
+count.df$Experiment <- "Promoter"
+
+all.df <- rbind(count.df)
+endo.df <- filter(all.df,grepl(Sample,pattern = "Endo"))
+
+endo.df$Sample <- map(1:dim(endo.df)[1],function(i){
+  row.df <- endo.df[i,]
+  s <- row.df$Sample
+  ifelse(s=="EndoBA","Endo_A",
+         ifelse(s=="EndoBC","Endo_B",
+                ifelse(s=="EndoBD","Endo_C",s)))
+}) %>% as.character(.)
+
+plt <- ggplot(data=endo.df,aes(y=Cis/1000,x=Sample,
+                               fill=Experiment)) + 
+  geom_boxplot() + 
+  facet_wrap(~Experiment,nrow = 1) + 
+  theme_classic() + 
+  scale_y_continuous(breaks=seq(0,70,10),limits=c(0,70)) + 
+  scale_fill_manual(values=c(viridis(20)[8],
+                             viridis(20)[11],viridis(20)[15])) + 
+  ylab("Cis interaction counts (Thousand)")
+
+```
+
