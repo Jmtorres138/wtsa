@@ -2,10 +2,10 @@
 #$ -cwd
 #$ -P mccarthy.prjc
 #$ -N E1_hescRep1_ccanalyser
-#$ -q short.qc
+#$ -q long.qc
 #$ -o /well/mccarthy/users/jason/projects/wtsa/enhancer_driven/first_round/logs/hescRep1_ccanalyser.out
 #$ -e /well/mccarthy/users/jason/projects/wtsa/enhancer_driven/first_round/logs/hescRep1_ccanalyser.err
-#$ -pe shmem 16
+#$ -pe shmem 20
 
 echo "------------------------------------------------"
 echo "Run on host: "`hostname`

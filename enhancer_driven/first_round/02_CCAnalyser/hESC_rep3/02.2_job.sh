@@ -2,10 +2,10 @@
 #$ -cwd
 #$ -P mccarthy.prjc
 #$ -N E1_hescRep3_ccanalyser
-#$ -q short.qc
+#$ -q long.qc
 #$ -o /well/mccarthy/users/jason/projects/wtsa/enhancer_driven/first_round/logs/hescRep3_ccanalyser.out
 #$ -e /well/mccarthy/users/jason/projects/wtsa/enhancer_driven/first_round/logs/hescRep3_ccanalyser.err
-#$ -pe shmem 16
+#$ -pe shmem 20
 
 echo "------------------------------------------------"
 echo "Run on host: "`hostname`
@@ -14,4 +14,4 @@ echo "Username: "`whoami`
 echo "Started at: "`date`
 echo "------------------------------------------------"
 
-sh /well/mccarthy/users/jason/projects/wtsa/enhancer_driven/first_round/02_CCAnalyser/hESC_rep3/01.1_capC-CS5_hescRep3.sh
+sh /well/mccarthy/users/jason/projects/wtsa/enhancer_driven/first_round/02_CCAnalyser/hESC_rep3/02.1_capC-CS5_hescRep3.sh
