@@ -2,7 +2,7 @@
 #$ -cwd
 #$ -P mccarthy.prjc
 #$ -N hescRep3_ccanalyser
-#$ -q short.qc
+#$ -q long.qc
 #$ -o /well/mccarthy/users/jason/projects/wtsa/enhancer_driven/second_round/logs/hescRep3_ccanalyser.out
 #$ -e /well/mccarthy/users/jason/projects/wtsa/enhancer_driven/second_round/logs/hescRep3_ccanalyser.err
 #$ -pe shmem 16
@@ -14,4 +14,4 @@ echo "Username: "`whoami`
 echo "Started at: "`date`
 echo "------------------------------------------------"
 
-sh /well/mccarthy/users/jason/projects/wtsa/enhancer_driven/second_round/02_CCAnalyser/hESC_rep3/01.1_capC-CS5_hescRep3.sh
+sh /well/mccarthy/users/jason/projects/wtsa/enhancer_driven/second_round/02_CCAnalyser/hESC_rep3/02.1_capC-CS5_hescRep3.sh
