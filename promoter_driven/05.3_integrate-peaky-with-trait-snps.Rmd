@@ -79,12 +79,12 @@ eqtl.df$func <- purrr::map(eqtl.df$V4,function(s){
 }) %>% as.character(.)
 gwas.df$pos.hg38 <- purrr::map(gwas.df$V4,function(s){
   rsid <- strsplit(s,split="_")[[1]][1]
-  pos <- filter(gwas.ucsc.df,name==rsid)$chromEnd
+  pos <- filter(gwas.ucsc.df,V4==rsid)$V3
 }) %>% as.integer(.)
-gwas.df$func <- purrr::map(gwas.df$V4,function(s){
-  rsid <- strsplit(s,split="_")[[1]][1]
-  pos <- filter(gwas.ucsc.df,name==rsid)$func
-}) %>% as.character(.)
+gwas.df$func <- NA #purrr::map(gwas.df$V4,function(s){
+#  rsid <- strsplit(s,split="_")[[1]][1]
+#  pos <- filter(gwas.ucsc.df,name==rsid)$func
+#}) %>% as.character(.)
 ```
 
 Write updated text and bed files with hg38 coordinates 
