@@ -47,10 +47,10 @@ version="CS5"
 
 # Path to file containing viewpoints and windowing parameters -
 # Format: Viewpoint    Chr Frag_start  Frag_stop Exlusion_Start Exlusion_Stop Plot_Region_Start Plot_Region_Stop Bin_Size Window_size
-parameters="/well/mccarthy/users/jason/projects/wtsa/enhancer_driven/first_round/03_CaptureCompare/capture-compare-input_hg38.txt"
+parameters="/well/mccarthy/users/jason/projects/wtsa/enhancer_driven/second_round/03_CaptureCompare/capture-compare-input_hg38.txt"
 
 # Path to where you would like the public UCSC hub to be made
-public="/well/mccarthy/users/jason/projects/wtsa/enhancer_driven/first_round/public "
+public="/well/mccarthy/users/jason/projects/wtsa/enhancer_driven/second_round/public "
 
 # Name of enzyme used: supports, "dpnII", "nlaIII", "hindIII"
 enzyme="dpnII"
