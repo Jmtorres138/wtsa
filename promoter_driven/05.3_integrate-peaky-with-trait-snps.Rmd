@@ -57,7 +57,7 @@ write.table(x=rsid.gwas.vec,file=ref.dir%&%"gwas-rsids.txt",sep="\t",quote=F,
 Submitted these SNP lists to UCSC Table Browser tool (July 5th 2021)
 Settings: 
 Assembly: December 2013 (GRCh38/hg38)
-Group: Variation; Track = Common SNPs 151; Table: snp151Common
+Group: Variation; Track = All SNPs(151); Table: snp151
 
 Reading in outputted files from browser 
 Note: the correct SNP position corresponds to the "chromEnd" column 
@@ -79,7 +79,7 @@ eqtl.df$func <- purrr::map(eqtl.df$V4,function(s){
 }) %>% as.character(.)
 gwas.df$pos.hg38 <- purrr::map(gwas.df$V4,function(s){
   rsid <- strsplit(s,split="_")[[1]][1]
-  pos <- filter(gwas.ucsc.df,V4==rsid)$V3
+  pos <- filter(gwas.ucsc.df,name==rsid)$chromEnd
 }) %>% as.integer(.)
 gwas.df$func <- NA #purrr::map(gwas.df$V4,function(s){
 #  rsid <- strsplit(s,split="_")[[1]][1]
@@ -133,8 +133,8 @@ $UCSCDIR/bedToBigBed gwas-index-hg38.sorted.bed $UCSCDIR/hg38.chrom.sizes gwas-i
 
 
 ```{r}
-prox5kb.df <- build_5kb_proximity_df()
-pky.overlap.df <- build_pky_overlap_df()
+##prox5kb.df <- build_5kb_proximity_df()
+##pky.overlap.df <- build_pky_overlap_df()
 ```
 
 
