@@ -1,0 +1,69 @@
+---
+title: "00.2.2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("tidyverse");library("data.table")
+serv.dir <- "/Users/jasont/science/servers/FUSE5/"
+work.dir <- serv.dir %&% "projects/wtsa/enhancer_driven/first_round/"
+```
+
+```{r}
+library("GenomicRanges")
+dpn.hg38.df <- fread(serv.dir %&% 
+        "projects/wtsa/digests/hg38_dpnII_fragments_reformatted.txt",header=F)
+dpn.gr <- GRanges(seqnames=dpn.hg38.df$V1,
+                  IRanges(start=dpn.hg38.df$V2,end=dpn.hg38.df$V3))
+```
+
+
+```{r}
+df <- fread(work.dir%&%"input_files/Oligo-file_merged_GRCh38_no-chr.txt")
+write.table(x=df,
+ file=work.dir%&%"input_files/Oligo-file_merged_GRCh38_no-chr.txt_UNCORRECTED",
+ sep="\t",quote=F,row.names=F,col.names=F)
+```
+
+
+## Modify the oligo file as needed, evaluate the DpnII coordinate positions
+```{r}
+out.df <- c()
+pb <- txtProgressBar(min=0,max=dim(df)[1],style=3)
+count <- 0 
+for (i in 1:dim(df)[1]){
+  setTxtProgressBar(pb,i)
+  row.df <- df[i,]
+  gr <- GRanges(seqnames=row.df$V2,IRanges(start=row.df$V3,end=row.df$V4))
+  overlap.df <- findOverlapPairs(gr,dpn.gr,minoverlap=4) %>% as.data.frame(.)
+  if (dim(overlap.df)[1]>1){
+    frag.start <- min(overlap.df$second.start)
+    frag.end<- max(overlap.df$second.end)
+  } else{
+    frag.start <- overlap.df$second.start;frag.end<-overlap.df$second.end
+  }
+  if(row.df$V3==frag.start-2 & row.df$V4==frag.end+2){
+    count<-count+1
+    out.df <- rbind(out.df,row.df)
+  } else{
+    row.df$V3 <- frag.start-2; row.df$V6 <- row.df$V3-1000
+    row.df$V4 <- frag.end+2; row.df$V7 <- row.df$V4+1000
+    out.df <- rbind(out.df,row.df)
+  }
+}
+out.df$V3 <- as.integer(out.df$V3); out.df$V4 <- as.integer(out.df$V4)
+out.df$V6 <- as.integer(out.df$V6); out.df$V7 <- as.integer(out.df$V7)
+```
+
+```{r}
+write.table(x=out.df,
+ file=work.dir%&%"input_files/Oligo-file_merged_GRCh38_no-chr.txt",
+ sep="\t",quote=F,row.names=F,col.names=F)
+```
+
+
