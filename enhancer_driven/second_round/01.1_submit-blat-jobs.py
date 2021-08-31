@@ -114,16 +114,16 @@ def run_blat_jobs():
     fin.close()
 
 def main():
-    run_blat_jobs() # Run once then run remaining code when all jobs completed
-    #fin = open(oligo_file,'r')
-    #for line in fin:
-    #    l = line.strip().split()
-    #    cap = l[0]
-    #    blat_file = reuse_dir + "TEMP_"+cap+"_blat.psl"
-    #    if os.path.isfile(blat_file)==False:
-    #        print(cap)
-    #        submit_job_long(cap)
-    #fin.close()
+    #run_blat_jobs() # Run once then run remaining code when all jobs completed
+    fin = open(oligo_file,'r')
+    for line in fin:
+        l = line.strip().split()
+        cap = l[0]
+        blat_file = reuse_dir + "TEMP_"+cap+"_blat.psl"
+        if os.path.isfile(blat_file)==False:
+            print(cap)
+            submit_job_long(cap)
+    fin.close()
 
 
 if (__name__=="__main__"):
