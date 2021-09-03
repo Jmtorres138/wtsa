@@ -45,12 +45,16 @@ echo "Running pipe.sh in folder ${rundir}"
 
 
 # Tell the command to user - print it to output :
-echo "${pipePath}/CCseqBasic5.sh.sh -o "${OligoFile}" -s "${Sample}" --pf "${PublicPath}" --genome ${Genome} --chunkmb 1012 --R1 ${Read1} --R2 ${Read2}  --gz --BLATforREUSEfolderPath ${Blatpath} --onlyCCanalyser"
+echo "${pipePath}/CCseqBasic5.sh.sh -o "${OligoFile}" -s "${Sample}" --pf "${PublicPath}" --genome ${Genome} --chunkmb 1012 --R1 ${Read1} --R2 ${Read2}  --gz --BLATforREUSEfolderPath ${Blatpath}"
+
+##echo "${pipePath}/CCseqBasic5.sh.sh -o "${OligoFile}" -s "${Sample}" --pf "${PublicPath}" --genome ${Genome} --chunkmb 1012 --R1 ${Read1} --R2 ${Read2}  --gz --BLATforREUSEfolderPath ${Blatpath} --onlyCCanalyser"
 
 
 # Run the command :
 
-${pipePath}/CCseqBasic5.sh -o "${OligoFile}" -s "${Sample}" --pf "${PublicPath}" --genome ${Genome} --chunkmb 1012 --R1 ${Read1} --R2 ${Read2} --gz  --BLATforREUSEfolderPath ${Blatpath} --onlyCCanalyser
+${pipePath}/CCseqBasic5.sh -o "${OligoFile}" -s "${Sample}" --pf "${PublicPath}" --genome ${Genome} --chunkmb 1012 --R1 ${Read1} --R2 ${Read2} --gz  --BLATforREUSEfolderPath ${Blatpath}
+
+## ${pipePath}/CCseqBasic5.sh -o "${OligoFile}" -s "${Sample}" --pf "${PublicPath}" --genome ${Genome} --chunkmb 1012 --R1 ${Read1} --R2 ${Read2} --gz  --BLATforREUSEfolderPath ${Blatpath} --onlyCCanalyser
 
 
 
