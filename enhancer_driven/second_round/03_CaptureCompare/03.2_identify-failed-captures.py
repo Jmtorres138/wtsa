@@ -15,6 +15,7 @@ cur_dir = work_dir + "03_CaptureCompare/"
 ccanalyser_dir = work_dir +"02_CCAnalyser/"
 samp_list = ["EndoB_rep1","EndoB_rep1","EndoB_rep1", \
              "hESC_rep1","hESC_rep2","hESC_rep3"]
+cc_file = cur_dir + "capture-compare-input_hg38.txt"
 
 #02_CCAnalyser/EndoB_rep1/F6_greenGraphs_combined_EndoB_rep1_CS5/COMBINED_CS5_e2_ADAMTS9_cap20.gff
 
@@ -48,17 +49,35 @@ def identify_failed_captures(cap_dic):
     header_list = ["Capture"]+samp_list
     fout.write("\t".join(header_list)+"\n")
     cap_dic["TEST"]=[True,False,True,False,True,False]
+    fail_dic = {}
     for key in cap_dic.keys():
         entry_list = cap_dic[key]
         if all_same(entry_list)==False:
             write_list = [key]+[str(e) for e in entry_list]
+            fail_dic[key]=key
             fout.write("\t".join(write_list)+"\n")
+    fout.close()
+    return(fail_dic)
+
+def filter_out_failures(fail_dic):
+    os.rename(cc_file,cc_file+"_unfiltered")
+    fin=open(cc_file+"_unfiltered",'r')
+    fout=open(cc_file,'w')
+    for line in fin:
+        l = line.strip().split()
+        cap = l[0]
+        try:
+            print(fail_dic[cap])
+        except:
+            fout.write("\t".join(l)+"\n")
+    fin.close()
     fout.close()
 
 def main():
     cap_dic = capture_dict()
     cap_dic = append_status_info(cap_dic)
-    identify_failed_captures(cap_dic)
+    fail_dic = identify_failed_captures(cap_dic)
+    filter_out_failures(fail_dic)
 
 if (__name__=="__main__"):
     main()
