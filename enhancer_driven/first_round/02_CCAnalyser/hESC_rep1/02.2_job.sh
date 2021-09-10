@@ -5,7 +5,7 @@
 #$ -q long.qc
 #$ -o /well/mccarthy/users/jason/projects/wtsa/enhancer_driven/first_round/logs/hescRep1_ccanalyser.out
 #$ -e /well/mccarthy/users/jason/projects/wtsa/enhancer_driven/first_round/logs/hescRep1_ccanalyser.err
-#$ -pe shmem 30
+#$ -pe shmem 20
 
 echo "------------------------------------------------"
 echo "Run on host: "`hostname`
