@@ -48,11 +48,15 @@ rsid.esnp.vec <- purrr::map(eqtl.df$V4,function(s){
 rsid.gwas.vec <- purrr::map(gwas.df$V4,function(s){
   strsplit(s,split="_")[[1]][1]
 }) %>% as.character(.)
+```
+
+```{r}
 write.table(x=rsid.esnp.vec,file=ref.dir%&%"eSNP-rsids.txt",sep="\t",quote=F,
             row.names=F,col.names=F)
 write.table(x=rsid.gwas.vec,file=ref.dir%&%"gwas-rsids.txt",sep="\t",quote=F,
             row.names=F,col.names=F)
 ```
+
 
 Submitted these SNP lists to UCSC Table Browser tool (July 5th 2021)
 Settings: 
@@ -96,21 +100,25 @@ names(esnp.full.df) <- c("chrom","pos.hg19","pos.hg38","name","annotation")
 names(gwas.full.df) <- c("chrom","pos.hg19","pos.hg38","name","annotation")
 esnp.full.df <- esnp.full.df[!duplicated(esnp.full.df$name),]
 gwas.full.df <- gwas.full.df[!duplicated(gwas.full.df$name),]
-write.table(esnp.full.df,file=ref.dir %&% "eQTL-index-hg38.txt",sep="\t",
-            quote=F,row.names=F,col.names=T)
-write.table(gwas.full.df,file=ref.dir %&% "gwas-index-hg38.txt",sep="\t",
-            quote=F,row.names=F,col.names=T)
 ensp.bed <- data.frame("V1"=esnp.full.df$chrom,"V2"=esnp.full.df$pos.hg38,
                        "V3"=esnp.full.df$pos.hg38,"V4"=esnp.full.df$name,
                        stringsAsFactors = F)
 gwas.bed <- data.frame("V1"=gwas.full.df$chrom,"V2"=gwas.full.df$pos.hg38,
                        "V3"=gwas.full.df$pos.hg38,"V4"=gwas.full.df$name,
                        stringsAsFactors = F)
+```
+
+```{r}
+write.table(esnp.full.df,file=ref.dir %&% "eQTL-index-hg38.txt",sep="\t",
+            quote=F,row.names=F,col.names=T)
+write.table(gwas.full.df,file=ref.dir %&% "gwas-index-hg38.txt",sep="\t",
+            quote=F,row.names=F,col.names=T)
 write.table(ensp.bed,file=ref.dir %&% "eQTL-index-hg38.bed",sep="\t",
             quote=F,row.names=F,col.names=F)
 write.table(gwas.bed,file=ref.dir %&% "gwas-index-hg38.bed",sep="\t",
             quote=F,row.names=F,col.names=F)
 ```
+
 
 Create big bed files with these commands on the command line:
 ./bedToBigBed bedExample.txt hg38.chrom.sizes myBigBed.bb
@@ -128,6 +136,39 @@ $UCSCDIR/bedToBigBed gwas-index-hg38.sorted.bed $UCSCDIR/hg38.chrom.sizes gwas-i
 ```
 
 
+## Append position information to colocalisation input file 
+
+```{r}
+input.df <- fread(work.dir%&%"input_files/InputForTable3.csv")
+temp.df <- c() 
+for (i in 1:dim(input.df)[1]){
+  row.df <- input.df[i,]
+  cap <- row.df$`Captured Gene`
+  gwas.snp <- row.df$`GWAS index SNP`
+  esnp <- row.df$`Islet eQTL index SNP`
+  gwas.pos <- filter(gwas.full.df,grepl(gwas.snp,name))$pos.hg38 %>% unique(.)
+  if (cap=="WARS1"){
+    gwas.pos<-100365945
+  }
+  chrom <- filter(esnp.full.df,grepl(esnp,name))$chrom %>% unique(.)
+  esnp.pos <- filter(esnp.full.df,grepl(esnp,name))$pos.hg38 %>% unique(.)
+  if (cap=="DNLZ"){
+    chrom<-"chr9"
+    esnp.pos<-136346577 
+  }
+  build.df <- data.frame("chrom"=chrom,"gwas.pos"=gwas.pos,"esnp.pos"=esnp.pos,
+                         stringsAsFactors = F)
+  build.df$gwas.pos <- as.integer(build.df$gwas.pos)
+  build.df$esnp.pos <- as.integer(build.df$esnp.pos)
+  build.df <- cbind(row.df,build.df)
+  temp.df <- rbind(temp.df,build.df)
+}
+input.df <- temp.df
+
+```
+
+
+
 
 ## Determine if there is compelling trait interactions at each capture-c locus 
 
@@ -138,9 +179,87 @@ $UCSCDIR/bedToBigBed gwas-index-hg38.sorted.bed $UCSCDIR/hg38.chrom.sizes gwas-i
 ```
 
 
+```{r}
+extract_info <- function(snp.gr,pky.sub.gr,tss.gr,variant.type){
+  # variant.type can be either "esnp" or "gwas" 
+  nearest.pair <- nearest(snp.gr,pky.sub.gr)
+  nearest.dist <- (distanceToNearest(snp.gr,pky.sub.gr)%>%
+    as.data.frame())$distance   
+  nearest.peak.df <- pky.sub[nearest.pair]
+  nearest.peak.df <- nearest.peak.df[!duplicated(nearest.peak.df$start),]
+  nearest.peak <- (nearest.peak.df$seqnames%&%":"%&%
+    nearest.peak.df$start%&%"-"%&%nearest.peak.df$end) %>% unique(.) %>% 
+    paste0(.,collapse=",")
+  nearest.peak.width <- nearest.peak.df$peak.width %>% unique(.) %>% 
+    paste0(.,collapse=",")
+  nearest.peak.max.mppc <- nearest.peak.df$max.mppc %>% unique(.) %>% 
+    paste0(.,collapse=",")
+  nearest.dist.tss <- (distanceToNearest(snp.gr,tss.gr) %>% 
+                              as.data.frame())$distance %>% unique(.) %>% 
+    paste0(.,collapse=",")
+  name1<-"dist.from."%&%variant.type%&%".to.TSS"
+  name2<-"nearest.peak.to."%&%variant.type
+  name3<-"dist.from."%&%variant.type%&%".to.nearestPeak"
+  name4<-"nearest.peak.to."%&%variant.type%&%".width"
+  name5<-"nearest.peak.to."%&%variant.type%&%".maxMPPC"
+  out.df <- data.frame(nearest.dist.tss,nearest.peak,nearest.dist,
+                nearest.peak.width,nearest.peak.max.mppc,
+                stringsAsFactors = FALSE)
+  names(out.df) <- c(name1,name2,name3,name4,name5)
+  return(out.df)
+}
+
+```
+
 
 ```{r}
-assess_peaky_overlap <- function(cap){
+assess_peaky_overlap <- function(signal.index=1){
+  row.df <- input.df[i,]
+  genomic.region <- filter(summ.df,
+                        gencodeV37.name==row.df$`Captured Gene`)$genomic.region
+  region.coordinates <- (strsplit(x=genomic.region,split=":")[[1]][2] %>% 
+    strsplit(.,split="-"))[[1]]
+  region.start <- region.coordinates[1] %>% as.integer(.)
+  region.end <- region.coordinates[2] %>% as.integer(.)
+  pky.sub <- filter(peaks.df,seqnames==row.df$chrom,start>=region.start,
+                    end<=region.end)
+  pky.sub.gr <- GRanges(seqnames=pky.sub$seqnames,
+              IRanges(start=pky.sub$start,end=pky.sub$end))
+  frag.sub <- filter(frag.df,gene==row.df$`Captured Gene`)
+  tss.vec <- strsplit(frag.sub$tss,split=",")[[1]] %>% as.integer()
+  # may have multiple TSS captured by viewpoint 
+  tss.gr <- GRanges(seqnames=row.df$chrom,IRanges(start=tss.vec, end=tss.vec)) 
+  print(length(pky.sub.gr))
+  # eSNP 
+  esnp.gr <- GRanges(seqnames=row.df$chrom,
+      IRanges(start=row.df$esnp.pos,end=row.df$esnp.pos))
+  build.esnp.df <- extract_info(esnp.gr,pky.sub.gr,tss.gr,"esnp")
+  # GWAS SNP 
+  gwas.gr <- GRanges(seqnames=row.df$chrom,
+      IRanges(start=row.df$gwas.pos,end=row.df$gwas.pos))
+  build.gwas.df <- extract_info(gwas.gr,pky.sub.gr,tss.gr,"gwas")
+  build.df <- cbind(build.esnp.df,build.gwas.df)
+  build.df <- cbind(row.df,build.df)
+  return(build.df)
+}
+```
+
+
+```{r}
+build_assessment_df <- function(input.df){
+  out.df <- c()
+  for (i in 1:dim(input.df)[1]){
+    build.df <- assess_peaky_overlap(i)
+    out.df <- rbind(out.df,build.df)
+  }
+  return(out.df)
+}
+
+```
+
+
+```{r}
+assess_peaky_overlap_orig <- function(cap){
   if (!(cap %in% frag.df$gene)){
     cap <- filter(summ.df,capture==cap)$gencodeV37.name
   }
@@ -259,7 +378,7 @@ assess_peaky_overlap <- function(cap){
   return(out.df)
 }
 
-build_assessment_df <- function(){
+build_assessment_df_orig <- function(){
   out.df <- c()
   for (cap in summ.df$capture){
     print(cap)
@@ -271,7 +390,7 @@ build_assessment_df <- function(){
 ```
 
 ```{r}
-eval.df <- build_assessment_df()
+eval.df <- build_assessment_df(input.df)
 write.table(x=eval.df,file=out.dir%&%"integrate-peaky-with-trait-snps.txt",
             sep="\t",quote=F,row.names=F,col.names=T)
 ```
