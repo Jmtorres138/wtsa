@@ -174,29 +174,24 @@ input.df <- temp.df
 
 
 ```{r}
-##prox5kb.df <- build_5kb_proximity_df()
-##pky.overlap.df <- build_pky_overlap_df()
-```
-
-
-```{r}
 extract_info <- function(snp.gr,pky.sub.gr,tss.gr,variant.type){
   # variant.type can be either "esnp" or "gwas" 
   nearest.pair <- nearest(snp.gr,pky.sub.gr)
   nearest.dist <- (distanceToNearest(snp.gr,pky.sub.gr)%>%
     as.data.frame())$distance   
-  nearest.peak.df <- pky.sub[nearest.pair]
-  nearest.peak.df <- nearest.peak.df[!duplicated(nearest.peak.df$start),]
+  pky.sub.df <- pky.sub.gr[nearest.pair] %>% as.data.frame()
+  nearest.peak.df <- filter(peaks.df,seqnames==pky.sub.df$seqnames,
+        start>=pky.sub.df$start,end<=pky.sub.df$end)
   nearest.peak <- (nearest.peak.df$seqnames%&%":"%&%
     nearest.peak.df$start%&%"-"%&%nearest.peak.df$end) %>% unique(.) %>% 
     paste0(.,collapse=",")
   nearest.peak.width <- nearest.peak.df$peak.width %>% unique(.) %>% 
-    paste0(.,collapse=",")
+    as.integer(.)
   nearest.peak.max.mppc <- nearest.peak.df$max.mppc %>% unique(.) %>% 
-    paste0(.,collapse=",")
+    as.numeric(.)
   nearest.dist.tss <- (distanceToNearest(snp.gr,tss.gr) %>% 
                               as.data.frame())$distance %>% unique(.) %>% 
-    paste0(.,collapse=",")
+    as.integer(.)
   name1<-"dist.from."%&%variant.type%&%".to.TSS"
   name2<-"nearest.peak.to."%&%variant.type
   name3<-"dist.from."%&%variant.type%&%".to.nearestPeak"
@@ -208,13 +203,12 @@ extract_info <- function(snp.gr,pky.sub.gr,tss.gr,variant.type){
   names(out.df) <- c(name1,name2,name3,name4,name5)
   return(out.df)
 }
-
 ```
 
 
 ```{r}
-assess_peaky_overlap <- function(signal.index=1){
-  row.df <- input.df[i,]
+assess_peaky_overlap <- function(signal.index){
+  row.df <- input.df[signal.index,]
   genomic.region <- filter(summ.df,
                         gencodeV37.name==row.df$`Captured Gene`)$genomic.region
   region.coordinates <- (strsplit(x=genomic.region,split=":")[[1]][2] %>% 
@@ -254,145 +248,42 @@ build_assessment_df <- function(input.df){
   }
   return(out.df)
 }
-
-```
-
-
-```{r}
-assess_peaky_overlap_orig <- function(cap){
-  if (!(cap %in% frag.df$gene)){
-    cap <- filter(summ.df,capture==cap)$gencodeV37.name
-  }
-  lookup.cap <- filter(summ.df,gencodeV37.name==cap)$capture
-  lookup.chrom <- (filter(summ.df,gencodeV37.name==cap)$genomic.region %>% 
-    strsplit(.,split=":"))[[1]][1]
-  lookup.start <- strsplit((filter(summ.df,gencodeV37.name==cap)$genomic.region %>% 
-    strsplit(.,split=":"))[[1]][2],split="-")[[1]][1] %>% as.integer(.)  
-  lookup.end <- strsplit((filter(summ.df,gencodeV37.name==cap)$genomic.region %>% 
-    strsplit(.,split=":"))[[1]][2],split="-")[[1]][2] %>% as.integer(.)
-  esnp.sub <- filter(esnp.full.df,chrom==lookup.chrom,pos.hg38>=lookup.start,
-                     pos.hg38<=lookup.end)
-  gwas.sub <- filter(gwas.full.df,chrom==lookup.chrom,pos.hg38>=lookup.start,
-                     pos.hg38<=lookup.end)
-  frag.sub <- filter(frag.df,gene==cap)
-  tss.chrom <- frag.sub$chrom
-  tss.vec <- strsplit(frag.sub$tss,split=",")[[1]] %>% as.integer()
-  # may have multiple TSS captured by viewpoint 
-  tss.gr <- GRanges(seqnames=tss.chrom,IRanges(start=tss.vec, end=tss.vec))  
-  pky.sub <- filter(peaks.df,seqnames==lookup.chrom,start>=lookup.start,
-                    end<=lookup.end)
-  if (dim(pky.sub)[1]>0 & dim(esnp.sub)[1]>0){
-    esnp.gr <- GRanges(seqnames=esnp.sub$chrom,
-            IRanges(start=esnp.sub$pos.hg38,end=esnp.sub$pos.hg38))
-    names(esnp.gr) <- esnp.sub$name
-    pky.sub.gr <- GRanges(seqnames=pky.sub$seqnames,
-                IRanges(start=pky.sub$start,end=pky.sub$end))
-    nearest.pair <- nearest(esnp.gr,pky.sub.gr)
-    nearest.dist <- (distanceToNearest(esnp.gr,pky.sub.gr)%>%as.data.frame())$distance %>%
-      unique(.) %>%  paste0(.,collapse=",")
-    rsid <- purrr::map(esnp.sub$name,function(s){
-        strsplit(s,split="_")[[1]][1]
-    }) %>% as.character() 
-    egene <- purrr::map(esnp.sub$name,function(s){
-      strsplit(s,split="_")[[1]][2]
-    }) %>% as.character(.) %>% paste0(.,collapse = ",") 
-    snp <- paste0(unique(esnp.sub$chrom%&%":"%&%
-           esnp.sub$pos.hg38%&%" ("%&%rsid%&%")"),collapse = ",")
-    nearest.peak.df <- pky.sub[nearest.pair]
-    nearest.peak.df <- nearest.peak.df[!duplicated(nearest.peak.df$start),]
-    nearest.peak <- (nearest.peak.df$seqnames%&%":"%&%
-      nearest.peak.df$start%&%"-"%&%nearest.peak.df$end) %>% unique(.) %>% 
-      paste0(.,collapse=",")
-    nearest.peak.width <- nearest.peak.df$peak.width %>% unique(.) %>% 
-      paste0(.,collapse=",")
-    nearest.peak.max.mppc <- nearest.peak.df$max.mppc %>% unique(.) %>% 
-      paste0(.,collapse=",")
-    nearest.dist.esnp.tss <- (distanceToNearest(esnp.gr,tss.gr) %>% 
-                                as.data.frame())$distance %>% unique(.) %>% 
-      paste0(.,collapse=",")
-    nearest.dist.esnp.tss <- (distanceToNearest(esnp.gr,tss.gr) %>% 
-                                as.data.frame())$distance %>% unique(.) %>% 
-      paste0(.,collapse=",")
-    esnp.build <- data.frame("capture"=cap,"eSNP"=snp,"eGene"=egene,
-                        "dist.from.eSNP.to.TSS"=nearest.dist.esnp.tss,
-                        "nearest.peak.to.eSNP"=nearest.peak,
-                        "dist.from.eSNP.to.nearestPeak"=nearest.dist,
-                        "nearest.peak.to.eSNP.width"=nearest.peak.width,
-                        "nearest.peak.to.eSNP.maxMPPC"=nearest.peak.max.mppc,
-                        stringsAsFactors = FALSE)
-  } else{
-    esnp.build <- data.frame("capture"=cap,"eSNP"=NA,"eGene"=NA,
-                    "dist.from.eSNP.to.TSS"=NA,
-                    "nearest.peak.to.eSNP"=NA,
-                    "dist.from.eSNP.to.nearestPeak"=NA,
-                    "nearest.peak.to.eSNP.width"=NA,
-                    "nearest.peak.to.eSNP.maxMPPC"=NA,
-                    stringsAsFactors = FALSE)
-  }
-  if (dim(pky.sub)[1]>0 & dim(gwas.sub)[1]>0){
-    gwas.gr <- GRanges(seqnames=gwas.sub$chrom,
-            IRanges(start=gwas.sub$pos.hg38,end=gwas.sub$pos.hg38))
-    names(gwas.gr) <- gwas.sub$name
-    pky.sub.gr <- GRanges(seqnames=pky.sub$seqnames,
-                IRanges(start=pky.sub$start,end=pky.sub$end))
-    nearest.pair <- nearest(gwas.gr,pky.sub.gr)
-    nearest.dist <- (distanceToNearest(gwas.gr,pky.sub.gr)%>%as.data.frame())$distance %>% 
-      unique(.) %>%  paste0(.,collapse=",")
-    rsid <- purrr::map(gwas.sub$name,function(s){
-      strsplit(s,split="_")[[1]][1]
-    }) %>% as.character() 
-    trait <- purrr::map(gwas.sub$name,function(s){
-      svec <- strsplit(s,split="_")[[1]]
-      paste0(svec[2:length(svec)],collapse="-")
-    }) %>% as.character(.) %>% paste0(.,collapse = ",") 
-    snp <- paste0(unique(gwas.sub$chrom%&%":"%&%
-           gwas.sub$pos.hg38%&%" ("%&%rsid%&%")"),collapse = ",")
-    nearest.peak.df <- pky.sub[nearest.pair]
-    nearest.peak <- (nearest.peak.df$seqnames%&%":"%&%
-      nearest.peak.df$start%&%"-"%&%nearest.peak.df$end) %>% unique(.) %>% 
-      paste0(.,collapse=",")
-    nearest.peak.width <- nearest.peak.df$peak.width %>% unique(.) %>% 
-      paste0(.,collapse=",")
-    nearest.peak.max.mppc <- nearest.peak.df$max.mppc %>% unique(.) %>% 
-      paste0(.,collapse=",")
-    nearest.dist.gwas.tss <- (distanceToNearest(gwas.gr,tss.gr) %>% 
-                                as.data.frame())$distance %>% unique(.) %>% 
-      paste0(.,collapse=",")
-    gwas.build <- data.frame("capture"=cap,"gwas"=snp,"trait"=trait,
-                        "dist.from.gwas.to.TSS"=nearest.dist.gwas.tss,
-                        "nearest.peak.to.gwas"=nearest.peak,
-                        "dist.from.gwas.to.nearestPeak"=nearest.dist,
-                        "nearest.peak.to.gwas.width"=nearest.peak.width,
-                        "nearest.peak.to.gwas.maxMPPC"=nearest.peak.max.mppc,
-                        stringsAsFactors = FALSE)
-  } else{
-    gwas.build <- data.frame("capture"=cap,"gwas"=NA,"trait"=NA,
-                    "dist.from.gwas.to.TSS"=NA,
-                    "nearest.peak.to.gwas"=NA,
-                    "dist.from.gwas.to.nearestPeak"=NA,
-                    "nearest.peak.to.gwas.width"=NA,
-                    "nearest.peak.to.gwas.maxMPPC"=NA,
-                    stringsAsFactors = FALSE)
-  }
-  out.df <- dplyr::inner_join(esnp.build,gwas.build,by="capture")
-  return(out.df)
-}
-
-build_assessment_df_orig <- function(){
-  out.df <- c()
-  for (cap in summ.df$capture){
-    print(cap)
-    build.df <- assess_peaky_overlap(cap)
-    out.df <- rbind(out.df,build.df)
-  }
-  return(out.df)
-}
 ```
 
 ```{r}
 eval.df <- build_assessment_df(input.df)
+esnp.bed.revised <- data.frame("V1"=eval.df$chrom,"V2"=eval.df$esnp.pos,
+          "V3"=eval.df$esnp.pos,"V4"=eval.df$`Islet eQTL index SNP`,
+          stringsAsFactors = F)
+gwas.bed.revised <- data.frame("V1"=eval.df$chrom,"V2"=eval.df$gwas.pos,
+          "V3"=eval.df$gwas.pos,"V4"=eval.df$`GWAS index SNP`,
+          stringsAsFactors = F)
+```
+
+
+```{r}
 write.table(x=eval.df,file=out.dir%&%"integrate-peaky-with-trait-snps.txt",
             sep="\t",quote=F,row.names=F,col.names=T)
+write.table(esnp.bed.revised,file=ref.dir %&% "eQTL-index-hg38.revised.bed",
+            sep="\t",quote=F,row.names=F,col.names=F)
+write.table(gwas.bed.revised,file=ref.dir %&% "gwas-index-hg38.revised.bed",
+            sep="\t",quote=F,row.names=F,col.names=F)
+```
+
+
+Create big bed files with these commands on the command line:
+./bedToBigBed bedExample.txt hg38.chrom.sizes myBigBed.bb
+
+```{bash}
+UCSCDIR=/well/mccarthy/users/jason/projects/wtsa/promoter_driven/peaky_interactions/track_files
+sort -k1,1 -k2,2n eQTL-index-hg38.revised.bed > eQTL-index-hg38.revised.sorted.bed
+$UCSCDIR/bedToBigBed eQTL-index-hg38.revised.sorted.bed $UCSCDIR/hg38.chrom.sizes eQTL-index-hg38.revised.sorted.bb
+```
+
+```{bash}
+UCSCDIR=/well/mccarthy/users/jason/projects/wtsa/promoter_driven/peaky_interactions/track_files
+sort -k1,1 -k2,2n gwas-index-hg38.revised.bed > gwas-index-hg38.revised.sorted.bed
+$UCSCDIR/bedToBigBed gwas-index-hg38.revised.sorted.bed $UCSCDIR/hg38.chrom.sizes gwas-index-hg38.revised.sorted.bb
 ```
 
 
