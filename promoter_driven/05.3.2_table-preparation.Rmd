@@ -1,0 +1,91 @@
+---
+title: "05.3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script will determine the extent to which peaky interactions at capture 
+sites involve trait GWAS SNPs/ eSNPs used in locus selection 
+
+
+# Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table")
+library("tidyverse")
+library("GenomicRanges")
+rescomp.dir <- "/Users/jasont/science/servers/FUSE5/"
+work.dir <- rescomp.dir %&% "projects/wtsa/promoter_driven/"
+out.dir <- work.dir %&% "output_files/"
+pky.dir <- work.dir %&% "peaky_interactions/"
+ref.dir <- work.dir %&% "reference_files/"
+```
+
+
+
+```{r}
+integ.df <- fread(out.dir%&%"integrate-peaky-with-trait-snps.txt",header=T)
+out.df <- c()
+for (i in 1:dim(integ.df)[1]){
+  print(i)
+  sub.df <- integ.df[i,]
+  eval.df <- sub.df
+  dist.vec <- c(eval.df$dist.from.gwas.to.nearestPeak,
+                eval.df$dist.from.esnp.to.nearestPeak)
+  min.dist <- min(dist.vec)
+  within500bp <- ifelse(is.na(min.dist),NA,
+                  ifelse(min.dist<=500,"Yes","No"))
+  if (is.na(min.dist)==FALSE){
+    if (eval.df$dist.from.gwas.to.nearestPeak==min.dist){
+      nearest.peak <- sub.df$nearest.peak.to.gwas
+      nearest.distance <- sub.df$dist.from.gwas.to.nearestPeak
+      nearest.peak.width <- sub.df$nearest.peak.to.gwas.width
+      nearest.peak.maxPPA <- sub.df$nearest.peak.to.gwas.maxMPPC
+    } else if (eval.df$dist.from.esnp.to.nearestPeak==min.dist){
+      nearest.peak <- sub.df$nearest.peak.to.esnp
+      nearest.distance <- sub.df$dist.from.esnp.to.nearestPeak
+      nearest.peak.width <- sub.df$nearest.peak.to.esnp.width
+      nearest.peak.maxPPA <- sub.df$nearest.peak.to.esnp.maxMPPC      
+    } else{
+      print("Something is not right, please investigate!")
+    }
+  } else{
+      nearest.peak <- NA
+      nearest.distance <- NA
+      nearest.peak.width <- NA
+      nearest.peak.maxPPA <- NA
+  }
+  eval.df$GWAS.SNP.position <- purrr::map(eval.df$`GWAS index SNP`,function(s){
+    chromo <- filter(eval.df,`GWAS index SNP`==s)$chrom
+    pos <- filter(eval.df,`GWAS index SNP`==s)$gwas.pos
+    chromo%&%":"%&%pos
+  }) %>% as.character(.)
+  eval.df$eSNP.position <- purrr::map(eval.df$`Islet eQTL index SNP`,function(s){
+    chromo <- filter(eval.df,`Islet eQTL index SNP`==s)$chrom
+    pos <- filter(eval.df,`Islet eQTL index SNP`==s)$esnp.pos
+    chromo%&%":"%&%pos
+  }) %>% as.character(.)
+  build.df1 <- dplyr::select(eval.df,one_of("Locus Name","Captured Gene",
+    "GWAS index SNP","GWAS.SNP.position","Islet eQTL index SNP",
+    "eSNP.position","LD r2 (1KG EUR)",
+    "eQTL/GWAS colocalization (Viñuela et al. 2020)"))
+  build.df2 <- data.frame(nearest.peak,nearest.distance,within500bp,
+                         nearest.peak.width,nearest.peak.maxPPA,stringsAsFactors = F)
+  build.df <- cbind(build.df1,build.df2)
+  out.df <- rbind(out.df,build.df)
+}
+```
+
+	Gene / Locus 	GWAS SNP	eSNP (GRCh38)	LD r2 (1KG EUR)	eQTL/GWAS colocalization (Viñuela et al. 2020)	Capture(Temp)	Nearest peak to GWAS SNP / eSNP 	Distance of nearest signficant interaction (within 1Mb) to GWAS SNP and/or eSNP	Significant promoter interaction within 500bp of GWAS SNP / eSNP (Yes / No)	Width of nearest signficant interaction peak (within 1Mb) to GWAS SNP and/or eSNP	Maximum MPPC of nearest signficant interaction peak (within 1Mb) to GWAS SNP and/or eSNP
+
+```{r}
+write.table(x=out.df,file=out.dir%&%"integrate-peaky-with-trait-snps_table.txt",
+            sep="\t",quote=F,row.names=F,col.names=T)
+```
+
+
+
