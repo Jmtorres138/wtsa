@@ -34,8 +34,8 @@ prom.cc.dir  <- work.dir %&% "03_CaptureCompare/T2D_Promoter_cis_analysis/"
 
 
 ```{r}
-gene.df <- fread(work.dir %&% "reference_files/" %&% 
-                   "GENCODE-V36-knownGene-hg38.gz",header=T)
+##gene.df <- fread(work.dir %&% "reference_files/" %&% 
+##                   "GENCODE-V36-knownGene-hg38.gz",header=T)
 gencode.df <- fread(work.dir %&% "reference_files/" %&% 
     "GENCODE-V37-wgEncodeGencodeBasic-hg38.txt.gz",header=T)
 ```
@@ -241,12 +241,13 @@ lookup_mapped_read_info <- function(capture,grfrag.df){
   mean.value2 <- mean(counts.per.frag) %>% round(.,3)
   sd.value2 <- sd(counts.per.frag) %>% round(.,3)
   mean.sd2 <- mean.value2 %&% "±" %&% sd.value2
-  return(list(mean.sd,mean.sd2))
+  return(list(mean.sd,mean.sd2,cell.counts))
 }
 
 append_mapped_read_info <- function(grfrag.df){
   junction.vec1 <- c()
   junction.vec2 <- c()
+  cell.list <- list()
   pb <- txtProgressBar(min=0,max=dim(grfrag.df)[1],style=3)
   for (i in 1:dim(grfrag.df)[1]){
     setTxtProgressBar(pb,i)
@@ -254,14 +255,21 @@ append_mapped_read_info <- function(grfrag.df){
     junct.list <- lookup_mapped_read_info(row.df$gene,grfrag.df)
     junction.vec1 <- append(junction.vec1,junct.list[[1]])
     junction.vec2 <- append(junction.vec2,junct.list[[2]])    
+    cell.list[[i]] <- junct.list[[3]]
   }
   out.df <- grfrag.df
   out.df$num.mapped.reads <- junction.vec1
   out.df$reads.per.frag <- junction.vec2
+  cell.count.vec <- unlist(cell.list)
+  print("The mean number of read counts across reps and loci is " %&% 
+          mean(cell.count.vec))
+  print("The median number of read counts across reps and loci is " %&% 
+        median(cell.count.vec))
   return(out.df)
 }
 
 ```
+
 
 ```{r}
 grjunct.df <- append_mapped_read_info(grfrag.df) 
@@ -271,3 +279,7 @@ write.table(x=grjunct.df,file=out.dir%&%
   row.names=F,col.names=T)
 ```
 
+
+NOTES: 
+The mean number of read counts across reps and loci is 20343.8395061728
+The median number of read counts across reps and loci is 17553
