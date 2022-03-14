@@ -1,0 +1,295 @@
+---
+title: "06.2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table");library("tidyverse");library("viridis")
+serv.dir <- "/Users/jasont/science/"
+work.dir <- serv.dir %&% "projects/wtsa/promoter_driven/"
+table.dir <- work.dir %&% "result_tables/"
+figure.dir <- table.dir %&% "figures/"
+tab.file <- table.dir %&% "Tables-for-promoter-capture-manuscript_Table_S3.csv"
+tab.df <- fread(tab.file,header=T,skip=2) %>% as.data.frame()
+tab.df <- tab.df[,1:18]
+```
+
+```{r}
+col.vir <- viridis::viridis(20)
+```
+
+
+## Evaluate difference between endo NGCapC and islet pcHiC 
+
+### Peaky convergence 
+```{r}
+conv.df <- cbind(tab.df[,1],
+  tab.df[,grepl("Peaky convergence",x=names(tab.df))])
+names(conv.df) <- c("Gene","endo.capc","islet.pchic")
+table(conv.df$endo.capc)
+table(conv.df$islet.pchic)
+```
+peaky converged for all 27 captures in the endo/ngcapC experiment but only 21/27 captures in the islet/pcHiC experiment 
+
+```{r}
+failed.caps <- filter(conv.df,islet.pchic=="fail")$Gene
+```
+The six captures that failed were: DGKB,ERAP2,GCK,GPSM1,LARP6,TNFSF11
+
+Assess relationship between ligation read counts and convergence successes/fails for pcHiC 
+```{r}
+junct.df <- fread(file=work.dir %&% "result_tables/"%&%
+              "junction-counts.txt",header=T)
+names(junct.df)[1] <- "Gene"
+junct.df <- inner_join(junct.df,conv.df,by="Gene")
+junct.df %>% group_by(islet.pchic) %>% 
+  summarise(mean(counts.pchic.islet))
+junct.df %>% group_by(islet.pchic) %>% 
+  summarise(median(counts.pchic.islet))
+```
+Note: Captures that failed convergence in pcHiC experiment had 
+lower read counts (mean=129/median=52) compared to those that succeded (mean=1673/median=1691)
+
+### Peaky interaction counts 
+```{r}
+inter.df <- cbind(tab.df[,1],
+  tab.df[,grepl("umber of",x=names(tab.df))])
+names(inter.df) <- c("Gene","prox.capc","dist.capc","tot.capc","peak.count",
+                     "prox.pchic","dist.pchic","tot.pchic","peak.count.2")
+inter.df <- dplyr::select(inter.df,-contains("peak.count")) %>% 
+  dplyr::select(.,-contains("tot"))
+inter.plot.df <- c()
+for (i in 1:dim(inter.df)[1]){
+  row.df <- inter.df[i,]
+  count.vec <- row.df[1,2:dim(row.df)[2]] %>% as.integer()
+  type.vec <- c("proximal","distal","proximal","distal")
+  exper.vec <- c("capC (endo)","capC (endo)",
+                 "pcHiC (islet)","pcHiC (islet)")
+  build.df <- data.frame("Gene"=row.df$Gene,"Count"=count.vec,
+                         "Type"=type.vec,"Experiment"=exper.vec)
+  inter.plot.df <- rbind(inter.plot.df,build.df)
+}
+```
+
+```{r}
+inter.plot.df$Type <- purrr::map(inter.plot.df$Type,
+                  function(s){
+  ifelse(s=="proximal","Proximal","Distal")}) %>% 
+  as.character(.)
+```
+
+
+```{r}
+plt1 <- ggplot(data=inter.plot.df,aes(x=Experiment,y=Count,fill=Type)) +
+  geom_hline(yintercept = c(200,400,600),
+             color="gray50",linetype=3) + 
+  geom_bar(stat="identity",color="black",position="stack") + 
+  facet_wrap(~Gene,nrow=2) + 
+  scale_y_continuous(breaks=seq(0,600,50))+
+  scale_fill_manual(values=c(col.vir[5],col.vir[15]))+
+  theme(axis.text.x=element_text(angle=45,vjust=1,
+                                 hjust=1,size=8),
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black",
+                          size = rel(1)),
+        legend.key = element_blank(),
+        strip.text=element_text(size=7,face = "italic"),
+        panel.background = element_rect(fill="white",
+                            color="white"),
+        #strip.background = 
+        strip.background = element_rect(fill = "white",
+                            colour = "black", 
+                size = rel(1)))
+```
+
+```{r}
+ggsave(plot=plt1,filename=figure.dir%&%
+         "peaky-interactions-per-capture.svg",
+       width=14,height=4.5)
+ggsave(plot=plt1,filename=figure.dir%&%
+         "peaky-interactions-per-capture.png",
+       width=14,height=4.5)
+```
+
+Remove failed captures
+```{r}
+plt1b <- ggplot(data=filter(inter.plot.df,
+                          !(Gene %in% failed.caps)),
+                aes(x=Experiment,y=Count,fill=Type))+
+  geom_bar(stat="identity",color="black",position="stack") + 
+  facet_wrap(~Gene,nrow=2) + 
+  scale_y_continuous(breaks=seq(0,600,50))+
+  scale_fill_manual(values=c(col.vir[3],col.vir[17]))+
+  theme(axis.text.x=element_text(angle=45,vjust=1,
+                                 hjust=1,size=5),
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black",
+                          size = rel(1)),
+        legend.key = element_blank(),
+        strip.text=element_text(size=7),
+        panel.background = element_rect(fill="white",
+                            color="white"),
+        #strip.background = 
+        strip.background = element_rect(fill = "white",
+                            colour = "black", 
+                size = rel(1)))
+```
+
+```{r}
+ggsave(plot=plt1b,filename=figure.dir%&%
+         "peaky-interactions-per-capture-removed-fails.svg",
+       width=10,height=4.5)
+ggsave(plot=plt1b,filename=figure.dir%&%
+         "peaky-interactions-per-capture-removed-fails.png",
+       width=10,height=4.5)
+```
+
+Lookup up summary values for peaky interactions
+```{r}
+inter.df <- cbind(tab.df[,1],
+  tab.df[,grepl("umber of",x=names(tab.df))])
+names(inter.df) <- c("Gene","prox.capc","dist.capc","tot.capc","peak.count",
+                     "prox.pchic","dist.pchic","tot.pchic","peak.count.2")
+inter.df <- dplyr::select(inter.df,-contains("peak.count"))
+```
+
+```{r}
+inter.df$tot.capc %>% summary(.)
+inter.df$tot.pchic %>% summary(.)
+inter.df$prox.capc %>% summary(.)
+inter.df$prox.pchic %>% summary(.)
+inter.df$dist.capc %>% summary(.)
+inter.df$dist.pchic %>% summary(.)
+```
+
+When comparing the total number of interactions (RE frags) 
+detected for ng-capC (endo) and pcHiC (islet), there is a median of 183 vs 57 (mean 196.4 vs 86.1) interactions. 
+
+Subsetting to **proximal** interactions, the number is 
+157 vs 45 (mean 181.2 vs 47.38) 
+
+Subsetting to **distal** interactions, the number is 
+11 vs 9 (mean 15.19 vs 37.71) 
+
+Assess relationship between interaction counts and number of ligation reads 
+```{r}
+inter.df %>% str(.)
+inter.df <- inner_join(inter.df,junct.df,by="Gene")
+```
+
+```{r}
+mod1 <- lm(inter.df$tot.capc~inter.df$counts.capc.endo)
+mod1.r2 <- summary(mod1)$r.squared %>% round(.,digits=3)
+mod1.pval <- summary(mod1)$coefficients[,4][2] %>% 
+  as.numeric() %>% round(.,digits=6)
+plt2a <- ggplot(data=inter.df,
+          aes(x=counts.capc.endo,y=tot.capc)) + 
+geom_smooth(method="lm",col=col.vir[2]) + 
+  geom_point(shape=21,fill=col.vir[10]) + 
+  theme_classic() + 
+  xlab("Mean ligation read count") + 
+  ylab("Total number of interactions") + 
+  ggtitle(expression(paste("NG Capture-C (endoC-",beta,"H1)")),
+   subtitle = substitute(paste(italic(R)^2,"=",r2,"; ","p=",pv),
+                                list(r2=mod1.r2,pv=mod1.pval)))
+```
+
+```{r}
+mod2 <- lm(inter.df$tot.pchic~inter.df$counts.pchic.islet)
+mod2.r2 <- summary(mod2)$r.squared %>% round(.,digits=3)
+mod2.pval <- summary(mod2)$coefficients[,4][2] %>% 
+  as.numeric() %>% round(.,digits=6)
+plt2b <- ggplot(data=inter.df,
+          aes(x=counts.pchic.islet,y=tot.pchic)) + 
+  geom_smooth(method="lm",col=col.vir[2]) + 
+  geom_point(shape=21,fill=col.vir[10]) + 
+  theme_classic() + 
+  xlab("Mean ligation read count") + 
+  ylab("Total number of interactions") + 
+  ggtitle(expression(paste("pc-HiC (islets)")),
+   subtitle = substitute(paste(italic(R)^2,"=",r2,"; ","p=",pv),
+                                list(r2=mod2.r2,pv=mod2.pval)))
+```
+
+```{r}
+library("cowplot")
+plt2 <- plot_grid(plt2a,plt2b,nrow=1)
+```
+
+```{r}
+ggsave(plot=plt2,filename=figure.dir%&%
+         "junctions-vs-interaction-counts.svg",
+       width=6,height=5)
+ggsave(plot=plt2,filename=figure.dir%&%
+         "junctions-vs-interaction-counts.png",
+       width=6,height=5)
+```
+
+
+
+### Peaky "peak" counts 
+```{r}
+pk.df <- cbind(tab.df[,1],
+  tab.df[,grepl("Number of interaction peaks",
+                x=names(tab.df))])
+names(pk.df) <- c("Gene","capc.endo","pchic.islet")
+summary(pk.df$capc.endo)
+summary(pk.df$pchic.islet)
+```
+
+After merging adjacent significant interaction fragments to infer "peaks", there is a median of 36 (mean 43.78) peaks in ngcapc endos and XX (mean XXX) in pcHiC islets 
+
+### Peaky "peak" lengths 
+```{r}
+pkl.df <- cbind(tab.df[,1],
+  tab.df[,grepl("Peak length",
+                x=names(tab.df))])
+names(pkl.df) <- c("Gene","capc.endo","pchic.islet")
+pkl.df$capc.endo <- purrr::map(pkl.df$capc.endo,function(s){
+  strsplit(s,split="±")[[1]][1]
+}) %>% as.numeric(.)
+pkl.df$pchic.islet <- purrr::map(pkl.df$pchic.islet,function(s){
+  gsub(x=s,"+-","±",fixed = TRUE)
+}) %>% as.character(.)
+pkl.df$pchic.islet <- purrr::map(pkl.df$pchic.islet,function(s){
+  strsplit(s,split="±")[[1]][1]
+}) %>% as.numeric(.)
+
+summary(pkl.df$capc.endo)
+summary(pkl.df$pchic.islet)
+```
+
+The median peak length detected from the ng-capC endo experiment is 972 (mean 1104) and XX (12408?) (mean 13460) in pcHiC islets; about 13x more narrower in ng-capC experiment 
+
+### Maximum MPPC comparison 
+```{r}
+mppc.df <- cbind(tab.df[,1],
+  tab.df[,grepl("Maximum MPPC",
+                x=names(tab.df))])
+names(mppc.df) <- c("Gene","capc.endo","pchic.islet")
+mppc.df$capc.endo <- purrr::map(mppc.df$capc.endo,function(s){
+  strsplit(s,split="±")[[1]][1]
+}) %>% as.numeric(.)
+mppc.df$pchic.islet <- purrr::map(mppc.df$pchic.islet,function(s){
+  gsub(x=s,"+-","±",fixed = TRUE)
+}) %>% as.character(.)
+mppc.df$pchic.islet <- purrr::map(mppc.df$pchic.islet,function(s){
+  strsplit(s,split="±")[[1]][1]
+}) %>% as.numeric(.)
+
+summary(mppc.df$capc.endo)
+summary(mppc.df$pchic.islet)
+```
+
+Notably, the median maximum posterior probability of contact in the ngCapC endo experiment is 0.028 (mean=0.04093) and 0.1300 (mean =0.1914) in the pcHiC islet experiment 

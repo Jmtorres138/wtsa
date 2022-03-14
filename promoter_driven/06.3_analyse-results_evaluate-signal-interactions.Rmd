@@ -1,0 +1,83 @@
+---
+title: "06.3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table");library("tidyverse");library("viridis")
+serv.dir <- "/Users/jasont/science/"
+work.dir <- serv.dir %&% "projects/wtsa/promoter_driven/"
+table.dir <- work.dir %&% "result_tables/"
+figure.dir <- table.dir %&% "figures/"
+tab.file <- table.dir %&% "Tables-for-promoter-capture-manuscript_Table3.csv"
+tab.df <- fread(tab.file,header=T,skip=2) %>% as.data.frame()
+tab.df <- tab.df[,1:17]
+```
+
+11,15
+
+Summary concordance of interactions and genetic signals 
+```{r}
+tab.df[,11] %>% table(.)
+tab.df[,15] %>% table(.)
+```
+Of the 25 eQTL/GWAS variant signals, 10 are supported by capC interactions and 7 are supported by pcHiC interactions (w/n 500 bps) 
+Note: there were failed peaky convergences in the pcHiC experiment at genes DGKB,ERAP2,GCK,GPSM1,LARP6,TNFSF11
+Moreover, NKX6-3 did converge, but no interactions were significant. This accounts for the NAs observed for the pcHiC experiment 
+
+Lookup the concordant signals 
+```{r}
+names(tab.df)[c(11,15)] <- c("sig.capc.endo",
+                             "sig.pchic.islet")
+tab.df$sig.pchic.islet[is.na(tab.df$sig.pchic.islet)] <- "NA"
+both.df <- filter(tab.df,sig.capc.endo=="Yes",
+                       sig.pchic.islet=="Yes")#5
+capc.only.df <- filter(tab.df,sig.capc.endo=="Yes",
+                       sig.pchic.islet!="Yes")# 5 
+pchic.only.df <- filter(tab.df,sig.pchic.islet=="Yes",
+                       sig.capc.endo!="Yes")# 2 
+```
+
+Note: There are five genetic signals supported by both ng-capC (endos) and 
+pcHiC (islets): 
+          Locus Captured Gene GWAS SNP rsid GWAS SNP position (GRCh38)  eSNP rsid
+1 CDC123/CAMK1D        CAMK1D    rs11257655             chr10:12265895 rs11257658
+2         GPSM1         CARD9    rs28505901             chr9:136346577 rs61386106
+3        KCNK16        KCNK17     rs1535500              chr6:39316274  rs3807042
+4          MADD          MADD    rs10501320             chr11:47272248 rs11039165
+5         WARS1         WARS1     rs2146105            chr14:100365945  rs2146105
+  eSNP position (GRCh38)
+1         chr10:12267269
+2         chr9:136352316
+3          chr6:39323058
+4         chr11:47291138
+5        chr14:100365945
+
+Note: There are five genetic signals supported only in ng-capC (endos)
+  Locus Captured Gene GWAS SNP rsid GWAS SNP position (GRCh38)  eSNP rsid
+1 ADCY5         ADCY5    rs11708067             chr3:123346931 rs11708067
+2  DGKB          DGKB    rs17168486              chr7:14858657 rs17168486
+3 GPSM1         GPSM1    rs28505901             chr9:136346577 rs28642213
+4 GPSM1         GPSM1    rs78403475             chr9:136341149 rs28642213
+5 GPSM1          DNLZ    rs28505901             chr9:136346577 rs28505901
+  eSNP position (GRCh38)
+1         chr3:123346931
+2          chr7:14858657
+3         chr9:136353630
+4         chr9:136353630
+5         chr9:136346577
+
+Note: There are two genetic signals supported only in pcHiC (islets)
+   Locus Captured Gene GWAS SNP rsid GWAS SNP position (GRCh38)  eSNP rsid
+1 TCF7L2        TCF7L2     rs7903146            chr10:112998590  rs7903146
+2 UBE2E2        UBE2E2    rs35352848              chr3:23414091 rs13094957
+  eSNP position (GRCh38)
+1        chr10:112998590
+2          chr3:23415589

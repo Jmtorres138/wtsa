@@ -1,0 +1,398 @@
+---
+title: '06.1'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table");library("tidyverse");library("viridis")
+serv.dir <- "/Users/jasont/science/"
+work.dir <- serv.dir %&% "projects/wtsa/promoter_driven/"
+table.dir <- work.dir %&% "result_tables/"
+figure.dir <- table.dir %&% "figures/"
+tab.file <- table.dir %&% "Tables-for-promoter-capture-manuscript_Table1.csv"
+tab.df <- fread(tab.file,header=T,skip=2) %>% as.data.frame()
+```
+
+## Evaluate read counts per capture across loci 
+
+Create and process ligation junction dataframe for comparisons 
+```{r}
+junction.df <- cbind(tab.df[,1],
+  tab.df[,grepl("Number of mapped reads",x=names(tab.df))])
+names(junction.df) <- c("Gene/Locus","V2","V3","counts.hic.endo",
+                     "counts.hic.islet")
+junction.df$V3 <- purrr::map(junction.df$V3,function(s){
+  gsub(x=s,"+-","±",fixed = TRUE)
+}) %>% as.character(.)
+junction.df$counts.capc.endo <- purrr::map(junction.df$V2,function(s){
+  strsplit(s,split="±")[[1]][1]
+}) %>% as.integer(.)
+junction.df$sd.capc.endo <- purrr::map(junction.df$V2,function(s){
+  strsplit(s,split="±")[[1]][2]
+}) %>% as.integer(.)
+junction.df$counts.pchic.islet <- purrr::map(junction.df$V3,function(s){
+  strsplit(s,split="±")[[1]][1]
+}) %>% as.integer(.)
+junction.df$sd.pchic.islet <- purrr::map(junction.df$V3,function(s){
+  strsplit(s,split="±")[[1]][2]
+}) %>% as.integer(.)
+```
+
+```{r}
+write.table(x=junction.df,file=work.dir %&% "result_tables/"%&%
+              "junction-counts.txt",row.names=F,col.names=T,
+            sep="\t",quote=F)
+```
+
+
+Reformat ligation junction dataframe for barplot 
+```{r}
+plot.df1 <- c()
+for (i in 1:dim(junction.df)[1]){
+  sub.df <- junction.df[i,]
+  build.df <- data.frame("Gene.Locus"=sub.df$`Gene/Locus`,
+  "Count"=c(sub.df$counts.capc.endo,sub.df$counts.pchic.islet,
+            sub.df$counts.hic.endo,sub.df$counts.hic.islet),
+  "sd"=c(sub.df$sd.capc.endo,sub.df$sd.pchic.islet,0,0),
+  "Experiment"=c("NG-CapC: endoC","PC-HiC: islet",
+                 "HiC: endoC","HiC; islet"))
+  plot.df1 <- rbind(plot.df1,build.df)
+}
+plot.df1$Experiment <- factor(plot.df1$Experiment,
+  levels=c("HiC: endoC","HiC; islet",
+           "PC-HiC: islet","NG-CapC: endoC"))
+plot.df1$Count <- plot.df1$Count/1000
+plot.df1$sd <- plot.df1$sd/1000
+```
+
+Create ligation junction barplot, with comparison across captures 
+```{r}
+plt1 <- ggplot(data=plot.df1,
+  aes_string(x="Gene.Locus",y="Count",fill="Experiment")) + 
+  geom_hline(yintercept = c(10,20,30),color="gray50",linetype=2) + 
+  geom_bar(stat="identity",position=position_dodge(),
+           color="black",size=0.5) +
+  ##geom_errorbar(aes(x=Gene.Locus,ymin=Count-sd,ymax=Count+sd,color=Experiment),
+  ##              stat="identity",position=position_dodge(),
+  ##         size=0.5) + # color="black",
+  scale_fill_manual(values=viridis(10)[c(2,4,6,9)]) +
+  ###scale_color_manual(values=viridis(10)[c(2,4,6,9)]) + 
+  scale_y_continuous(breaks=seq(0,42,2)) + 
+  theme(axis.text.x=element_text(angle=45,vjust=0.6),
+        panel.border = element_blank(),
+        panel.grid.major.y = element_blank(),#line(color="gray90"),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black",size = rel(1)),
+        legend.key = element_blank(),
+        panel.background = element_rect(fill="white",color="white"),
+        strip.background = element_rect(fill = "white", colour = "black", 
+                size = rel(2)), complete = TRUE) + 
+  ylab("Number of ligation junctions (thousands)") + 
+  xlab("Captured Gene") + 
+  ggtitle("Mapped ligation junctions across experiments") + 
+  #theme_classic() + 
+  coord_cartesian(expand = FALSE)
+```
+
+```{r}
+ggsave(plot=plt1,filename=figure.dir%&%"junctions-captures.svg",
+       width=14,height=4)
+ggsave(plot=plt1,filename=figure.dir%&%"junctions-captures.png",
+       width=14,height=4)
+```
+
+Compare the average counts across experiments 
+```{r}
+junction.mean.df <- data.frame("Experiment"=c("NG-CapC: endoC","PC-HiC: islet",
+                 "HiC: endoC","HiC; islet"),
+                 "mean.counts"=c(mean(junction.df$counts.capc.endo),
+                                 mean(junction.df$counts.pchic.islet),
+                                 mean(junction.df$counts.hic.endo),
+                                 mean(junction.df$counts.hic.islet)),
+                 "sd.counts"=c(mean(junction.df$sd.capc.endo),
+                                 mean(junction.df$sd.pchic.islet),
+                                 0,0))
+junction.mean.df$Experiment <- factor(junction.mean.df$Experiment,
+  levels=c("HiC: endoC","HiC; islet",
+           "PC-HiC: islet","NG-CapC: endoC"))
+
+```
+
+Create ligation junction barplot, with mean values
+```{r}
+plt2 <- ggplot(data=junction.mean.df,
+  aes_string(x="Experiment",y="mean.counts")) + 
+  geom_errorbar(aes(ymin=(mean.counts-sd.counts),ymax=mean.counts+sd.counts),
+                size=0.5,width=0.1) +
+  geom_point(shape=21,fill=viridis(10)[4],color="black",size=2) + 
+  #scale_fill_manual(values=viridis(10)[c(2,4,6,9)]) + 
+  scale_y_continuous(breaks=c(1000,seq(0,30000,5000))) + 
+  theme(axis.text.x=element_text(angle=45,vjust=0.9,hjust=1),
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black",size = rel(1)),
+        legend.key = element_blank(),
+        panel.background = element_rect(fill="white",color="white"),
+        strip.background = element_rect(fill = "white", colour = "black", 
+                size = rel(2)), complete = TRUE) + 
+  ylab("Mean number of ligation junctions") + 
+  xlab("Experiment") + 
+  ggtitle("Mapped ligation junctions across experiments") + 
+  #theme_classic() + 
+  coord_cartesian(expand = FALSE)
+```
+
+```{r}
+ggsave(plot=plt2,filename=figure.dir%&%"junctions-captures-mean-sd.pdf",
+       width=5,height=4)
+ggsave(plot=plt2,filename=figure.dir%&%"junctions-captures-mean-sd.png",
+       width=5,height=4)
+```
+
+```{r}
+plot.df1$Count <- plot.df1$Count * 1000
+```
+
+Quantify differences in mean counts of ligation junctions across experiments
+```{r}
+hic.islet <- junction.mean.df$mean.counts[4]
+hic.endo <- junction.mean.df$mean.counts[3]
+pchic.islet <- junction.mean.df$mean.counts[2]
+capc.islet <- junction.mean.df$mean.counts[1]
+
+ratio1 <- hic.endo/hic.islet # 1.9x more hiC reads in endos vs islets 
+ratio2a <- pchic.islet/hic.endo # 2.5x more reads in pcHiC islets vs hiC endos 
+ratio2b <- pchic.islet/hic.islet # 4.8x more reads in pcHiC islets vs hiC islets 
+ratio3a <- capc.islet/hic.endo # 38.3x more reads in NG-CapC endos vs hiC endos
+ratio3b <- capc.islet/hic.islet # 73.3x more reads in NG-CapC endos vs hiC islets
+ratio4 <- capc.islet/pchic.islet # 15.3 more reads in NG-CapC endos vs pcHiC islets
+```
+
+## Assess restriction fragment count distribution 
+
+```{r}
+frag.count.df <- cbind(tab.df[,1],
+  tab.df[,grepl("Number of restriction fragments",x=names(tab.df))])
+frag.count.plot.df <- c()
+for (i in 1:dim(frag.count.df)[1]){
+  sub.df <- frag.count.df[i,]
+  build.df <- data.frame("Gene"=sub.df$`tab.df[, 1]`,
+  "Count"=c(sub.df$`Number of restriction fragments (DpnII)`,
+            sub.df$`Number of restriction fragments (HindIII)`),
+  "RE"=c("DpnII","HindIII"))
+  frag.count.plot.df <- rbind(frag.count.plot.df,build.df)
+}
+```
+
+```{r}
+plt3 <- ggplot(data=frag.count.plot.df,aes(x=Count,fill=RE)) + 
+  geom_histogram(color="black",binwidth=100) + 
+  scale_fill_manual(values=viridis(10)[c(3,6)]) + 
+  scale_x_continuous(breaks=seq(0,7000,500)) + 
+  scale_y_continuous(breaks=seq(0,8,1)) + 
+  ylab("Count") + xlab("Number of restriction fragments") + 
+  theme_classic()
+```
+
+```{r}
+ggsave(plot=plt3,filename=figure.dir%&%
+         "number-fragments-hist.pdf",
+       width=6,height=3)
+ggsave(plot=plt3,filename=figure.dir%&%
+         "number-fragments-hist.png",
+       width=6,height=3)
+```
+
+```{r}
+mean.dpnII<-frag.count.df$`Number of restriction fragments (DpnII)` %>% 
+  mean(.) # 5248.111
+mean.hindIII<-frag.count.df$`Number of restriction fragments (HindIII)` %>% 
+  mean(.) # 514.1481
+ratio.frag <- mean.dpnII/mean.hindIII # 10.21x more fragments
+```
+
+Lookup mean of mean fragment lenghts (DpnII vs HindIII)
+```{r}
+mean.frag.len.df <- cbind(tab.df[,1],
+  tab.df[,grepl("Mean fragment length",x=names(tab.df))])[,1:3]
+names(mean.frag.len.df) <- c("Gene","mean.frag.len.dpnII",
+                             "mean.frag.len.hindIII")
+mean.frag.len.df$mean.frag.len.hindIII <- purrr::map(mean.frag.len.df$mean.frag.len.hindIII,
+  function(s){gsub(x=s,"+-","±",fixed = TRUE)
+}) %>% as.character(.)
+mean.frag.len.df$mean.dpnII <- purrr::map(mean.frag.len.df$mean.frag.len.dpnII,function(s){
+  strsplit(s,split="±")[[1]][1]
+}) %>% as.integer(.)
+mean.frag.len.df$sd.dpnII <- purrr::map(mean.frag.len.df$mean.frag.len.dpnII,function(s){
+  strsplit(s,split="±")[[1]][2]
+}) %>% as.integer(.)
+mean.frag.len.df$mean.hindIII <- purrr::map(mean.frag.len.df$mean.frag.len.hindIII,function(s){
+  strsplit(s,split="±")[[1]][1]
+}) %>% as.integer(.)
+mean.frag.len.df$sd.hindIII <- purrr::map(mean.frag.len.df$mean.frag.len.hindIII,function(s){
+  strsplit(s,split="±")[[1]][2]
+}) %>% as.integer(.)
+```
+
+```{r}
+mean(mean.frag.len.df$mean.dpnII) # Mean fragment length: DpnII - 385.44
+mean(mean.frag.len.df$mean.hindIII) # Mean fragment length: hindIII- 4107.30
+
+```
+
+
+
+
+### Mapped reads per restriction fragment 
+
+```{r}
+junct.per.frag.df <- cbind(tab.df[,1],
+  tab.df[,grepl("Mapped reads per restriction fragment",
+                x=names(tab.df))])
+names(junct.per.frag.df) <- c("V1","V2","V3","V4","V5")
+junct.per.frag.df$V3 <- purrr::map(junct.per.frag.df$V3,function(s){
+  gsub(x=s,"+-","±",fixed = TRUE)
+}) %>% as.character(.)
+junct.per.frag.df$V4 <- purrr::map(junct.per.frag.df$V4,function(s){
+  gsub(x=s,"+-","±",fixed = TRUE)
+}) %>% as.character(.)
+junct.per.frag.df$V5 <- purrr::map(junct.per.frag.df$V5,function(s){
+  gsub(x=s,"+-","±",fixed = TRUE)
+}) %>% as.character(.)
+
+junct.per.frag.df$counts.capc.endo <- purrr::map(junct.per.frag.df$V2,function(s){
+  strsplit(s,split="±")[[1]][1]
+}) %>% as.numeric(.)
+junct.per.frag.df$sd.capc.endo <- purrr::map(junct.per.frag.df$V2,function(s){
+  strsplit(s,split="±")[[1]][2]
+}) %>% as.numeric(.)
+
+junct.per.frag.df$counts.pchic.islet <- purrr::map(junct.per.frag.df$V3,function(s){
+  strsplit(s,split="±")[[1]][1]
+}) %>% as.numeric(.)
+junct.per.frag.df$sd.pchic.islet <- purrr::map(junct.per.frag.df$V3,function(s){
+  strsplit(s,split="±")[[1]][2]
+}) %>% as.numeric(.)
+
+junct.per.frag.df$counts.hic.endo <- purrr::map(junct.per.frag.df$V4,function(s){
+  strsplit(s,split="±")[[1]][1]
+}) %>% as.numeric(.)
+junct.per.frag.df$sd.hic.endo <- purrr::map(junct.per.frag.df$V4,function(s){
+  strsplit(s,split="±")[[1]][2]
+}) %>% as.numeric(.)
+
+junct.per.frag.df$counts.hic.islet <- purrr::map(junct.per.frag.df$V5,function(s){
+  strsplit(s,split="±")[[1]][1]
+}) %>% as.numeric(.)
+junct.per.frag.df$sd.hic.islet <- purrr::map(junct.per.frag.df$V5,function(s){
+  strsplit(s,split="±")[[1]][2]
+}) %>% as.numeric(.)
+```
+
+Reformat ligation junctions per fragment dataframe for barplot 
+```{r}
+plot.df2 <- c()
+for (i in 1:dim(junct.per.frag.df)[1]){
+  sub.df <- junct.per.frag.df[i,]
+  build.df <- data.frame("Gene.Locus"=sub.df$V1,
+  "Count"=c(sub.df$counts.capc.endo,sub.df$counts.pchic.islet,
+            sub.df$counts.hic.endo,sub.df$counts.hic.islet),
+  "sd"=c(sub.df$sd.capc.endo,sub.df$sd.pchic.islet,0,0),
+  "Experiment"=c("NG-CapC: endoC","PC-HiC: islet",
+                 "HiC: endoC","HiC; islet"))
+  plot.df2 <- rbind(plot.df2,build.df)
+}
+plot.df2$Experiment <- factor(plot.df2$Experiment,
+  levels=c("HiC: endoC","HiC; islet",
+           "PC-HiC: islet","NG-CapC: endoC"))
+```
+
+Create ligation junction barplot, with comparison across captures 
+```{r}
+plt4 <- ggplot(data=plot.df2,
+  aes_string(x="Gene.Locus",y="Count",fill="Experiment")) + 
+  geom_bar(stat="identity",position=position_dodge(),
+           color="black",size=0.5) +
+  scale_fill_manual(values=viridis(10)[c(2,4,6,9)]) + 
+  #scale_y_continuous(breaks=seq(0,42,2)) + 
+  theme(axis.text.x=element_text(angle=45,vjust=0.6),
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black",size = rel(1)),
+        legend.key = element_blank(),
+        panel.background = element_rect(fill="white",color="white"),
+        strip.background = element_rect(fill = "white", colour = "black", 
+                size = rel(2)), complete = TRUE) + 
+  ylab("Mean ligation junctions per fragment") + 
+  xlab("Captured Gene") + 
+  ggtitle("Ligation junctions per fragment across experiments") + 
+  #theme_classic() + 
+  coord_cartesian(expand = FALSE)
+```
+
+```{r}
+ggsave(plot=plt4,filename=figure.dir%&%"junctions-per-frag.svg",
+       width=6,height=5)
+ggsave(plot=plt4,filename=figure.dir%&%"junctions-per-frag.png",
+       width=6,height=5)
+```
+
+
+Compare the average counts across experiments 
+```{r}
+jpf.mean.df <- data.frame("Experiment"=c("NG-CapC: endoC","PC-HiC: islet",
+                 "HiC: endoC","HiC; islet"),
+                 "mean.counts"=c(mean(junct.per.frag.df$counts.capc.endo),
+                                 mean(junct.per.frag.df$counts.pchic.islet),
+                                 mean(junct.per.frag.df$counts.hic.endo),
+                                 mean(junct.per.frag.df$counts.hic.islet)),
+                 "sd.counts"=c(mean(junct.per.frag.df$sd.capc.endo),
+                                 mean(junct.per.frag.df$sd.pchic.islet),
+                                 0,0))
+jpf.mean.df$Experiment <- factor(jpf.mean.df$Experiment,
+  levels=c("HiC: endoC","HiC; islet",
+           "PC-HiC: islet","NG-CapC: endoC"))
+
+```
+
+Create ligation junction barplot, with mean values
+```{r}
+plt5 <- ggplot(data=jpf.mean.df,
+  aes_string(x="Experiment",y="mean.counts")) + 
+  geom_errorbar(aes(ymin=(mean.counts-sd.counts),ymax=mean.counts+sd.counts),
+                size=0.5,width=0.1) +
+  geom_point(shape=21,fill=viridis(10)[4],color="black",size=2) + 
+  #scale_fill_manual(values=viridis(10)[c(2,4,6,9)]) + 
+  #scale_y_continuous(breaks=c(1000,seq(0,30000,5000))) + 
+  theme(axis.text.x=element_text(angle=45,vjust=0.9,hjust=1),
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black",size = rel(1)),
+        legend.key = element_blank(),
+        panel.background = element_rect(fill="white",color="white"),
+        strip.background = element_rect(fill = "white", colour = "black", 
+                size = rel(2)), complete = TRUE) + 
+  ylab("Mean number of ligation junctions per fragment") + 
+  xlab("Experiment") + 
+  ggtitle("Junctions per fragment across experiments") + 
+  #theme_classic() + 
+  coord_cartesian(expand = FALSE)
+```
+
+```{r}
+ggsave(plot=plt5,filename=figure.dir%&%"junctions-per-frag-mean-sd.svg",
+       width=5,height=4)
+ggsave(plot=plt5,filename=figure.dir%&%"junctions-per-frag-mean-sd.png",
+       width=5,height=4)
+```
+
