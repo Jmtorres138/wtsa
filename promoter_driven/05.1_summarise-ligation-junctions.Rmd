@@ -190,6 +190,7 @@ append_frag_info <- function(genreg.df){
   pb <- txtProgressBar(min=0,max=dim(genreg.df)[1],style=3)
   num.dpnII.frags <- c()
   mean.frag.length <- c()
+  cell.list <- list()
   for (i in 1:dim(genreg.df)[1]){
     setTxtProgressBar(pb,i)
     row.df <- genreg.df[i,]
@@ -199,6 +200,7 @@ append_frag_info <- function(genreg.df){
       as.data.frame()
     num.frags <- dim(overlap.df)[1] 
     mean.value <- mean(overlap.df$width) %>% round(.,0)
+    cell.list[[i]] <- overlap.df$width 
     sd.value <- sd(overlap.df$width) %>% round(.,0)
     mean.sd <- mean.value %&% "±" %&% sd.value
     num.dpnII.frags <- append(num.dpnII.frags,num.frags)
@@ -207,12 +209,19 @@ append_frag_info <- function(genreg.df){
   out.df <- genreg.df
   out.df$num.dpnII.frags <- num.dpnII.frags
   out.df$mean.frag.length <- mean.frag.length
+  cell.count.vec <- unlist(cell.list)
+  print("The mean fragment length across reps and loci is " %&% 
+          mean(cell.count.vec))
+  print("The median fragment length across reps and loci is " %&% 
+        median(cell.count.vec))
+  print("The standard deviation of fragment length across reps and loci is " %&% 
+        sd(cell.count.vec))
   return(out.df)
 }
+grfrag.df <- append_frag_info(genreg.df) 
 ```
 
 ```{r}
-grfrag.df <- append_frag_info(genreg.df) 
 write.table(x=grfrag.df,file=out.dir%&%"genomic-regions_frag-info.txt",sep="\t",
             quote=F,row.names=F,col.names=T)
 ```
@@ -241,13 +250,14 @@ lookup_mapped_read_info <- function(capture,grfrag.df){
   mean.value2 <- mean(counts.per.frag) %>% round(.,3)
   sd.value2 <- sd(counts.per.frag) %>% round(.,3)
   mean.sd2 <- mean.value2 %&% "±" %&% sd.value2
-  return(list(mean.sd,mean.sd2,cell.counts))
+  return(list(mean.sd,mean.sd2,cell.counts,counts.per.frag))
 }
 
 append_mapped_read_info <- function(grfrag.df){
   junction.vec1 <- c()
   junction.vec2 <- c()
   cell.list <- list()
+  cell.list2 <- list()
   pb <- txtProgressBar(min=0,max=dim(grfrag.df)[1],style=3)
   for (i in 1:dim(grfrag.df)[1]){
     setTxtProgressBar(pb,i)
@@ -256,6 +266,8 @@ append_mapped_read_info <- function(grfrag.df){
     junction.vec1 <- append(junction.vec1,junct.list[[1]])
     junction.vec2 <- append(junction.vec2,junct.list[[2]])    
     cell.list[[i]] <- junct.list[[3]]
+    cell.list2[[i]] <- junct.list[[4]]
+
   }
   out.df <- grfrag.df
   out.df$num.mapped.reads <- junction.vec1
@@ -265,15 +277,27 @@ append_mapped_read_info <- function(grfrag.df){
           mean(cell.count.vec))
   print("The median number of read counts across reps and loci is " %&% 
         median(cell.count.vec))
+  print("The standard deviation of read counts across reps and loci is " %&% 
+        sd(cell.count.vec))
+  cell.count.vec2 <- unlist(cell.list2)
+  print("The mean number of read counts per fragment across reps and loci is " %&% 
+          mean(cell.count.vec2))
+  print("The median number of read counts per fragment across reps and loci is " %&% 
+        median(cell.count.vec2))
+  print("The standard deviation of read counts per fragment across reps and loci is " %&% 
+        sd(cell.count.vec2))
   return(out.df)
 }
 
 ```
 
-
 ```{r}
 grjunct.df <- append_mapped_read_info(grfrag.df) 
 grjunct.df <- arrange(grjunct.df,gene)
+```
+
+
+```{r}
 write.table(x=grjunct.df,file=out.dir%&%
   "genomic-regions_ligation-junctions.txt",sep="\t",quote=F,
   row.names=F,col.names=T)
@@ -283,3 +307,7 @@ write.table(x=grjunct.df,file=out.dir%&%
 NOTES: 
 The mean number of read counts across reps and loci is 20343.8395061728
 The median number of read counts across reps and loci is 17553
+The standard deviation of read counts across reps and loci is 12289.4004964205
+The mean number of read counts per fragment across reps and loci is 3.90304203393944
+The median number of read counts per fragment across reps and loci is 3.43372483221477
+The standard deviation of read counts per fragment across reps and loci is 2.38600250462686
