@@ -129,6 +129,7 @@ all((rescount.df$prox.count + rescount.df$dist.count) == rescount.df$tot.count)
 
 ```{r}
 get_strech_df <- function(cap,sig.df){
+  peak.width.all.vec <- c()
   sub.df <- filter(sig.df,capture==cap)
   sub.gr <- GRanges(seqnames=sub.df$seqnames,
                     IRanges(start=sub.df$start,end=sub.df$end))
@@ -142,6 +143,7 @@ get_strech_df <- function(cap,sig.df){
                     start>=row.df$start,end<=row.df$end)
     max(pk.df$rjmcmc_pos)
   }) %>% as.numeric(.)
+  peak.width.all.vec <- append(peak.width.all.vec,reduce.df$peak.width)
   med.value <- median(reduce.df$peak.width) %>% round(.,0)
   sd.value <- sd(reduce.df$peak.width) %>% round(.,0)
   med.sd <- med.value %&% "±" %&% sd.value
@@ -151,17 +153,22 @@ get_strech_df <- function(cap,sig.df){
   out.df <- data.frame("capture"=cap,"num.peaks"=num.peaks,
                        "median.width"=med.sd,"median.max.mppc"=med.sd2)
   out.df2 <- reduce.df
-  return(list(out.df,out.df2))
+  return(list(out.df,out.df2,peak.width.all.vec))
 }
 
 build_strech_df <- function(rescount.df,sig.df){
   out.df <- c()
   out.df2 <- c()
+  peak.width.all.vec <- c() 
   for (cap in rescount.df$capture){
     build.list <- get_strech_df(cap,sig.df)
     out.df <- rbind(out.df,build.list[[1]])
     out.df2 <- rbind(out.df2,build.list[[2]])
+    peak.width.all.vec <- append(peak.width.all.vec,build.list[[3]]) 
   }
+  print("Mean peak width across all captures: " %&% mean(peak.width.all.vec))
+  print("Median peak width across all captures: " %&% median(peak.width.all.vec))
+  print("SD peak width across all captures: " %&% sd(peak.width.all.vec))
   return(list(out.df,out.df2))
 }
 ```
@@ -176,5 +183,12 @@ write.table(x=resstrecth.df,file=out.dir %&% "peaky-interaction-summary.txt",
             sep="\t",quote=F,row.names=F,col.names=T)
 write.table(x=peaks.df,file=out.dir %&% "peaky-interaction-peaks.txt",
             sep="\t",quote=F,row.names=F,col.names=T)
+```
+
+
+Note: Here are peak length numbers provided by Han Sun for pcHiC experiment 
+```{r}
+pcvec <- c(10130,17590,17590,12408,6157,8999,8644,22495,14757,9290,
+           10573,5075,12456,39049,14117,35350,2669,8305,13838,13168)
 ```
 
