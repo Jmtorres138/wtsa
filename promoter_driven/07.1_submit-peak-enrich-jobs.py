@@ -16,8 +16,9 @@ log_dir=work_dir+"logs/enrichment_tests/"
 data_dir="/well/mccarthy/users/jason/datasets/"
 miguel_dir=data_dir+"miguel-escalada_processed_data/grch38/"
 reg_dir=miguel_dir+"split_regulome/"
-acc_chrom_dir=data_dir+"amp_cmdga_atlas/accessible_chromatin"
+acc_chrom_dir=data_dir+"amp_cmdga_atlas/accessible_chromatin/"
 scell_dir=data_dir+"amp_cmdga_atlas/single_cell/snATAC-seq/accessible_chromatin/"
+scell_spec_dir=scell_dir+"cell_specific_peaks/"
 
 bed_file_list=[miguel_dir+"atac_consistent_peaks.sorted.bed",\
 miguel_dir+"ctcf_consistent_peaks_q001.sorted.bed",\
@@ -41,6 +42,20 @@ feature_list=["islet-atac-peaks-miguel","ctcf-peaks-miguel","h3k27ac-peaks-migue
 "Active_promoters","Inactive_enhancers","Inactive_open_chromatin_regions",\
 "Strong_CTCF","islet-atac-peaks-n38","acinar","stellate","ductal","gamma",\
 "GCGhigh_alpha","GCGlow_alpha","INShigh_beta","INSlow_beta","SSThigh_delta","SSTlow_delta"]
+
+bed_file_list=[scell_spec_dir+"intersection.bed",scell_spec_dir+"delta-specific.bed",
+               scell_spec_dir+"beta-specific.bed",scell_spec_dir+"alpha-specific.bed",
+               scell_spec_dir+"SSTlow_delta-specific.bed",scell_spec_dir+"SSThigh_delta-specific.bed",
+               scell_spec_dir+"INSlow_beta-specific.bed",scell_spec_dir+"INShigh_beta-specific.bed",
+               scell_spec_dir+"GCGlow_alpha-specific.bed",scell_spec_dir+"GCGhigh_alpha-specific.bed",
+               scell_spec_dir+"gamma-specific.bed",scell_spec_dir+"ductal-specific.bed",
+               scell_spec_dir+"stellate-specific.bed",scell_spec_dir+"acinar-specific.bed"]
+feature_list=["intersection","delta-specific","beta-specific","alpha-specific",
+    "SSTlow_delta-specific","SSThigh_delta-specific","INSlow_beta-specific","INShigh_beta-specific",
+    "GCGlow_alpha-specific","GCGhigh_alpha-specific","gamma-specific",
+    "ductal-specific","stellate-specific","acinar-specific"]
+
+
 
 def submit_job(bed_file,feature_name):
     script = '''#!/bin/bash
