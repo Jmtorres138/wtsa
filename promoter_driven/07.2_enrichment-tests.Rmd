@@ -1,0 +1,183 @@
+---
+title: "07.2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script implements Fisher exact tests for per locus  enrichment of genomic features within capture peaks
+
+## Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table");library("tidyverse");library("viridis")
+library("GenomicRanges")
+serv.dir <- "/Users/jasont/science/servers/FUSE5/"
+work.dir <- serv.dir %&% "projects/wtsa/promoter_driven/"
+out.dir <- work.dir%&%"output_files/enrichment_tests/"
+```
+
+```{r}
+file.vec <- list.files(out.dir)
+file.vec <- file.vec[purrr::map(file.vec,function(s){
+  grepl("RDS",s)})%>%as.logical(.)]
+annot.vec <-purrr::map(file.vec,function(s){
+  (strsplit(x=s,split="contingency-table_pcHiC_")[[1]][2] %>%
+     strsplit(.,split=".RDS"))[[1]]
+}) %>% as.character(.) %>% na.omit(.) %>% unique(.)
+```
+
+Build Fisher's Exact Test for Count data 
+```{r}
+fet.df <- c()
+for (annot in annot.vec){
+  print(annot)
+  m1 <- readRDS(out.dir%&%"contingency-table_capC_"%&%annot%&%".RDS")
+  m2 <- readRDS(out.dir%&%"contingency-table_pcHiC_"%&%annot%&%".RDS")
+  t1 <- fisher.test(m1); t2 <- fisher.test(m2)
+  or.1 <- t1$estimate %>% as.numeric(.)
+  cil.1 <- (t1$conf.int %>% as.numeric(.))[1]
+  ciu.1 <- (t1$conf.int %>% as.numeric(.))[2]
+  p1 <- t1$p.value%>%as.numeric(.)
+  or.2 <- t2$estimate %>% as.numeric(.)
+  cil.2 <- (t2$conf.int %>% as.numeric(.))[1]
+  ciu.2 <- (t2$conf.int %>% as.numeric(.))[2]
+  p2 <- t2$p.value%>%as.numeric(.)
+  build.df<-data.frame("annotation"=annot,"experiment"=c("capC","pcHiC"),
+  "OR"=c(or.1,or.2),"CI95L"=c(cil.1,cil.2),"CI95U"=c(ciu.1,ciu.2),
+  "pval"=c(p1,p2),stringsAsFactors = F)
+  fet.df <- rbind(fet.df,build.df)
+}
+names(fet.df) <- c("Annotation","Experiment","Odds Ratio",
+                   "CI95L","CI95U","p-value")
+#fisher.test(full.mat)
+#chisq.test(full.mat)
+```
+
+```{r}
+rotatedAxisElementText = function(angle,position='x'){
+  angle     = angle[1]; 
+  position  = position[1]
+  positions = list(x=0,y=90,top=180,right=270)
+  if(!position %in% names(positions))
+    stop(sprintf("'position' must be one of [%s]",paste(names(positions),collapse=", ")),call.=FALSE)
+  if(!is.numeric(angle))
+    stop("'angle' must be numeric",call.=FALSE)
+  rads  = (angle - positions[[ position ]])*pi/180
+  hjust = 0.5*(1 - sin(rads))
+  vjust = 0.5*(1 + cos(rads))
+  element_text(angle=angle,vjust=vjust,hjust=hjust)
+}
+```
+
+
+```{r}
+library(viridis)
+col.vec <- viridis(10)[c(7,3)]
+or_plot <- function(plot.df){
+  plt<-ggplot(data=plot.df,aes(x=Annotation,y=`Odds Ratio`,
+                            group=Experiment))+
+  geom_hline(yintercept=1,linetype=2)+
+  geom_errorbar(aes(ymin=CI95L,ymax=CI95U),
+    position=position_dodge(width=1))+
+  geom_point(aes(fill=Experiment),shape=21,
+    color="black",position=position_dodge(width=1))+
+  scale_fill_manual(values=c(col.vec[1],col.vec[2]))+
+  #scale_x_discrete(guide = guide_axis(n.dodge = 2))+
+  theme(axis.text.x=element_text(angle=30,
+        hjust=0.95,vjust=1),
+        panel.background = element_rect(color="black",fill="white"))
+  return(plt)
+}
+```
+
+## Miguel-Escalada et al 2019 annotation 
+
+```{r}
+annot.vec1<-c("Active_enhancers_I","Active_enhancers_II",
+              "Active_enhancers_III","Active_promoters",
+              "ctcf-peaks-miguel",
+              "h3k27ac-peaks-miguel","h3k4me3-peaks-miguel",
+              "Inactive_enhancers","Inactive_open_chromatin_regions",
+              "islet-atac-peaks-miguel","med1-peaks-miguel",
+              "smca1-peaks-miguel","Strong_CTCF")
+plot.df1 <- filter(fet.df,Annotation%in%annot.vec1)
+# Peaks
+plot.df1$Annotation<-purrr::map(plot.df1$Annotation,function(s){
+  gsub("islet-atac-peaks-miguel","ATAC-seq peaks",s)
+}) %>% as.character(.)
+plot.df1$Annotation<-purrr::map(plot.df1$Annotation,function(s){
+  gsub("h3k27ac-peaks-miguel","H3K27ac ChIP-seq peaks",s)
+}) %>% as.character(.)
+plot.df1$Annotation<-purrr::map(plot.df1$Annotation,function(s){
+  gsub("h3k4me3-peaks-miguel","H3K4me3 ChIP-seq peaks",s)
+}) %>% as.character(.)
+plot.df1$Annotation<-purrr::map(plot.df1$Annotation,function(s){
+  gsub("ctcf-peaks-miguel","CTCF ChIP-seq peaks",s)
+}) %>% as.character(.)
+plot.df1$Annotation<-purrr::map(plot.df1$Annotation,function(s){
+  gsub("med1-peaks-miguel","MED1 ChIP-seq peaks",s)
+}) %>% as.character(.)
+plot.df1$Annotation<-purrr::map(plot.df1$Annotation,function(s){
+  gsub("smca1-peaks-miguel","SMCA1 ChIP-seq peaks",s)
+}) %>% as.character(.)
+# Regulome 
+plot.df1$Annotation<-purrr::map(plot.df1$Annotation,function(s){
+  gsub("_"," ",s)
+}) %>% as.character(.)
+lev.vec <- c("ATAC-seq peaks","H3K27ac ChIP-seq peaks",
+  "H3K4me3 ChIP-seq peaks","CTCF ChIP-seq peaks","MED1 ChIP-seq peaks",
+  "SMCA1 ChIP-seq peaks","Active promoters","Active enhancers I",
+  "Active enhancers II","Active enhancers III",
+  "Inactive enhancers","Inactive open chromatin regions","Strong CTCF")
+plot.df1$Annotation <- factor(plot.df1$Annotation,levels=lev.vec)
+plt1 <- or_plot(plot.df1)
+plt1 <- plt1 + ggtitle("Feature enrichment for bulk islet annotations")
+```
+
+
+```{r}
+annot.vec2<-c("acinar","ductal","gamma","GCGhigh_alpha",
+              "GCGlow_alpha","INShigh_beta","INSlow_beta",
+              "SSThigh_delta","SSTlow_delta","stellate")
+plot.df2 <- filter(fet.df,Annotation%in%annot.vec2)
+plt2 <- or_plot(plot.df2)
+plt2<-plt2 + ggtitle("Feature enrichment for islet snATAC-seq peaks")
+```
+
+
+```{r}
+annot.vec3<-c("acinar-specific","ductal-specific",
+              "gamma-specific",
+              "alpha-specific",
+              "GCGhigh_alpha-specific",
+              "GCGlow_alpha-specific",
+              "beta-specific",
+              "INShigh_beta-specific",
+              "INSlow_beta-specific",
+              "delta-specific",
+              "SSThigh_delta-specific",
+              "SSTlow_delta-specific",
+              "stellate-specific","intersection")
+plot.df3 <- filter(fet.df,Annotation%in%annot.vec3)
+plot.df3$Annotation <- factor(plot.df3$Annotation,levels=annot.vec3)
+plt3 <- or_plot(plot.df3)
+plt3 <- plt3+ ggtitle("Feature enrichment for islet snATAC-seq peaks")
+```
+
+
+```{r}
+library(cowplot)
+ggsave(plot=plt1,filename=out.dir%&%
+         "islet-features-fet.png",
+       height=3.5,width=7.2)
+grp.plt <- plot_grid(plt1,plt2,plt3,
+              nrow=3,ncol=1)
+ggsave(plot=grp.plt,filename=out.dir%&%
+         "islet-and-snATAC-features-fet.png",
+       height=10,width=7.2)
+```
+
