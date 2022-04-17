@@ -1,0 +1,87 @@
+---
+title: "06.3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup 
+
+```{r}
+"%&%" <- function(a,b) paste0(a,b)
+library("data.table");library("tidyverse");library("viridis")
+serv.dir <- "/Users/jasont/science/servers/FUSE5/"
+work.dir <- serv.dir %&% "projects/wtsa/promoter_driven/"
+table.dir <-"/Users/jasont/science/projects/wtsa/"%&%
+  "promoter_driven/result_tables/"
+tab.df <- fread(table.dir%&%"copied_variant_columns.txt",
+                header=F,sep="\t") # From Table S4
+names(tab.df)<-c("locus","cap.gene","gwas.snp","gwas.snp.pos",
+                 "esnp","esnp.pos")
+```
+
+```{r}
+data.dir<-serv.dir%&%"datasets/"
+scell.dir<-data.dir%&%"amp_cmdga_atlas/single_cell/snATAC-seq/"%&%
+  "accessible_chromatin/"
+file.vec <- c(scell.dir%&%"DFF605PWL.grch38.sorted.bed",
+  scell.dir%&%"DFF048FES.grch38.sorted.bed",
+  scell.dir%&%"DFF440XUP.grch38.sorted.bed",
+  scell.dir%&%"DFF033YPK.grch38.sorted.bed",
+  scell.dir%&%"DFF841CJP.grch38.sorted.bed",
+  scell.dir%&%"DFF311FRL.grch38.sorted.bed",
+  scell.dir%&%"DFF759JDT.grch38.sorted.bed",
+  scell.dir%&%"DFF478BFI.grch38.sorted.bed",
+  scell.dir%&%"DFF871GXZ.grch38.sorted.bed",
+  scell.dir%&%"DFF933KSC.grch38.sorted.bed")
+name.vec <- c("acinar","stellate","ductal","gamma","GCGhigh_alpha",
+  "GCGlow_alpha","INShigh_beta","INSlow_beta","SSThigh_delta","SSTlow_delta")
+# Convert each bed file coordinates into GRanges object, store in list
+gr.list <- list()
+for (i in 1:length(file.vec)){
+  nme <- name.vec[i]
+  print(nme)
+  f <- file.vec[i]
+  df <- fread(f,header=F)
+  gr <- GRanges(seqnames=df$V1,IRanges(start=df$V2,end=df$V3))
+  gr.list[[i]]<-gr
+}
+```
+
+```{r}
+out.df <-c() 
+for (i in 1:nrow(tab.df)){
+  row.df <- tab.df[i,]
+  print(row.df)
+  snp.vec <- c(row.df$gwas.snp.pos,row.df$esnp.pos)%>%unique(.)
+  snp.gr <- c()
+  for (snp in snp.vec){
+    v <- strsplit(x=snp,split=":")[[1]]
+    build.gr <- GRanges(seqnames=v[1],
+      IRanges(start=as.integer(v[2]),end=as.integer(v[2])))
+    snp.gr <- append(snp.gr,build.gr)
+  }
+  newrow.df <- row.df
+  for (e in 1:length(name.vec)){
+    nme <- name.vec[e]
+    eval <- (snp.gr %over% gr.list[[e]]) %>% 
+      purrr::map(.,function(l){
+        ifelse(l==TRUE,"Yes","No")
+      }) %>% as.character(.)
+    eval <- paste0(eval,collapse="/")
+    b.df <- data.frame(eval,stringsAsFactors = F)
+    names(b.df)<-nme
+    newrow.df <- cbind(newrow.df,b.df)
+  }
+  out.df <- rbind(out.df,newrow.df)
+}
+```
+
+```{r}
+write.table(x=out.df,file=table.dir%&%"gwas-esnp-snATAC-overlap.csv",
+            sep=",",quote=F,row.names=F,col.names=T)
+```
+
+
