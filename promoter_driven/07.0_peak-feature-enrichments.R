@@ -8,8 +8,10 @@ args = commandArgs(trailingOnly=TRUE)
 feature.bed.file <- args[1]
 feature.name <- args[2]
 feature.df <- fread(feature.bed.file,header=F)
+exclude.genes.vec <- c("PAX5","TNFSF11","CR2")
 regions.df <- fread(work.dir%&%"output_files/genomic-regions.txt",
                     header=T)
+regions.df <- filter(regions.df,!(gene %in% exclude.genes.vec))
 ## EndoC-betaH1 NG Capture-C peaky interactions (merged)
 capc.pky.df <- fread(work.dir%&%"peaky_interactions/"%&%
   "promoter_endo_peaky-interactions.txt")
