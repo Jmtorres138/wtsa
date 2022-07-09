@@ -138,6 +138,13 @@ plt1 <- or_plot(plot.df1)
 plt1 <- plt1 + ggtitle("Feature enrichment for bulk islet annotations")
 ```
 
+Save output files 
+```{r}
+write.table(x=plot.df1,file=out.dir%&%"fet_table.txt",sep="\t",quote=F,
+            col.names=T,row.names=F)
+```
+
+
 
 ```{r}
 annot.vec2<-c("acinar","ductal","gamma","GCGhigh_alpha",
@@ -173,7 +180,7 @@ plt3 <- plt3+ ggtitle("Feature enrichment for islet snATAC-seq peaks")
 library(cowplot)
 ggsave(plot=plt1,filename=out.dir%&%
          "islet-features-fet.png",
-       height=3.5,width=7.2)
+       height=4.5,width=9)
 grp.plt <- plot_grid(plt1,plt2,plt3,
               nrow=3,ncol=1)
 ggsave(plot=grp.plt,filename=out.dir%&%
