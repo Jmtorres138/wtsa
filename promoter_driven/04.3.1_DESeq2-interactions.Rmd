@@ -126,7 +126,8 @@ build_interaction_dfs <- function(experiment.name,experiment.dir,capture,
     }) %>% as.integer(.)
     res.df$end <- purrr::map(res.df$fragment,function(s){
       (strsplit(x=s,split=":")[[1]][2] %>% strsplit(.,split="-"))[[1]][2]
-    }) %>% as.integer(.)    
+    }) %>% as.integer(.)
+    res.df$capture<-capture
     peak.df <- filter(na.omit(res.df),padj<0.05) # FDR 5% 
     peak.df <- filter(peak.df,sign(stat)>0) # retain interactions that are higher in Endos 
     if (dim(peak.df)[1]>0){
@@ -211,8 +212,8 @@ prom.list <- build_experiment_interaction_dfs(experiment.name="promoter",
                                              celltype1="Endo",celltype2="LCL")
 prom.df <- prom.list[[2]] %>% get_dist_from_vp(.,experiment.file=prom.cc.file)
 prom.df$type <- ifelse(prom.df$dist.from.vp <= 2.5e+05,"proximal","distal")
-write.table(x=prom.df,file=output.dir%&%"promoter_endo_DESeq2-interactions.txt",
+write.table(x=prom.df,file=output.dir%&%"promoter_endo_DESeq2-interactions_rerun.txt",
             sep="\t",quote=F,row.names=F)
-write.table(x=prom.list[[1]],file=output.dir%&%"promoter_endo_DESeq2-output.txt",
+write.table(x=prom.list[[1]],file=output.dir%&%"promoter_endo_DESeq2-output_rerun.txt",
             sep="\t",quote=F,row.names=F)
 ```
